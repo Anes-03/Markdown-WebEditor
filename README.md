@@ -1,5 +1,7 @@
 # Markdown WebEditor
 
+[![Demo](https://img.shields.io/badge/demo-GitHub%20Pages-blue)](https://anes-03.github.io/Markdown-WebEditor/)
+
 Ein leichter, rein clientseitiger Markdown‑Editor mit:
 
 - Editor‑Ansicht, geteilte Ansicht und reine Reader‑Ansicht
@@ -26,6 +28,11 @@ Hinweis zu CORS: Wenn die Seite lokal läuft (file:// oder anderer Origin), muss
 - Öffne die Datei `index.html` direkt im Browser, oder
 - starte einen lokalen Server (empfohlen):
   - Python: `python3 -m http.server 8000` und dann `http://localhost:8000` öffnen
+
+## Live‑Demo (GitHub Pages)
+
+- Online: https://anes-03.github.io/Markdown-WebEditor/
+- Falls der Link noch nicht aktiv ist: In GitHub unter Repository → Settings → Pages → Build and deployment „Deploy from a branch“ wählen, Branch `main`, Ordner `/ (root)`, speichern. Optional `.nojekyll` liegt bei, um Jekyll‑Verarbeitung zu deaktivieren.
 
 ## Hinweise zu Datei‑Zugriff
 
