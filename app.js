@@ -21,13 +21,17 @@
   const saveAsBtn = document.getElementById('saveAsBtn');
   const exportHtmlBtn = document.getElementById('exportHtmlBtn');
   const exportPdfBtn = document.getElementById('exportPdfBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
 
   const editViewBtn = document.getElementById('editViewBtn');
   const splitViewBtn = document.getElementById('splitViewBtn');
   const readerViewBtn = document.getElementById('readerViewBtn');
   const workspace = document.getElementById('workspace');
 
-  const themeSelect = document.getElementById('themeSelect');
+  const themeSelect = null; // removed select dropdown
+  const themeCycleBtn = document.getElementById('themeCycleBtn');
+  const themeMenu = document.getElementById('themeMenu');
   // Inline AI elements
   const aiInline = document.getElementById('aiInline');
   const aiPromptInput = document.getElementById('aiPromptInput');
@@ -46,6 +50,7 @@
   const chatOverlay = document.getElementById('chatOverlay');
   const chatPanel = document.getElementById('chatPanel');
   const chatCloseBtn = document.getElementById('chatCloseBtn');
+  const chatModelBadge = document.getElementById('chatModelBadge');
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
@@ -69,9 +74,15 @@
   const settingsOverlay = document.getElementById('settingsOverlay');
   const settingsCloseBtn = document.getElementById('settingsCloseBtn');
   const settingsSaveBtn = document.getElementById('settingsSaveBtn');
+  const settingsTabs = document.querySelector('.settings-nav');
+  const settingsTabButtons = () => Array.from(document.querySelectorAll('.settings-nav .nav-item'));
+  const settingsTabPanels = () => Array.from(document.querySelectorAll('.settings-tab'));
+  const infoAvatar = document.getElementById('infoAvatar');
+  const infoName = document.getElementById('infoName');
   const prefReaderInput = document.getElementById('prefReaderInput');
   const prefStickyTools = document.getElementById('prefStickyTools');
   const prefAiInlineAutoOpen = document.getElementById('prefAiInlineAutoOpen');
+  const prefDefaultView = document.getElementById('prefDefaultView');
 
   const toolbar = document.querySelector('.toolbar');
 
@@ -211,7 +222,14 @@
     if (!editorContextBtn || !editorContextInfo) return;
     const { type, text, truncated } = getEditorContext();
     const len = text.length;
-    editorContextBtn.textContent = `Editor-Kontext: ${allowEditorContext ? 'EIN' : 'AUS'}`;
+    // Prefer updating label span to preserve icon
+    try {
+      const lbl = editorContextBtn.querySelector('.btn-label');
+      if (lbl) lbl.textContent = `Editor-Kontext: ${allowEditorContext ? 'EIN' : 'AUS'}`;
+      else editorContextBtn.textContent = `Editor-Kontext: ${allowEditorContext ? 'EIN' : 'AUS'}`;
+    } catch {
+      editorContextBtn.textContent = `Editor-Kontext: ${allowEditorContext ? 'EIN' : 'AUS'}`;
+    }
     const label = type === 'selection' ? 'Auswahl' : (type === 'full' ? 'Gesamter Text' : 'Kein Text');
     editorContextInfo.textContent = allowEditorContext ? `${label} (${len} Zeichen)${truncated ? ' – gekürzt' : ''}` : '';
   }
@@ -437,6 +455,8 @@
     if (!btn) return;
     const action = btn.dataset.action;
     switch (action) {
+      case 'undo': try { editor.focus(); document.execCommand('undo'); } catch {} break;
+      case 'redo': try { editor.focus(); document.execCommand('redo'); } catch {} break;
       case 'h1': heading(1); break;
       case 'h2': heading(2); break;
       case 'h3': heading(3); break;
@@ -500,10 +520,20 @@
   function applyThemeName(id) {
     const t = findTheme(id);
     document.body.dataset.theme = t.id;
-    if (themeSelect) {
-      themeSelect.value = t.id;
-      themeSelect.title = `Theme: ${t.label}`;
-    }
+    // Update theme menu selection state
+    try {
+      if (themeMenu) {
+        themeMenu.querySelectorAll('button[data-theme]')?.forEach(btn => {
+          btn.classList.toggle('current', btn.dataset.theme === t.id);
+        });
+      }
+    } catch {}
+    // Update theme cycle icon (sun for light-ish, moon for dark-ish)
+    try {
+      const icon = themeCycleBtn?.querySelector('iconify-icon');
+      if (icon) icon.setAttribute('icon', isDark(t.id) ? 'lucide:moon' : 'lucide:sun');
+      if (themeCycleBtn) themeCycleBtn.title = `Theme wechseln (aktuell: ${t.label})`;
+    } catch {}
     hljsThemeLink.href = isDark(t.id)
       ? 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github-dark.min.css'
       : 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github.min.css';
@@ -512,12 +542,50 @@
     preview.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
   }
 
-  // Populate theme dropdown
-  (function initThemeSelect() {
-    if (!themeSelect) return;
-    themeSelect.innerHTML = themes.map(t => `<option value="${t.id}">${t.icon} ${t.label}</option>`).join('');
-    themeSelect.addEventListener('change', () => applyThemeName(themeSelect.value));
-  })();
+  // Theme menu setup
+  function iconForTheme(id) {
+    switch (id) {
+      case 'light': return 'lucide:sun';
+      case 'dark': return 'lucide:moon';
+      case 'black': return 'mdi:brightness-2';
+      case 'sepia': return 'mdi:book-open-page-variant-outline';
+      case 'solarized-light': return 'mdi:white-balance-sunny';
+      case 'solarized-dark': return 'mdi:weather-night';
+      default: return 'lucide:palette';
+    }
+  }
+  function initThemeMenu() {
+    if (!themeMenu) return;
+    themeMenu.innerHTML = themes.map(t => `
+      <button type="button" class="theme-item has-icon" data-theme="${t.id}" role="menuitem">
+        <iconify-icon aria-hidden="true" icon="${iconForTheme(t.id)}"></iconify-icon>
+        <span class="btn-label">${t.label}</span>
+      </button>`).join('');
+    themeMenu.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-theme]');
+      if (!btn) return;
+      const id = btn.dataset.theme;
+      applyThemeName(id);
+      // close menu
+      themeMenu.classList.add('hidden');
+    });
+  }
+  initThemeMenu();
+
+  // Open/close the theme menu on button click
+  themeCycleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!themeMenu) return;
+    themeMenu.classList.toggle('hidden');
+    // ensure current item is marked
+    applyThemeName(document.body.dataset.theme || themes[0].id);
+  });
+  // Close theme menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!themeMenu || themeMenu.classList.contains('hidden')) return;
+    const within = themeMenu.contains(e.target) || themeCycleBtn?.contains(e.target);
+    if (!within) themeMenu.classList.add('hidden');
+  });
 
   // File actions
   async function doOpenFile() {
@@ -691,6 +759,8 @@ document.addEventListener('keydown', (e) => {
   saveAsBtn.addEventListener('click', doSaveFileAs);
   exportHtmlBtn.addEventListener('click', doExportHtml);
   if (exportPdfBtn) exportPdfBtn.addEventListener('click', doExportPdf);
+  undoBtn?.addEventListener('click', () => { try { editor.focus(); document.execCommand('undo'); } catch {} updatePreview(); updateCursorInfo(); updateWordCount(); markDirty(true); });
+  redoBtn?.addEventListener('click', () => { try { editor.focus(); document.execCommand('redo'); } catch {} updatePreview(); updateCursorInfo(); updateWordCount(); markDirty(true); });
   aiGenerateBtn?.addEventListener('click', () => {
     // If streaming, toggle abort
     if (window.__aiGenController) { try { window.__aiGenController.abort(); } catch {} return; }
@@ -704,10 +774,20 @@ document.addEventListener('keydown', (e) => {
         const hasSel = (editor.selectionEnd ?? 0) > (editor.selectionStart ?? 0);
         aiUseSelection.checked = !!hasSel;
       }
-      // model info
+      // model info (respect preset-specific model if set)
       if (aiGenInfo) {
         const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
-        const model = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+        const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+        let model = defaultModel;
+        try {
+          const presetSel = document.getElementById('aiPresetSelect');
+          if (presetSel && presetSel.value !== '') {
+            const idx = parseInt(presetSel.value, 10);
+            const list = JSON.parse(localStorage.getItem('ai-presets') || '[]');
+            const p = Array.isArray(list) ? list[idx] : null;
+            if (p && typeof p.model === 'string' && p.model.trim()) model = p.model.trim();
+          }
+        } catch {}
         aiGenInfo.textContent = `Modell: ${model} • URL: ${base}`;
       }
       // focus prompt
@@ -749,10 +829,11 @@ document.addEventListener('keydown', (e) => {
   }
 
   async function fetchOllamaModels(base) {
-    const res = await fetch(base.replace(/\/$/, '') + '/api/tags', { method: 'GET', mode: 'cors' });
+    const res = await fetch((base || 'http://localhost:11434').replace(/\/$/, '') + '/api/tags', { method: 'GET', mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    return (data?.models || []).map(m => m.name);
+    const arr = Array.isArray(data?.models) ? data.models : (Array.isArray(data) ? data : []);
+    return arr.map(m => m?.name || m?.model || '').filter(Boolean);
   }
 
   function populateModelSelect(models, preferred) {
@@ -786,6 +867,7 @@ document.addEventListener('keydown', (e) => {
     chatInput?.focus();
     const base = (ollamaUrlInput?.value || '').trim();
     if (base) testOllama();
+    updateChatModelBadge();
   }
   function closeChat() {
     chatOverlay?.classList.add('hidden');
@@ -795,6 +877,18 @@ document.addEventListener('keydown', (e) => {
     document.body.classList.remove('chat-open');
     document.documentElement.style.setProperty('--chat-w', '0px');
     adjustLayout();
+  }
+
+  function effectiveChatModel() {
+    const selVal = (ollamaModelSelect?.value || '').trim();
+    const inpVal = (ollamaModelInput?.value || '').trim();
+    const local = (localStorage.getItem('ollama-model') || '').trim();
+    return selVal || inpVal || local || '';
+  }
+  function updateChatModelBadge() {
+    if (!chatModelBadge) return;
+    const m = effectiveChatModel();
+    chatModelBadge.textContent = m ? `Modell: ${m}` : 'Modell: (keins)';
   }
 
   function appendChatMessage(role, content) {
@@ -819,7 +913,7 @@ document.addEventListener('keydown', (e) => {
     copyBtn.type = 'button';
     copyBtn.className = 'copy-btn';
     copyBtn.title = 'Kopieren';
-    copyBtn.textContent = '📋';
+    copyBtn.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:copy"></iconify-icon>';
     el.appendChild(copyBtn);
     chatMessages.appendChild(el);
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -961,6 +1055,10 @@ document.addEventListener('keydown', (e) => {
     loadOllamaSettings();
     if (chatPanel?.classList.contains('hidden')) openChat(); else closeChat();
   });
+  ollamaModelSelect?.addEventListener('change', updateChatModelBadge);
+  ollamaModelInput?.addEventListener('input', updateChatModelBadge);
+  ollamaSaveBtn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 50));
+  ollamaTestBtn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 200));
   chatOverlay?.addEventListener('click', closeChat);
   chatCloseBtn?.addEventListener('click', closeChat);
   chatSendBtn?.addEventListener('click', sendChat);
@@ -982,13 +1080,13 @@ document.addEventListener('keydown', (e) => {
         ta.value = text; document.body.appendChild(ta); ta.select();
         document.execCommand('copy'); ta.remove();
       }
-      const orig = copyBtn.textContent;
-      copyBtn.textContent = '✓';
-      setTimeout(() => { copyBtn.textContent = orig; }, 800);
+      const orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:check"></iconify-icon>';
+      setTimeout(() => { copyBtn.innerHTML = orig; }, 800);
     } catch (_) {
-      const orig = copyBtn.textContent;
-      copyBtn.textContent = '!';
-      setTimeout(() => { copyBtn.textContent = orig; }, 800);
+      const orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:alert-circle"></iconify-icon>';
+      setTimeout(() => { copyBtn.innerHTML = orig; }, 800);
     }
   });
   chatInput?.addEventListener('keydown', (e) => {
@@ -1000,9 +1098,17 @@ document.addEventListener('keydown', (e) => {
   settingsBtn?.addEventListener('click', () => {
     settingsPanel?.classList.remove('hidden');
     settingsOverlay?.classList.remove('hidden');
+    // default to General tab
+    try { showSettingsTab('general'); } catch {}
     prefReaderInput && (prefReaderInput.checked = getPref('reader-input', true));
     prefStickyTools && (prefStickyTools.checked = getPref('sticky-tools', true));
     prefAiInlineAutoOpen && (prefAiInlineAutoOpen.checked = getPref('ai-inline-open', false));
+    if (prefDefaultView) {
+      const dv = getPrefStr('default-view', 'split');
+      prefDefaultView.value = ['edit','split','reader'].includes(dv) ? dv : 'split';
+    }
+    // Load Ollama values into settings fields
+    try { loadOllamaSettings(); } catch {}
   });
   function closeSettings() { settingsPanel?.classList.add('hidden'); settingsOverlay?.classList.add('hidden'); }
   settingsOverlay?.addEventListener('click', closeSettings);
@@ -1011,9 +1117,47 @@ document.addEventListener('keydown', (e) => {
     setPref('reader-input', !!prefReaderInput?.checked);
     setPref('sticky-tools', !!prefStickyTools?.checked);
     setPref('ai-inline-open', !!prefAiInlineAutoOpen?.checked);
+    if (prefDefaultView && prefDefaultView.value) setPrefStr('default-view', prefDefaultView.value);
     applyPrefs();
     closeSettings();
   });
+
+  function showSettingsTab(id) {
+    settingsTabButtons().forEach(btn => {
+      const active = btn.dataset.tab === id;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    settingsTabPanels().forEach(panel => {
+      panel.classList.toggle('hidden', panel.dataset.tab !== id);
+    });
+    if (id === 'info') {
+      loadInfoTab();
+    }
+  }
+  settingsTabs?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.nav-item');
+    if (!btn) return;
+    const id = btn.dataset.tab;
+    if (id) showSettingsTab(id);
+  });
+
+  async function loadInfoTab() {
+    try {
+      // Load GitHub profile for Anes-03
+      const res = await fetch('https://api.github.com/users/Anes-03', { method: 'GET', mode: 'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const avatar = data?.avatar_url || '';
+      const name = (data?.name && data.name.trim()) || data?.login || 'Anes-03';
+      if (infoAvatar && avatar) infoAvatar.src = avatar;
+      if (infoName) infoName.textContent = name;
+    } catch (_) {
+      // Fallbacks
+      if (infoAvatar && !infoAvatar.src) infoAvatar.src = '';
+      if (infoName && !infoName.textContent) infoName.textContent = 'Anes-03';
+    }
+  }
 
   // Sync model select -> input
   ollamaModelSelect?.addEventListener('change', () => {
@@ -1053,9 +1197,10 @@ document.addEventListener('keydown', (e) => {
   // Init view
   (function initView() {
     try {
-      const v = localStorage.getItem('md-view');
-      setView(v || 'edit');
-    } catch { setView('edit'); }
+      const defView = getPrefStr('default-view', 'split');
+      const mode = ['edit','split','reader'].includes(defView) ? defView : 'split';
+      setView(mode);
+    } catch { setView('split'); }
   })();
 
   // Initial render
@@ -1069,6 +1214,7 @@ document.addEventListener('keydown', (e) => {
   try { editor.focus(); } catch {}
   updateEditorContextInfo();
   initAiInlineDefaults();
+  initPresetSettings();
   // Apply settings
   applyPrefs();
 
@@ -1137,11 +1283,23 @@ async function editorGenerateAI() {
   }
 
   const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
-  const model = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+  const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+  let model = defaultModel;
+  try {
+    const presetSel = document.getElementById('aiPresetSelect');
+    if (presetSel && presetSel.value !== '') {
+      const idx = parseInt(presetSel.value, 10);
+      const list = JSON.parse(localStorage.getItem('ai-presets') || '[]');
+      const p = Array.isArray(list) ? list[idx] : null;
+      if (p && typeof p.model === 'string' && p.model.trim()) model = p.model.trim();
+      if (p && typeof p.temperature === 'number') temperature = p.temperature;
+      if (p && typeof p.max === 'number') num_predict = p.max;
+    }
+  } catch {}
   const tempEl = document.getElementById('aiTemp');
   const maxEl = document.getElementById('aiMaxTokens');
-  const temperature = parseFloat((tempEl?.value || localStorage.getItem('ai-temp') || '0.7'));
-  const num_predict = parseInt((maxEl?.value || localStorage.getItem('ai-max') || '512'), 10);
+  let temperature = parseFloat((tempEl?.value || localStorage.getItem('ai-temp') || '0.7'));
+  let num_predict = parseInt((maxEl?.value || localStorage.getItem('ai-max') || '512'), 10);
 
   const start = editor.selectionStart ?? 0;
   const end = editor.selectionEnd ?? 0;
@@ -1168,7 +1326,15 @@ async function editorGenerateAI() {
   const flush = () => { editor.dispatchEvent(new Event('input')); };
   const setBtnState = (running) => {
     if (!btn) return;
-    btn.textContent = running ? '⏹ Abbrechen' : '🤖 Generieren';
+    try {
+      const iconEl = btn.querySelector('iconify-icon');
+      const lblEl = btn.querySelector('.btn-label');
+      if (iconEl) iconEl.setAttribute('icon', running ? 'mdi:stop-circle-outline' : 'mdi:robot-outline');
+      if (lblEl) lblEl.textContent = running ? 'Abbrechen' : 'Generieren';
+      else btn.textContent = running ? 'Abbrechen' : 'Generieren';
+    } catch {
+      btn.textContent = running ? 'Abbrechen' : 'Generieren';
+    }
     btn.disabled = false;
   };
   if (document.getElementById('aiGenAbortBtn')) document.getElementById('aiGenAbortBtn').disabled = false;
@@ -1231,7 +1397,7 @@ async function editorGenerateAI() {
 }
 
 // AI inline helpers
-function initAiInlineDefaults() {
+  function initAiInlineDefaults() {
   const sel = document.getElementById('aiPresetSelect');
   const name = document.getElementById('aiPresetName');
   const prompt = document.getElementById('aiPromptInput');
@@ -1247,24 +1413,30 @@ function initAiInlineDefaults() {
   const maxVal = document.getElementById('aiMaxVal');
   if (!sel || !prompt) return;
 
-  function getPresets() {
-    try { return JSON.parse(localStorage.getItem('ai-presets') || '[]'); } catch { return []; }
-  }
-  function setPresets(list) {
-    try { localStorage.setItem('ai-presets', JSON.stringify(list)); } catch {}
-  }
+  function getPresets() { try { return JSON.parse(localStorage.getItem('ai-presets') || '[]'); } catch { return []; } }
+  function setPresets(list) { try { localStorage.setItem('ai-presets', JSON.stringify(list)); } catch {} }
   function ensureDefaults() {
+    const builtIns = [
+      { name: 'Zusammenfassen', prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.' },
+      { name: 'Verbessern', prompt: 'Verbessere Stil, Klarheit und Grammatik des Textes, ohne Inhalt zu ändern. Nur Ergebnis in Markdown.' },
+      { name: 'DE → EN', prompt: 'Übersetze den Text ins Englische. Nur Übersetzung ausgeben.' },
+      { name: 'EN → DE', prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.' },
+      { name: 'Tabelle aus Text', prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.' },
+      { name: 'Stichpunkte', prompt: 'Konvertiere den Text in eine prägnante ungeordnete Liste (Markdown). Nur die Liste ausgeben.' },
+      { name: 'Nummerierte Schritte', prompt: 'Konvertiere den Text in eine nummerierte Schritt-für-Schritt Liste (Markdown). Nur die Liste ausgeben.' },
+      { name: 'Aufgabenliste', prompt: 'Konvertiere den Text in eine Aufgabenliste in Markdown mit - [ ] Einträgen. Nur die Liste ausgeben.' },
+      { name: 'Zitat', prompt: 'Wandle den Text in ein Markdown-Blockzitat (> ...) um. Nur das Zitat ausgeben.' },
+      { name: 'Codeblock', prompt: 'Wandle den Text in einen Markdown-Codeblock um. Sprache, falls erkennbar, ansonsten ohne. Nur den Codeblock ausgeben.' },
+      { name: 'Überschrift H1', prompt: 'Formatiere die erste Zeile als H1 (#) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
+      { name: 'Überschrift H2', prompt: 'Formatiere die erste Zeile als H2 (##) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
+      { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
+    ];
     let list = getPresets();
-    if (!list || list.length === 0) {
-      list = [
-        { name: 'Zusammenfassen', prompt: 'Zusammenfasse den ausgewählten Text prägnant.' },
-        { name: 'Verbessern', prompt: 'Verbessere Stil, Klarheit und Grammatik des ausgewählten Textes, ohne Inhalt zu verlieren.' },
-        { name: 'DE → EN', prompt: 'Übersetze den ausgewählten Text ins Englische.' },
-        { name: 'EN → DE', prompt: 'Übersetze den ausgewählten Text ins Deutsche.' },
-      ];
-      setPresets(list);
-    }
-    return list;
+    const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
+    for (const p of builtIns) { if (!map.has(p.name)) map.set(p.name, p); }
+    const merged = Array.from(map.values());
+    setPresets(merged);
+    return merged;
   }
   function populate() {
     const list = ensureDefaults();
@@ -1287,6 +1459,19 @@ function initAiInlineDefaults() {
     if (exist >= 0) list[exist] = { name: nm, prompt: pr }; else list.push({ name: nm, prompt: pr });
     setPresets(list);
     populate();
+    // Fill model dropdown from Ollama
+    (async () => {
+      if (modelInput) {
+        try {
+          const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
+          const models = await fetchOllamaModels(base);
+          const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
+          modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>` + opts;
+        } catch {
+          modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>`;
+        }
+      }
+    })();
     // select this preset
     const idx = list.findIndex(x => x.name === nm);
     if (idx >= 0) sel.value = String(idx);
@@ -1360,11 +1545,288 @@ function initAiInlineDefaults() {
   if (maxVal) maxVal.textContent = `(${savedMax})`;
   temp?.addEventListener('input', () => { tempVal && (tempVal.textContent = `(${parseFloat(temp.value).toFixed(2)})`); try { localStorage.setItem('ai-temp', temp.value); } catch {} });
   maxT?.addEventListener('input', () => { maxVal && (maxVal.textContent = `(${parseInt(maxT.value,10)})`); try { localStorage.setItem('ai-max', maxT.value); } catch {} });
-}
+  }
 
-// Preferences helpers
+  // Preferences helpers
+  function initPresetSettings() {
+    const sel = document.getElementById('settingsPresetSelect');
+    const name = document.getElementById('settingsPresetName');
+    const prompt = document.getElementById('settingsPresetPrompt');
+    const useModel = document.getElementById('settingsPresetUseModel');
+    const modelInput = document.getElementById('settingsPresetModel');
+    const saveBtn = document.getElementById('settingsPresetSaveBtn');
+    const delBtn = document.getElementById('settingsPresetDeleteBtn');
+    const renameBtn = document.getElementById('settingsPresetRenameBtn');
+    const exportBtn = document.getElementById('settingsPresetExportBtn');
+    const importBtn = document.getElementById('settingsPresetImportBtn');
+    const importFile = document.getElementById('settingsPresetImportFile');
+    const newBtn = document.getElementById('settingsPresetNewBtn');
+    const dupBtn = document.getElementById('settingsPresetDuplicateBtn');
+    const modelReloadBtn = document.getElementById('settingsPresetModelReloadBtn');
+    const presetStatus = document.getElementById('settingsPresetStatus');
+    if (!sel || !prompt) return;
+
+    const setPresetStatus = (msg, ok = false) => {
+      if (!presetStatus) return;
+      presetStatus.textContent = msg || '';
+      presetStatus.style.color = ok ? 'var(--accent)' : 'var(--muted)';
+    };
+
+    function getPresets() { try { return JSON.parse(localStorage.getItem('ai-presets') || '[]'); } catch { return []; } }
+    function setPresets(list) { try { localStorage.setItem('ai-presets', JSON.stringify(list)); } catch {} }
+    function ensureDefaults() {
+      const builtIns = [
+        { name: 'Zusammenfassen', prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.' },
+        { name: 'Verbessern', prompt: 'Verbessere Stil, Klarheit und Grammatik des Textes, ohne Inhalt zu ändern. Nur Ergebnis in Markdown.' },
+        { name: 'DE → EN', prompt: 'Übersetze den Text ins Englische. Nur Übersetzung ausgeben.' },
+        { name: 'EN → DE', prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.' },
+        { name: 'Tabelle aus Text', prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.' },
+        { name: 'Stichpunkte', prompt: 'Konvertiere den Text in eine prägnante ungeordnete Liste (Markdown). Nur die Liste ausgeben.' },
+        { name: 'Nummerierte Schritte', prompt: 'Konvertiere den Text in eine nummerierte Schritt-für-Schritt Liste (Markdown). Nur die Liste ausgeben.' },
+        { name: 'Aufgabenliste', prompt: 'Konvertiere den Text in eine Aufgabenliste in Markdown mit - [ ] Einträgen. Nur die Liste ausgeben.' },
+        { name: 'Zitat', prompt: 'Wandle den Text in ein Markdown-Blockzitat (> ...) um. Nur das Zitat ausgeben.' },
+        { name: 'Codeblock', prompt: 'Wandle den Text in einen Markdown-Codeblock um. Sprache, falls erkennbar, ansonsten ohne. Nur den Codeblock ausgeben.' },
+        { name: 'Überschrift H1', prompt: 'Formatiere die erste Zeile als H1 (#) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
+        { name: 'Überschrift H2', prompt: 'Formatiere die erste Zeile als H2 (##) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
+        { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
+      ];
+      let list = getPresets();
+      const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
+      for (const p of builtIns) { if (!map.has(p.name)) map.set(p.name, p); }
+      const merged = Array.from(map.values());
+      setPresets(merged);
+      return merged;
+    }
+    function populate() {
+      const list = ensureDefaults();
+      sel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
+    }
+    function refreshInlineSelect() {
+      const inlineSel = document.getElementById('aiPresetSelect');
+      if (!inlineSel) return;
+      const list = ensureDefaults();
+      inlineSel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
+    }
+    populate();
+    // Helper to fill model dropdown from Ollama
+    async function populatePresetModelOptions() {
+      if (!modelInput) return;
+      const current = modelInput.value || '';
+      try {
+        const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
+        const arr = await fetchOllamaModels(base);
+        const uniq = Array.from(new Set(arr.filter(Boolean)));
+        uniq.sort((a,b) => a.localeCompare(b));
+        const opts = uniq.map(n => `<option value="${n}">${n}</option>`).join('');
+        modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>` + opts;
+        // restore selection if present
+        if (current) {
+          if (!Array.from(modelInput.options).some(o => o.value === current)) {
+            const opt = document.createElement('option'); opt.value = current; opt.textContent = current; modelInput.appendChild(opt);
+          }
+          modelInput.value = current;
+        }
+        setPresetStatus(`${uniq.length} Modelle geladen`, true);
+      } catch (e) {
+        modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>`;
+        // keep current custom if any
+        if (current) { const opt = document.createElement('option'); opt.value = current; opt.textContent = current; modelInput.appendChild(opt); modelInput.value = current; }
+        setPresetStatus('Modelle konnten nicht geladen werden', false);
+      }
+    }
+    // initial fill
+    populatePresetModelOptions();
+
+    sel.addEventListener('change', () => {
+      const list = getPresets();
+      const idx = parseInt(sel.value, 10);
+      const p = list[idx];
+      if (p) {
+        prompt.value = p.prompt;
+        name && (name.value = p.name);
+        if (useModel) useModel.checked = !!p.model;
+        if (modelInput) {
+          const val = p.model || '';
+          if (val) {
+            const has = Array.from(modelInput.options).some(o => o.value === val);
+            if (!has) { const opt = document.createElement('option'); opt.value = val; opt.textContent = val; modelInput.appendChild(opt); }
+          }
+          modelInput.value = val;
+          modelInput.disabled = !(useModel && useModel.checked);
+        }
+        const modelArea = document.getElementById('settingsPresetModelArea');
+        if (modelArea) modelArea.classList.toggle('hidden', !(useModel && useModel.checked));
+        setPresetStatus('Preset geladen', true);
+      }
+    });
+    newBtn?.addEventListener('click', () => {
+      if (name) name.value = '';
+      if (prompt) prompt.value = '';
+      if (useModel) useModel.checked = false;
+      if (modelInput) { modelInput.value = ''; modelInput.disabled = true; }
+      const modelArea = document.getElementById('settingsPresetModelArea');
+      if (modelArea) modelArea.classList.add('hidden');
+      setPresetStatus('Neues Preset – ausfüllen und speichern', true);
+    });
+    dupBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const idx = parseInt(sel.value, 10);
+      const base = (!isNaN(idx) && list[idx]) ? list[idx] : { name: (name?.value || 'Preset').trim() || 'Preset', prompt: (prompt?.value || '').trim(), model: (useModel?.checked ? (modelInput?.value || '').trim() : '') };
+      let newName = base.name + ' (Kopie)';
+      const existingNames = new Set(list.map(p => p.name));
+      let n = 2;
+      while (existingNames.has(newName)) { newName = base.name + ` (Kopie ${n++})`; }
+      const copy = { name: newName, prompt: base.prompt || '', ...(base.model ? { model: base.model } : {}), ...(typeof base.temperature === 'number' ? { temperature: base.temperature } : {}), ...(typeof base.max === 'number' ? { max: base.max } : {}) };
+      list.push(copy);
+      setPresets(list);
+      populate();
+      refreshInlineSelect();
+      const newIdx = list.findIndex(p => p.name === newName);
+      if (newIdx >= 0) sel.value = String(newIdx);
+      // reflect in fields
+      if (name) name.value = newName;
+      if (prompt) prompt.value = copy.prompt || '';
+      if (useModel) useModel.checked = !!copy.model;
+      if (modelInput) { modelInput.disabled = !useModel.checked; modelInput.value = copy.model || ''; }
+      const modelArea = document.getElementById('settingsPresetModelArea');
+      if (modelArea) modelArea.classList.toggle('hidden', !useModel?.checked);
+      setPresetStatus('Preset dupliziert', true);
+    });
+    useModel?.addEventListener('change', () => {
+      if (modelInput) modelInput.disabled = !useModel.checked;
+      const modelArea = document.getElementById('settingsPresetModelArea');
+      if (modelArea) modelArea.classList.toggle('hidden', !useModel.checked);
+    });
+    // Repopulate models when settings open
+    settingsBtn?.addEventListener('click', () => {
+      populatePresetModelOptions();
+      const modelArea = document.getElementById('settingsPresetModelArea');
+      if (modelArea) modelArea.classList.toggle('hidden', !useModel?.checked);
+    });
+    modelReloadBtn?.addEventListener('click', () => { populatePresetModelOptions(); });
+    ollamaSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
+    ollamaTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
+
+    // Prompt helpers via Ollama
+    async function getPresetModelForRequest() {
+      const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
+      const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+      const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : defaultModel;
+      return { base, model: mdl };
+    }
+    async function suggestPrompt() {
+      const nm = (name?.value || '').trim() || 'Preset';
+      const { base, model } = await getPresetModelForRequest();
+      const messages = [
+        { role: 'system', content: 'Du bist ein hilfreicher Prompt‑Engineer. Liefere nur den Prompt‑Text, ohne Einleitung oder Erklärungen. Sprache: Deutsch.' },
+        { role: 'user', content: `Erzeuge einen prägnanten, robusten Prompt für ein KI‑Schreibpreset namens "${nm}". Der Prompt soll klar beschreiben, was die KI tun soll, inkl. Format (Markdown), Stil und Grenzen. Nur den Prompt‑Text zurückgeben.` }
+      ];
+      try { const text = await ollamaChat({ base, model, messages, stream: false }); if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt generiert', true); }
+      catch (e) { setPresetStatus('Generierung fehlgeschlagen', false); }
+    }
+    async function improvePrompt() {
+      const current = (prompt?.value || '').trim();
+      if (!current) { await suggestPrompt(); return; }
+      const nm = (name?.value || '').trim() || 'Preset';
+      const { base, model } = await getPresetModelForRequest();
+      const messages = [
+        { role: 'system', content: 'Du bist ein hilfreicher Prompt‑Engineer. Überarbeite Prompts präzise. Nur den verbesserten Prompt‑Text zurückgeben. Sprache: Deutsch.' },
+        { role: 'user', content: `Verbessere den folgenden Prompt für das Preset "${nm}":\n\n${current}` }
+      ];
+      try { const text = await ollamaChat({ base, model, messages, stream: false }); if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt verbessert', true); }
+      catch (e) { setPresetStatus('Verbesserung fehlgeschlagen', false); }
+    }
+    document.getElementById('settingsPresetPromptSuggestBtn')?.addEventListener('click', suggestPrompt);
+    document.getElementById('settingsPresetPromptImproveBtn')?.addEventListener('click', improvePrompt);
+    saveBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const nm = (name?.value || '').trim() || 'Preset';
+      const pr = (prompt?.value || '').trim();
+      if (!pr) return;
+      const mdl = useModel?.checked ? (modelInput?.value || '').trim() : '';
+      const tEl = document.getElementById('settingsPresetTemp');
+      const mEl = document.getElementById('settingsPresetMaxTokens');
+      const tval = tEl ? parseFloat(tEl.value) : undefined;
+      const mval = mEl ? parseInt(mEl.value, 10) : undefined;
+      const exist = list.findIndex(x => x.name === nm);
+      const payload = { name: nm, prompt: pr, ...(mdl ? { model: mdl } : {}), ...(isFinite(tval) ? { temperature: tval } : {}), ...(Number.isInteger(mval) ? { max: mval } : {}) };
+      if (exist >= 0) list[exist] = payload; else list.push(payload);
+      setPresets(list);
+      populate();
+      refreshInlineSelect();
+      const idx = list.findIndex(x => x.name === nm);
+      if (idx >= 0) sel.value = String(idx);
+    });
+    renameBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const idx = parseInt(sel.value, 10);
+      if (isNaN(idx)) return;
+      const p = list[idx];
+      const newName = (name?.value || '').trim();
+      if (!p || !newName) return;
+      const dup = list.findIndex(x => x.name === newName);
+      if (dup >= 0 && dup !== idx) list.splice(dup, 1);
+      const mdl = useModel?.checked ? (modelInput?.value || '').trim() : '';
+      const tEl = document.getElementById('settingsPresetTemp');
+      const mEl = document.getElementById('settingsPresetMaxTokens');
+      const tval = tEl ? parseFloat(tEl.value) : undefined;
+      const mval = mEl ? parseInt(mEl.value, 10) : undefined;
+      list[idx] = { name: newName, prompt: (prompt?.value || '').trim(), ...(mdl ? { model: mdl } : {}), ...(isFinite(tval) ? { temperature: tval } : {}), ...(Number.isInteger(mval) ? { max: mval } : {}) };
+      setPresets(list);
+      populate();
+      refreshInlineSelect();
+      const nidx = list.findIndex(x => x.name === newName);
+      if (nidx >= 0) sel.value = String(nidx);
+    });
+    delBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const idx = parseInt(sel.value, 10);
+      if (isNaN(idx)) return;
+      list.splice(idx, 1);
+      setPresets(list);
+      populate();
+      refreshInlineSelect();
+      if (name) name.value = '';
+      prompt.value = '';
+    });
+    exportBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'ai-presets.json';
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    });
+    importBtn?.addEventListener('click', () => { importFile?.click(); });
+    importFile?.addEventListener('change', async () => {
+      const f = importFile.files && importFile.files[0];
+      if (!f) return;
+      try {
+        const text = await f.text();
+        const arr = JSON.parse(text);
+        if (!Array.isArray(arr)) throw new Error('Format');
+        const existing = getPresets();
+        const map = new Map(existing.map(p => [p.name, { ...p }]));
+        for (const item of arr) {
+          if (!item || typeof item.name !== 'string' || typeof item.prompt !== 'string') continue;
+          const mdl = typeof item.model === 'string' ? item.model : (map.get(item.name)?.model || '');
+          map.set(item.name, { name: item.name, prompt: item.prompt, ...(mdl ? { model: mdl } : {}) });
+        }
+        const merged = Array.from(map.values());
+        setPresets(merged);
+        populate();
+        refreshInlineSelect();
+      } catch (e) {
+        alert('Import fehlgeschlagen. Bitte gültige JSON-Presets wählen.');
+      } finally {
+        importFile.value = '';
+      }
+    });
+  }
 function getPref(key, defVal) { try { const v = localStorage.getItem('pref-' + key); if (v === null) return defVal; return v === '1' || v === 'true'; } catch { return defVal; } }
 function setPref(key, val) { try { localStorage.setItem('pref-' + key, val ? '1' : '0'); } catch {} }
+function getPrefStr(key, defVal) { try { const v = localStorage.getItem('pref-' + key); return v === null ? defVal : v; } catch { return defVal; } }
+function setPrefStr(key, val) { try { localStorage.setItem('pref-' + key, String(val)); } catch {} }
 function applyPrefs() {
   const sticky = getPref('sticky-tools', true);
   document.body.classList.toggle('sticky-tools', sticky);

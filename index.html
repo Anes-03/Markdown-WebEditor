@@ -8,6 +8,15 @@
 
     <link rel="stylesheet" href="styles.css" />
 
+    <!-- Favicons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="shortcut icon" href="favicon.ico">
+
+    <!-- Iconify for SVG icons -->
+    <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+
     <!-- Highlight.js theme will be swapped dynamically based on theme -->
     <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github.min.css">
 
@@ -20,55 +29,60 @@
   <body>
     <header class="app-header">
       <div class="left">
-        <span class="logo" aria-label="App Logo">✍️</span>
+        <img class="logo-img" src="Logo.png" alt="Markdown WebEditor Logo" />
         <span class="title" id="appTitle">Markdown WebEditor</span>
+        <button id="undoBtn" class="has-icon" title="Rückgängig (Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:undo-2"></iconify-icon><span class="btn-label">Rückgängig</span></button>
+        <button id="redoBtn" class="has-icon" title="Wiederholen (Shift+Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:redo-2"></iconify-icon><span class="btn-label">Wiederholen</span></button>
       </div>
       <div class="center file-actions" role="toolbar" aria-label="Datei Aktionen">
-        <button id="newBtn" title="Neu (Cmd/Ctrl+N)">Neu</button>
-        <button id="openBtn" title="Öffnen (Cmd/Ctrl+O)">Öffnen</button>
-        <button id="saveBtn" title="Speichern (Cmd/Ctrl+S)">Speichern</button>
-        <button id="saveAsBtn" title="Speichern unter (Shift+Cmd/Ctrl+S)">Speichern unter</button>
-        <button id="exportHtmlBtn" title="Als HTML exportieren">Export HTML</button>
-        <button id="exportPdfBtn" title="Als PDF exportieren">Export PDF</button>
+        <button id="newBtn" class="has-icon" title="Neu (Cmd/Ctrl+N)"><iconify-icon aria-hidden="true" icon="lucide:file-plus"></iconify-icon><span class="btn-label">Neu</span></button>
+        <button id="openBtn" class="has-icon" title="Öffnen (Cmd/Ctrl+O)"><iconify-icon aria-hidden="true" icon="lucide:folder-open"></iconify-icon><span class="btn-label">Öffnen</span></button>
+        <button id="saveBtn" class="has-icon" title="Speichern (Cmd/Ctrl+S)"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
+        <button id="saveAsBtn" class="has-icon" title="Speichern unter (Shift+Cmd/Ctrl+S)"><iconify-icon aria-hidden="true" icon="mdi:content-save-edit-outline"></iconify-icon><span class="btn-label">Speichern unter</span></button>
+        <button id="exportHtmlBtn" class="has-icon" title="Als HTML exportieren"><iconify-icon aria-hidden="true" icon="lucide:file-code"></iconify-icon><span class="btn-label">Export HTML</span></button>
+        <button id="exportPdfBtn" class="has-icon" title="Als PDF exportieren"><iconify-icon aria-hidden="true" icon="mdi:file-pdf-box"></iconify-icon><span class="btn-label">Export PDF</span></button>
         <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
         <input type="file" id="hiddenImage" accept="image/*" hidden />
       </div>
       <div class="right">
         <div class="view-toggle" role="group" aria-label="Ansicht">
-          <button id="editViewBtn" class="active" title="Editor-Ansicht">Editor</button>
-          <button id="splitViewBtn" title="Geteilte Ansicht">Split</button>
-          <button id="readerViewBtn" title="Leser-Ansicht">Reader</button>
+          <button id="editViewBtn" class="has-icon active" title="Editor-Ansicht"><iconify-icon aria-hidden="true" icon="lucide:edit-3"></iconify-icon><span class="btn-label">Editor</span></button>
+          <button id="splitViewBtn" class="has-icon" title="Geteilte Ansicht"><iconify-icon aria-hidden="true" icon="lucide:columns-2"></iconify-icon><span class="btn-label">Split</span></button>
+          <button id="readerViewBtn" class="has-icon" title="Leser-Ansicht"><iconify-icon aria-hidden="true" icon="lucide:book-open"></iconify-icon><span class="btn-label">Reader</span></button>
         </div>
-        <select id="themeSelect" class="theme-select" title="Theme auswählen" aria-label="Theme auswählen">
-          <!-- Optionen werden per JS gefüllt -->
-        </select>
-        <button id="settingsBtn" title="Einstellungen">⚙️</button>
+        <div class="theme-switcher">
+          <button id="themeCycleBtn" class="icon-only" title="Theme wechseln" aria-label="Theme wechseln">
+            <iconify-icon aria-hidden="true" icon="lucide:sun"></iconify-icon>
+          </button>
+          <div id="themeMenu" class="theme-menu hidden" role="menu" aria-label="Theme auswählen"></div>
+        </div>
+        <button id="settingsBtn" class="icon-only" title="Einstellungen" aria-label="Einstellungen"><iconify-icon aria-hidden="true" icon="lucide:settings"></iconify-icon></button>
       </div>
     </header>
 
     <div class="toolbar" role="toolbar" aria-label="Formatierung">
-      <button data-action="h1" title="# Überschrift 1">H1</button>
-      <button data-action="h2" title="## Überschrift 2">H2</button>
-      <button data-action="h3" title="### Überschrift 3">H3</button>
+      <button data-action="h1" class="has-icon" title="# Überschrift 1"><iconify-icon aria-hidden="true" icon="lucide:heading-1"></iconify-icon><span class="btn-label">H1</span></button>
+      <button data-action="h2" class="has-icon" title="## Überschrift 2"><iconify-icon aria-hidden="true" icon="lucide:heading-2"></iconify-icon><span class="btn-label">H2</span></button>
+      <button data-action="h3" class="has-icon" title="### Überschrift 3"><iconify-icon aria-hidden="true" icon="lucide:heading-3"></iconify-icon><span class="btn-label">H3</span></button>
       <span class="sep"></span>
-      <button data-action="bold" title="Fett (Cmd/Ctrl+B)"><strong>B</strong></button>
-      <button data-action="italic" title="Kursiv (Cmd/Ctrl+I)"><em>I</em></button>
-      <button data-action="strike" title="Durchgestrichen">S</button>
-      <button data-action="code" title="Code (Inline)">`code`</button>
-      <button data-action="codeblock" title="Code Block">```</button>
+      <button data-action="bold" class="has-icon" title="Fett (Cmd/Ctrl+B)"><iconify-icon aria-hidden="true" icon="lucide:bold"></iconify-icon><span class="btn-label">Fett</span></button>
+      <button data-action="italic" class="has-icon" title="Kursiv (Cmd/Ctrl+I)"><iconify-icon aria-hidden="true" icon="lucide:italic"></iconify-icon><span class="btn-label">Kursiv</span></button>
+      <button data-action="strike" class="has-icon" title="Durchgestrichen"><iconify-icon aria-hidden="true" icon="lucide:strikethrough"></iconify-icon><span class="btn-label">Strike</span></button>
+      <button data-action="code" class="has-icon" title="Code (Inline)"><iconify-icon aria-hidden="true" icon="lucide:code"></iconify-icon><span class="btn-label">Code</span></button>
+      <button data-action="codeblock" class="has-icon" title="Code Block"><iconify-icon aria-hidden="true" icon="lucide:code-2"></iconify-icon><span class="btn-label">Codeblock</span></button>
       <span class="sep"></span>
-      <button data-action="ul" title="Liste">• Liste</button>
-      <button data-action="ol" title="Nummerierte Liste">1. Liste</button>
-      <button data-action="task" title="Aufgabenliste">[ ] Task</button>
-      <button data-action="quote" title="Zitat">“”</button>
+      <button data-action="ul" class="has-icon" title="Liste"><iconify-icon aria-hidden="true" icon="lucide:list"></iconify-icon><span class="btn-label">Liste</span></button>
+      <button data-action="ol" class="has-icon" title="Nummerierte Liste"><iconify-icon aria-hidden="true" icon="lucide:list-ordered"></iconify-icon><span class="btn-label">Nummeriert</span></button>
+      <button data-action="task" class="has-icon" title="Aufgabenliste"><iconify-icon aria-hidden="true" icon="mdi:checkbox-marked-outline"></iconify-icon><span class="btn-label">Task</span></button>
+      <button data-action="quote" class="has-icon" title="Zitat"><iconify-icon aria-hidden="true" icon="lucide:quote"></iconify-icon><span class="btn-label">Zitat</span></button>
       <span class="sep"></span>
-      <button data-action="link" title="Link (Cmd/Ctrl+K)">🔗 Link</button>
-      <button data-action="image" title="Bild einfügen">🖼️ Bild</button>
-      <button data-action="table" title="Tabelle">⌗ Tabelle</button>
-      <button data-action="hr" title="Trennlinie">—</button>
+      <button data-action="link" class="has-icon" title="Link (Cmd/Ctrl+K)"><iconify-icon aria-hidden="true" icon="lucide:link"></iconify-icon><span class="btn-label">Link</span></button>
+      <button data-action="image" class="has-icon" title="Bild einfügen"><iconify-icon aria-hidden="true" icon="lucide:image"></iconify-icon><span class="btn-label">Bild</span></button>
+      <button data-action="table" class="has-icon" title="Tabelle"><iconify-icon aria-hidden="true" icon="mdi:table"></iconify-icon><span class="btn-label">Tabelle</span></button>
+      <button data-action="hr" class="has-icon" title="Trennlinie"><iconify-icon aria-hidden="true" icon="lucide:minus"></iconify-icon><span class="btn-label">Linie</span></button>
       <span class="sep"></span>
-      <button id="aiGenerateBtn" title="KI: Text generieren (Cmd/Ctrl+G)">🤖 Generieren</button>
-      <button id="chatToggleBtn" title="Chat ein-/ausblenden">💬 Chat</button>
+      <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Generieren</span></button>
+      <button id="chatToggleBtn" class="has-icon" title="Chat ein-/ausblenden"><iconify-icon aria-hidden="true" icon="lucide:message-circle"></iconify-icon><span class="btn-label">Chat</span></button>
     </div>
 
     <!-- Inline AI generation panel -->
@@ -84,24 +98,8 @@
         <label>Preset
           <select id="aiPresetSelect"></select>
         </label>
-        <input id="aiPresetName" type="text" placeholder="Preset-Name" />
-        <button id="aiPresetSaveBtn" class="secondary">Preset speichern</button>
-        <button id="aiPresetRenameBtn" class="secondary">Umbenennen</button>
-        <button id="aiPresetDeleteBtn" class="secondary">Preset löschen</button>
-        <button id="aiPresetExportBtn" class="secondary">Export</button>
-        <button id="aiPresetImportBtn" class="secondary">Import</button>
-        <input type="file" id="aiPresetImportFile" accept="application/json" hidden />
       </div>
-      <div class="row">
-        <label>Kreativität
-          <input type="range" id="aiTemp" min="0" max="1.5" step="0.05" />
-        </label>
-        <span id="aiTempVal" class="muted"></span>
-        <label>Max Tokens
-          <input type="range" id="aiMaxTokens" min="32" max="8192" step="32" />
-        </label>
-        <span id="aiMaxVal" class="muted"></span>
-      </div>
+      
       <div id="aiGenInfo" class="muted"></div>
     </div>
 
@@ -135,35 +133,19 @@ Viel Spass! ✨"></textarea>
       <header class="chat-header">
         <strong>Chat</strong>
         <div class="spacer"></div>
-        <button id="chatCloseBtn" title="Schließen">✖</button>
+        <span id="chatModelBadge" class="chat-model-badge"></span>
+        <div class="spacer"></div>
+        <button id="chatCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen"><iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon></button>
       </header>
-      <section class="chat-settings">
-        <label>
-          Ollama URL
-          <input type="url" id="ollamaUrlInput" placeholder="http://localhost:11434" />
-        </label>
-        <label>
-          Modell
-          <select id="ollamaModelSelect"><option value="">Modelle laden…</option></select>
-          <input type="text" id="ollamaModelInput" placeholder="llama3.1:8b (optional, manuell)" />
-        </label>
-        <div class="row">
-          <button id="ollamaSaveBtn">Speichern</button>
-          <button id="ollamaTestBtn">Verbindung testen</button>
-          <label class="chk"><input type="checkbox" id="chatStreamToggle" checked /> Stream</label>
-        </div>
-        
-        
-        <div id="ollamaStatus" class="ollama-status" aria-live="polite"></div>
-      </section>
+      
       <section id="chatMessages" class="chat-messages" aria-live="polite"></section>
       <section class="chat-input">
         <textarea id="chatInput" rows="2" placeholder="Frage eingeben und Enter senden…"></textarea>
         <div class="row">
-          <button id="chatSendBtn">Senden</button>
-          <button id="chatAbortBtn" class="secondary" disabled>Abbrechen</button>
-          <button id="chatClearBtn" class="secondary">Leeren</button>
-          <button id="editorContextBtn" class="secondary" title="Erlaube Zugriff auf den aktuellen Editor-Inhalt">Editor-Kontext: AUS</button>
+          <button id="chatSendBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:send"></iconify-icon><span class="btn-label">Senden</span></button>
+          <button id="chatAbortBtn" class="secondary has-icon" disabled><iconify-icon aria-hidden="true" icon="mdi:stop-circle-outline"></iconify-icon><span class="btn-label">Abbrechen</span></button>
+          <button id="chatClearBtn" class="secondary has-icon"><iconify-icon aria-hidden="true" icon="mdi:eraser"></iconify-icon><span class="btn-label">Leeren</span></button>
+          <button id="editorContextBtn" class="secondary has-icon" title="Erlaube Zugriff auf den aktuellen Editor-Inhalt"><iconify-icon aria-hidden="true" icon="mdi:file-document-outline"></iconify-icon><span class="btn-label">Editor-Kontext: AUS</span></button>
           <span id="editorContextInfo" class="muted"></span>
         </div>
       </section>
@@ -175,16 +157,124 @@ Viel Spass! ✨"></textarea>
       <header class="chat-header">
         <strong>Einstellungen</strong>
         <div class="spacer"></div>
-        <button id="settingsCloseBtn" title="Schließen">✖</button>
+        <button id="settingsCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen"><iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon></button>
       </header>
-      <section class="chat-settings">
-        <label class="chk"><input type="checkbox" id="prefReaderInput" checked /> Reader‑Eingabe aktivieren</label>
-        <label class="chk"><input type="checkbox" id="prefStickyTools" checked /> Werkzeugleisten immer sichtbar</label>
-        <label class="chk"><input type="checkbox" id="prefAiInlineAutoOpen" /> KI‑Leiste beim Öffnen automatisch zeigen</label>
-        <div class="row">
-          <button id="settingsSaveBtn">Speichern</button>
+      <div class="settings-body">
+        <nav class="settings-nav" role="tablist" aria-orientation="vertical">
+          <button class="nav-item active" data-tab="general" role="tab" aria-selected="true">Allgemein</button>
+          <button class="nav-item" data-tab="presets" role="tab" aria-selected="false">KI‑Presets</button>
+          <button class="nav-item" data-tab="ollama" role="tab" aria-selected="false">Ollama</button>
+          <button class="nav-item" data-tab="info" role="tab" aria-selected="false">Info</button>
+        </nav>
+        <div class="settings-content">
+        <section class="chat-settings settings-tab" data-tab="general" role="tabpanel">
+            <label class="chk"><input type="checkbox" id="prefReaderInput" checked /> Reader‑Eingabe aktivieren</label>
+            <label class="chk"><input type="checkbox" id="prefStickyTools" checked /> Werkzeugleisten immer sichtbar</label>
+            <label class="chk"><input type="checkbox" id="prefAiInlineAutoOpen" /> KI‑Leiste beim Öffnen automatisch zeigen</label>
+            <label>
+              Standardansicht
+              <select id="prefDefaultView" aria-label="Standardansicht">
+                <option value="edit">Editor</option>
+                <option value="split">Split</option>
+                <option value="reader">Reader</option>
+              </select>
+            </label>
+        </section>
+        <section class="chat-settings settings-tab hidden" data-tab="presets" role="tabpanel" aria-label="KI-Presets">
+          <div class="settings-group">
+            <h4>Preset</h4>
+            <label>
+              Preset auswählen
+              <select id="settingsPresetSelect"></select>
+            </label>
+            <div class="row">
+              <button id="settingsPresetSaveBtn" class="secondary">Speichern/Anlegen</button>
+              <button id="settingsPresetNewBtn" class="secondary">Neu</button>
+              <button id="settingsPresetDuplicateBtn" class="secondary">Duplizieren</button>
+              <button id="settingsPresetRenameBtn" class="secondary">Umbenennen</button>
+              <button id="settingsPresetDeleteBtn" class="secondary">Löschen</button>
+              <button id="settingsPresetExportBtn" class="secondary">Export</button>
+              <button id="settingsPresetImportBtn" class="secondary">Import</button>
+              <input type="file" id="settingsPresetImportFile" accept="application/json" hidden />
+            </div>
+          </div>
+          <div class="settings-group">
+            <h4>Inhalt</h4>
+            <label>
+              Name
+              <input id="settingsPresetName" type="text" placeholder="Preset-Name" />
+            </label>
+            <label>
+              Prompt
+              <textarea id="settingsPresetPrompt" rows="8" placeholder="Prompt-Text…"></textarea>
+            </label>
+            <div class="row">
+              <label>Kreativität
+                <input type="range" id="settingsPresetTemp" min="0" max="1.5" step="0.05" />
+              </label>
+              <span id="settingsPresetTempVal" class="muted"></span>
+              <label>Max Tokens
+                <input type="range" id="settingsPresetMaxTokens" min="32" max="8192" step="32" />
+              </label>
+              <span id="settingsPresetMaxVal" class="muted"></span>
+            </div>
+            <div class="row">
+              <button id="settingsPresetPromptSuggestBtn" class="secondary">Prompt generieren</button>
+              <button id="settingsPresetPromptImproveBtn" class="secondary">Prompt verbessern</button>
+            </div>
+          </div>
+          <div class="settings-group">
+            <h4>Modell</h4>
+            <label class="chk"><input type="checkbox" id="settingsPresetUseModel" /> Eigenes Modell für dieses Preset verwenden</label>
+            <div id="settingsPresetModelArea" class="hidden">
+              <label>
+                Modell
+                <select id="settingsPresetModel" disabled>
+                  <option value="">(Standard – aus Ollama‑Einstellungen)</option>
+                </select>
+              </label>
+              <div class="row">
+                <button id="settingsPresetModelReloadBtn" class="secondary">Modelle laden</button>
+              </div>
+            </div>
+          </div>
+          <div id="settingsPresetStatus" class="muted"></div>
+        </section>
+        <section class="chat-settings settings-tab hidden" data-tab="info" role="tabpanel" aria-label="Info">
+          <div class="info-panel">
+            <img id="infoAvatar" class="info-avatar" alt="GitHub Avatar" src="" />
+            <div class="info-name" id="infoName">GitHub: Anes-03</div>
+            <div class="row">
+              <a id="infoRepoBtn" class="btn" href="https://github.com/Anes-03/Markdown-WebEditor" target="_blank" rel="noopener noreferrer">
+                <iconify-icon aria-hidden="true" icon="lucide:github"></iconify-icon>
+                <span class="btn-label">Projekt‑Repository öffnen</span>
+              </a>
+            </div>
+          </div>
+        </section>
+          <section class="chat-settings settings-tab hidden" data-tab="ollama" role="tabpanel" aria-label="Ollama Einstellungen">
+            <label>
+              Ollama URL
+              <input type="url" id="ollamaUrlInput" placeholder="http://localhost:11434" />
+            </label>
+            <label>
+              Modell
+              <select id="ollamaModelSelect"><option value="">Modelle laden…</option></select>
+              <input type="text" id="ollamaModelInput" placeholder="llama3.1:8b (optional, manuell)" />
+            </label>
+            <div class="row">
+              <button id="ollamaSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
+              <button id="ollamaTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
+              <label class="chk"><input type="checkbox" id="chatStreamToggle" checked /> Stream</label>
+            </div>
+            <div id="ollamaStatus" class="ollama-status" aria-live="polite"></div>
+          </section>
         </div>
-      </section>
+      </div>
+      <footer class="settings-footer">
+        <div class="spacer"></div>
+        <button id="settingsSaveBtn">Speichern</button>
+      </footer>
     </aside>
 
     <script src="app.js"></script>
