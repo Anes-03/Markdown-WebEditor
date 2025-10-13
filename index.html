@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Markdown WebEditor</title>
+    <meta name="description" content="Ein leichter Markdown Editor mit Reader Ansicht, Toolbar, Dark/Light Mode und Datei-Öffnen/Speichern." />
+
+    <link rel="stylesheet" href="styles.css" />
+
+    <!-- Highlight.js theme will be swapped dynamically based on theme -->
+    <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github.min.css">
+
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="left">
+        <span class="logo" aria-label="App Logo">✍️</span>
+        <span class="title" id="appTitle">Markdown WebEditor</span>
+      </div>
+      <div class="center file-actions" role="toolbar" aria-label="Datei Aktionen">
+        <button id="newBtn" title="Neu (Cmd/Ctrl+N)">Neu</button>
+        <button id="openBtn" title="Öffnen (Cmd/Ctrl+O)">Öffnen</button>
+        <button id="saveBtn" title="Speichern (Cmd/Ctrl+S)">Speichern</button>
+        <button id="saveAsBtn" title="Speichern unter (Shift+Cmd/Ctrl+S)">Speichern unter</button>
+        <button id="exportHtmlBtn" title="Als HTML exportieren">Export HTML</button>
+        <button id="exportPdfBtn" title="Als PDF exportieren">Export PDF</button>
+        <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
+        <input type="file" id="hiddenImage" accept="image/*" hidden />
+      </div>
+      <div class="right">
+        <div class="view-toggle" role="group" aria-label="Ansicht">
+          <button id="editViewBtn" class="active" title="Editor-Ansicht">Editor</button>
+          <button id="splitViewBtn" title="Geteilte Ansicht">Split</button>
+          <button id="readerViewBtn" title="Leser-Ansicht">Reader</button>
+        </div>
+        <select id="themeSelect" class="theme-select" title="Theme auswählen" aria-label="Theme auswählen">
+          <!-- Optionen werden per JS gefüllt -->
+        </select>
+        <button id="settingsBtn" title="Einstellungen">⚙️</button>
+      </div>
+    </header>
+
+    <div class="toolbar" role="toolbar" aria-label="Formatierung">
+      <button data-action="h1" title="# Überschrift 1">H1</button>
+      <button data-action="h2" title="## Überschrift 2">H2</button>
+      <button data-action="h3" title="### Überschrift 3">H3</button>
+      <span class="sep"></span>
+      <button data-action="bold" title="Fett (Cmd/Ctrl+B)"><strong>B</strong></button>
+      <button data-action="italic" title="Kursiv (Cmd/Ctrl+I)"><em>I</em></button>
+      <button data-action="strike" title="Durchgestrichen">S</button>
+      <button data-action="code" title="Code (Inline)">`code`</button>
+      <button data-action="codeblock" title="Code Block">```</button>
+      <span class="sep"></span>
+      <button data-action="ul" title="Liste">• Liste</button>
+      <button data-action="ol" title="Nummerierte Liste">1. Liste</button>
+      <button data-action="task" title="Aufgabenliste">[ ] Task</button>
+      <button data-action="quote" title="Zitat">“”</button>
+      <span class="sep"></span>
+      <button data-action="link" title="Link (Cmd/Ctrl+K)">🔗 Link</button>
+      <button data-action="image" title="Bild einfügen">🖼️ Bild</button>
+      <button data-action="table" title="Tabelle">⌗ Tabelle</button>
+      <button data-action="hr" title="Trennlinie">—</button>
+      <span class="sep"></span>
+      <button id="aiGenerateBtn" title="KI: Text generieren (Cmd/Ctrl+G)">🤖 Generieren</button>
+      <button id="chatToggleBtn" title="Chat ein-/ausblenden">💬 Chat</button>
+    </div>
+
+    <!-- Inline AI generation panel -->
+    <div id="aiInline" class="ai-inline hidden" aria-label="KI Generierung">
+      <div class="row">
+        <input id="aiPromptInput" type="text" placeholder="Beschreibe kurz, was generiert werden soll…" />
+        <label class="chk"><input type="checkbox" id="aiUseSelection" /> Auswahl ersetzen</label>
+        <button id="aiGenStartBtn">Start</button>
+        <button id="aiGenAbortBtn" class="secondary" disabled>Abbrechen</button>
+        <button id="aiGenResetBtn" class="secondary" disabled>Zurücksetzen</button>
+      </div>
+      <div class="row">
+        <label>Preset
+          <select id="aiPresetSelect"></select>
+        </label>
+        <input id="aiPresetName" type="text" placeholder="Preset-Name" />
+        <button id="aiPresetSaveBtn" class="secondary">Preset speichern</button>
+        <button id="aiPresetRenameBtn" class="secondary">Umbenennen</button>
+        <button id="aiPresetDeleteBtn" class="secondary">Preset löschen</button>
+        <button id="aiPresetExportBtn" class="secondary">Export</button>
+        <button id="aiPresetImportBtn" class="secondary">Import</button>
+        <input type="file" id="aiPresetImportFile" accept="application/json" hidden />
+      </div>
+      <div class="row">
+        <label>Kreativität
+          <input type="range" id="aiTemp" min="0" max="1.5" step="0.05" />
+        </label>
+        <span id="aiTempVal" class="muted"></span>
+        <label>Max Tokens
+          <input type="range" id="aiMaxTokens" min="32" max="8192" step="32" />
+        </label>
+        <span id="aiMaxVal" class="muted"></span>
+      </div>
+      <div id="aiGenInfo" class="muted"></div>
+    </div>
+
+    <main id="workspace" class="layout layout-edit" aria-label="Arbeitsbereich">
+      <section class="editor-pane" aria-label="Editor">
+        <textarea id="editor" placeholder="# Willkommen zum Markdown WebEditor
+
+Hier kannst du Markdown schreiben. Wähle oben die gewünschte Formatierung oder schreibe direkt los. Öffne bestehende .md-Dateien, speichere sie lokal oder exportiere als HTML.
+
+- Nutze Split/Reader-Ansicht für Vorschau
+- Ziehe .md-Dateien zum Öffnen hierher
+- Ziehe Bilder hierher oder füge sie ein (Paste)
+
+Viel Spass! ✨"></textarea>
+      </section>
+      <section class="preview-pane" aria-label="Vorschau">
+        <div id="preview" class="markdown-body"></div>
+      </section>
+    </main>
+
+    <footer class="statusbar" aria-live="polite">
+      <span id="status">Bereit</span>
+      <span id="cursorPos"></span>
+      <span id="wordCount"></span>
+      <span id="fileName"></span>
+    </footer>
+
+    <!-- Chat Panel -->
+    <div id="chatOverlay" class="chat-overlay hidden" aria-hidden="true"></div>
+    <aside id="chatPanel" class="chat-panel hidden" role="dialog" aria-label="Chat" aria-modal="true">
+      <header class="chat-header">
+        <strong>Chat</strong>
+        <div class="spacer"></div>
+        <button id="chatCloseBtn" title="Schließen">✖</button>
+      </header>
+      <section class="chat-settings">
+        <label>
+          Ollama URL
+          <input type="url" id="ollamaUrlInput" placeholder="http://localhost:11434" />
+        </label>
+        <label>
+          Modell
+          <select id="ollamaModelSelect"><option value="">Modelle laden…</option></select>
+          <input type="text" id="ollamaModelInput" placeholder="llama3.1:8b (optional, manuell)" />
+        </label>
+        <div class="row">
+          <button id="ollamaSaveBtn">Speichern</button>
+          <button id="ollamaTestBtn">Verbindung testen</button>
+          <label class="chk"><input type="checkbox" id="chatStreamToggle" checked /> Stream</label>
+        </div>
+        
+        
+        <div id="ollamaStatus" class="ollama-status" aria-live="polite"></div>
+      </section>
+      <section id="chatMessages" class="chat-messages" aria-live="polite"></section>
+      <section class="chat-input">
+        <textarea id="chatInput" rows="2" placeholder="Frage eingeben und Enter senden…"></textarea>
+        <div class="row">
+          <button id="chatSendBtn">Senden</button>
+          <button id="chatAbortBtn" class="secondary" disabled>Abbrechen</button>
+          <button id="chatClearBtn" class="secondary">Leeren</button>
+          <button id="editorContextBtn" class="secondary" title="Erlaube Zugriff auf den aktuellen Editor-Inhalt">Editor-Kontext: AUS</button>
+          <span id="editorContextInfo" class="muted"></span>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Settings Panel -->
+    <div id="settingsOverlay" class="settings-overlay hidden" aria-hidden="true"></div>
+    <aside id="settingsPanel" class="settings-panel hidden" role="dialog" aria-label="Einstellungen" aria-modal="true">
+      <header class="chat-header">
+        <strong>Einstellungen</strong>
+        <div class="spacer"></div>
+        <button id="settingsCloseBtn" title="Schließen">✖</button>
+      </header>
+      <section class="chat-settings">
+        <label class="chk"><input type="checkbox" id="prefReaderInput" checked /> Reader‑Eingabe aktivieren</label>
+        <label class="chk"><input type="checkbox" id="prefStickyTools" checked /> Werkzeugleisten immer sichtbar</label>
+        <label class="chk"><input type="checkbox" id="prefAiInlineAutoOpen" /> KI‑Leiste beim Öffnen automatisch zeigen</label>
+        <div class="row">
+          <button id="settingsSaveBtn">Speichern</button>
+        </div>
+      </section>
+    </aside>
+
+    <script src="app.js"></script>
+  </body>
+  </html>
