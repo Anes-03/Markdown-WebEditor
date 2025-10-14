@@ -572,6 +572,7 @@
 
   // Theme management (multiple themes, single cycle button)
   const themes = [
+    { id: 'system', label: 'System', icon: '🖥️', dark: false },
     { id: 'light', label: 'Light', icon: '🌞', dark: false },
     { id: 'dark', label: 'Dark', icon: '🌙', dark: true },
     { id: 'black', label: 'Pitch Black', icon: '⬛', dark: true },
@@ -581,29 +582,84 @@
   ];
 
   function findTheme(id) { return themes.find(t => t.id === id) || themes[0]; }
-  function isDark(id) { return findTheme(id).dark; }
+  function isDark(id) { return findTheme(id)?.dark; }
 
-  function applyThemeName(id) {
-    const t = findTheme(id);
-    document.body.dataset.theme = t.id;
-    // Update theme menu selection state
+  // Track the saved preference and media listener for 'system'
+  let currentThemePreference = null; // 'system' | concrete id (light/dark/black/...)
+  let systemMql = null;
+
+  function effectiveThemeFromPreference(prefId) {
+    if (prefId === 'system') {
+      const prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      return prefersDark ? 'dark' : 'light';
+    }
+    return prefId;
+  }
+
+  function setSystemListenerEnabled(enabled) {
     try {
-      if (themeMenu) {
-        themeMenu.querySelectorAll('button[data-theme]')?.forEach(btn => {
-          btn.classList.toggle('current', btn.dataset.theme === t.id);
-        });
+      if (systemMql && systemMql.removeEventListener) {
+        systemMql.removeEventListener('change', onSystemSchemeChange);
+      } else if (systemMql && systemMql.removeListener) {
+        systemMql.removeListener(onSystemSchemeChange);
       }
     } catch {}
+    if (enabled) {
+      try {
+        systemMql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        if (systemMql) {
+          if (systemMql.addEventListener) systemMql.addEventListener('change', onSystemSchemeChange);
+          else if (systemMql.addListener) systemMql.addListener(onSystemSchemeChange);
+        }
+      } catch {}
+    }
+  }
+
+  function markThemeCurrentInMenu(id) {
+    try {
+      if (!themeMenu) return;
+      themeMenu.querySelectorAll('button[data-theme]')?.forEach(btn => {
+        btn.classList.toggle('current', btn.dataset.theme === id);
+      });
+    } catch {}
+  }
+
+  function onSystemSchemeChange() {
+    // Re-apply without persisting to keep 'system' preference
+    try { applyThemeName('system', { persist: false }); } catch {}
+  }
+
+  function applyThemeName(id, opts) {
+    const options = opts || {};
+    const persist = options.persist !== false; // default true
+    const pref = findTheme(id)?.id || 'light';
+    currentThemePreference = pref;
+    if (persist) { try { localStorage.setItem('md-theme', pref); } catch {} }
+
+    // Update menu highlight to reflect the preference (not effective theme)
+    markThemeCurrentInMenu(pref);
+
+    // If 'system', install listener; otherwise remove
+    setSystemListenerEnabled(pref === 'system');
+
+    // Compute effective theme and apply
+    const effectiveId = effectiveThemeFromPreference(pref);
+    document.body.dataset.theme = effectiveId;
+
     // Update theme cycle icon (sun for light-ish, moon for dark-ish)
     try {
       const icon = themeCycleBtn?.querySelector('iconify-icon');
-      if (icon) icon.setAttribute('icon', isDark(t.id) ? 'lucide:moon' : 'lucide:sun');
-      if (themeCycleBtn) themeCycleBtn.title = `Theme wechseln (aktuell: ${t.label})`;
+      const darkish = !!isDark(effectiveId);
+      if (icon) icon.setAttribute('icon', darkish ? 'lucide:moon' : 'lucide:sun');
+      const label = findTheme(pref)?.label || pref;
+      if (themeCycleBtn) themeCycleBtn.title = `Theme wechseln (aktuell: ${label})`;
     } catch {}
-    hljsThemeLink.href = isDark(t.id)
+
+    // Update syntax highlighting theme based on effective dark/light
+    const darkish = !!isDark(effectiveId);
+    hljsThemeLink.href = darkish
       ? 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github-dark.min.css'
       : 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github.min.css';
-    try { localStorage.setItem('md-theme', t.id); } catch {}
     // Re-highlight to ensure contrast is right
     preview.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
   }
@@ -611,6 +667,7 @@
   // Theme menu setup
   function iconForTheme(id) {
     switch (id) {
+      case 'system': return 'lucide:monitor';
       case 'light': return 'lucide:sun';
       case 'dark': return 'lucide:moon';
       case 'black': return 'mdi:brightness-2';
@@ -643,8 +700,11 @@
     e.stopPropagation();
     if (!themeMenu) return;
     themeMenu.classList.toggle('hidden');
-    // ensure current item is marked
-    applyThemeName(document.body.dataset.theme || themes[0].id);
+    // ensure current item is marked based on saved preference, falling back to current effective
+    let saved = null;
+    try { saved = localStorage.getItem('md-theme'); } catch {}
+    const current = saved || currentThemePreference || document.body.dataset.theme || themes[0].id;
+    markThemeCurrentInMenu(current);
   });
   // Close theme menu when clicking outside
   document.addEventListener('click', (e) => {
