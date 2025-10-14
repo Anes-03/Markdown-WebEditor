@@ -23,6 +23,17 @@ Ein leichter, rein clientseitiger Markdown‑Editor mit:
 
 Hinweis zu CORS: Wenn die Seite lokal läuft (file:// oder anderer Origin), muss Ollama Cross‑Origin‑Zugriffe erlauben, z. B. mit Umgebungsvariable `OLLAMA_ORIGINS=*` oder passender Konfiguration. Alternativ die Seite über `http://localhost` hosten.
 
+## Weitere KI‑Anbieter
+
+- Google Gemini
+  - In den Einstellungen unter „KI‑Anbieter“ → „Google Gemini“ den API‑Key eintragen und ein Modell auswählen (oder manuell eintragen).
+  - Hinweis: Aufrufe erfolgen direkt aus dem Browser; ggf. gelten CORS‑Beschränkungen von Google.
+
+- Mistral AI
+  - In den Einstellungen unter „KI‑Anbieter“ → „Mistral AI“ den API‑Key eintragen und ein Modell auswählen (oder manuell eintragen).
+  - Test „Verbindung testen“ lädt die verfügbaren Modelle via `https://api.mistral.ai/v1/models`.
+  - Hinweis: Aufrufe erfolgen direkt aus dem Browser; ggf. gelten CORS‑Beschränkungen von Mistral.
+
 ## Starten
 
 - Öffne die Datei `index.html` direkt im Browser, oder

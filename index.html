@@ -260,6 +260,7 @@ Viel Spass! ✨"></textarea>
                 <select id="aiProvider">
                   <option value="ollama">Ollama (lokal)</option>
                   <option value="gemini">Google Gemini</option>
+                  <option value="mistral">Mistral AI</option>
                 </select>
               </label>
               <div class="row">
@@ -304,6 +305,27 @@ Viel Spass! ✨"></textarea>
                 <button id="geminiTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
               </div>
               <div id="geminiStatus" class="ollama-status" aria-live="polite"></div>
+            </div>
+
+            <div id="mistralSettingsGroup" class="settings-group" style="display: none;">
+              <h4>Mistral AI</h4>
+              <label>
+                API‑Key
+                <input type="password" id="mistralApiKeyInput" placeholder="mistral-xxxxxxxx" autocomplete="off" />
+                <div class="muted">
+                  Kein Schlüssel? <a href="https://console.mistral.ai/" target="_blank" rel="noopener noreferrer">API‑Keys erstellen</a>
+                </div>
+              </label>
+              <label>
+                Modell
+                <select id="mistralModelSelect"><option value="">Modelle laden…</option></select>
+                <input type="text" id="mistralModelInput" placeholder="mistral-small-latest (optional, manuell)" />
+              </label>
+              <div class="row">
+                <button id="mistralSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
+                <button id="mistralTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
+              </div>
+              <div id="mistralStatus" class="ollama-status" aria-live="polite"></div>
             </div>
           </section>
         <section class="chat-settings settings-tab hidden" data-tab="info" role="tabpanel" aria-label="Info">

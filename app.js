@@ -59,7 +59,7 @@
   const chatStreamToggle = document.getElementById('chatStreamToggle');
   const applyModeSelect = null;
   const aiGenerateBtn = document.getElementById('aiGenerateBtn');
-  // Provider + Gemini elements
+  // Provider + Gemini/Mistral elements
   const aiProviderSelect = document.getElementById('aiProvider');
   const ollamaSettingsGroup = document.getElementById('ollamaSettingsGroup');
   const geminiSettingsGroup = document.getElementById('geminiSettingsGroup');
@@ -69,6 +69,13 @@
   const geminiSaveBtn = document.getElementById('geminiSaveBtn');
   const geminiTestBtn = document.getElementById('geminiTestBtn');
   const geminiStatus = document.getElementById('geminiStatus');
+  const mistralSettingsGroup = document.getElementById('mistralSettingsGroup');
+  const mistralApiKeyInput = document.getElementById('mistralApiKeyInput');
+  const mistralModelInput = document.getElementById('mistralModelInput');
+  const mistralModelSelect = document.getElementById('mistralModelSelect');
+  const mistralSaveBtn = document.getElementById('mistralSaveBtn');
+  const mistralTestBtn = document.getElementById('mistralTestBtn');
+  const mistralStatus = document.getElementById('mistralStatus');
   const ollamaUrlInput = document.getElementById('ollamaUrlInput');
   const ollamaModelInput = document.getElementById('ollamaModelInput');
   const ollamaModelSelect = document.getElementById('ollamaModelSelect');
@@ -121,6 +128,7 @@
     if (aiProviderSelect) aiProviderSelect.value = p;
     if (ollamaSettingsGroup) ollamaSettingsGroup.style.display = p === 'ollama' ? '' : 'none';
     if (geminiSettingsGroup) geminiSettingsGroup.style.display = p === 'gemini' ? '' : 'none';
+    if (mistralSettingsGroup) mistralSettingsGroup.style.display = p === 'mistral' ? '' : 'none';
     // Update inline info/badge
     try { updateChatModelBadge(); } catch {}
     try {
@@ -128,8 +136,10 @@
         const info = resolveCurrentProviderInfo();
         if (info.provider === 'ollama') {
           aiGenInfo.textContent = `Modell: ${info.model} • URL: ${info.base}`;
-        } else {
+        } else if (info.provider === 'gemini') {
           aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Gemini`;
+        } else {
+          aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Mistral`;
         }
       }
     } catch {}
@@ -142,9 +152,14 @@
       const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
       const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
       return { provider, base, model };
-    } else {
+    } else if (provider === 'gemini') {
       const base = 'gemini';
       const defaultModel = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+      const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
+      return { provider, base, model };
+    } else {
+      const base = 'mistral';
+      const defaultModel = (mistralModelSelect?.value || mistralModelInput?.value || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim();
       const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
       return { provider, base, model };
     }
@@ -870,8 +885,10 @@ try {
         const info = resolveCurrentProviderInfo(presetModel);
         if (info.provider === 'ollama') {
           aiGenInfo.textContent = `Modell: ${info.model} • URL: ${info.base}`;
-        } else {
+        } else if (info.provider === 'gemini') {
           aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Gemini`;
+        } else {
+          aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Mistral`;
         }
       }
       // focus prompt
@@ -935,6 +952,63 @@ try {
       if (model) localStorage.setItem('gemini-model', model);
       setGeminiStatus('Gespeichert', true);
     } catch {}
+  }
+  // Mistral settings
+  function setMistralStatus(msg, ok = false) {
+    if (!mistralStatus) return;
+    mistralStatus.textContent = msg || '';
+    mistralStatus.style.color = ok ? 'var(--accent)' : 'var(--muted)';
+  }
+  function loadMistralSettings() {
+    try {
+      const apiKey = localStorage.getItem('mistral-api-key') || '';
+      const model = localStorage.getItem('mistral-model') || 'mistral-small-latest';
+      if (mistralApiKeyInput) mistralApiKeyInput.value = apiKey;
+      if (mistralModelInput) mistralModelInput.value = model;
+      if (mistralModelSelect) mistralModelSelect.value = '';
+    } catch {}
+  }
+  function saveMistralSettings() {
+    try {
+      const apiKey = (mistralApiKeyInput?.value || '').trim();
+      const model = (mistralModelInput?.value || '').trim();
+      if (apiKey) localStorage.setItem('mistral-api-key', apiKey);
+      if (model) localStorage.setItem('mistral-model', model);
+      setMistralStatus('Gespeichert', true);
+    } catch {}
+  }
+  async function fetchMistralModels(apiKey) {
+    const key = (apiKey || localStorage.getItem('mistral-api-key') || '').trim();
+    if (!key) throw new Error('Kein API‑Key');
+    const url = `https://api.mistral.ai/v1/models`;
+    const res = await fetch(url, { method: 'GET', mode: 'cors', headers: { 'Authorization': `Bearer ${key}` } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const arr = Array.isArray(data?.data) ? data.data : [];
+    const names = arr.map(m => m?.id || '').filter(Boolean);
+    const uniq = Array.from(new Set(names));
+    return uniq;
+  }
+  function populateMistralModelSelect(models, preferred) {
+    if (!mistralModelSelect) return;
+    const opts = models.map(name => `<option value="${name}">${name}</option>`).join('');
+    const header = '<option value="" disabled selected>Modell wählen…</option>';
+    mistralModelSelect.innerHTML = header + opts;
+    const choose = preferred && models.includes(preferred) ? preferred : '';
+    if (choose) mistralModelSelect.value = choose;
+  }
+  async function testMistral() {
+    const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+    if (!key) { setMistralStatus('Bitte API‑Key angeben'); return; }
+    setMistralStatus('Lade Modelle…');
+    try {
+      const models = await fetchMistralModels(key);
+      populateMistralModelSelect(models, (mistralModelInput?.value || '').trim());
+      const list = models.slice(0, 8).join(', ');
+      setMistralStatus(models.length ? `OK. ${models.length} Modelle: ${list}${models.length>8?'…':''}` : 'OK, keine Modelle gefunden', true);
+    } catch (e) {
+      setMistralStatus('Fehler: API‑Key oder Netzwerk prüfen');
+    }
   }
   async function fetchGeminiModels(apiKey) {
     const key = (apiKey || localStorage.getItem('gemini-api-key') || '').trim();
@@ -1013,8 +1087,10 @@ try {
     if (provider === 'ollama') {
       const base = (ollamaUrlInput?.value || '').trim();
       if (base) testOllama();
-    } else {
+    } else if (provider === 'gemini') {
       testGemini();
+    } else {
+      testMistral();
     }
     updateChatModelBadge();
   }
@@ -1035,18 +1111,24 @@ try {
       const inpVal = (ollamaModelInput?.value || '').trim();
       const local = (localStorage.getItem('ollama-model') || '').trim();
       return selVal || inpVal || local || '';
-    } else {
+    } else if (provider === 'gemini') {
       const selVal = (geminiModelSelect?.value || '').trim();
       const inpVal = (geminiModelInput?.value || '').trim();
       const local = (localStorage.getItem('gemini-model') || '').trim();
       return selVal || inpVal || local || 'gemini-1.5-flash';
+    } else {
+      const selVal = (mistralModelSelect?.value || '').trim();
+      const inpVal = (mistralModelInput?.value || '').trim();
+      const local = (localStorage.getItem('mistral-model') || '').trim();
+      return selVal || inpVal || local || 'mistral-small-latest';
     }
   }
   function updateChatModelBadge() {
     if (!chatModelBadge) return;
     const m = effectiveChatModel();
     const provider = getAiProvider();
-    chatModelBadge.textContent = m ? `Modell: ${m} (${provider === 'ollama' ? 'Ollama' : 'Gemini'})` : 'Modell: (keins)';
+    const provLabel = provider === 'ollama' ? 'Ollama' : (provider === 'gemini' ? 'Gemini' : 'Mistral');
+    chatModelBadge.textContent = m ? `Modell: ${m} (${provLabel})` : 'Modell: (keins)';
   }
 
   function appendChatMessage(role, content) {
@@ -1156,9 +1238,17 @@ try {
           renderAssistantMarkdown(assistantEl.querySelector('div'), md);
           chatMessages.scrollTop = chatMessages.scrollHeight;
         }});
-      } else {
+      } else if (provider === 'gemini') {
         const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
         content = await geminiChat({ apiKey, model, messages: msgs, stream, signal, onDelta: (delta) => {
+          const md = (assistantEl.__raw || '') + delta;
+          assistantEl.__raw = md;
+          renderAssistantMarkdown(assistantEl.querySelector('div'), md);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }});
+      } else {
+        const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+        content = await mistralChat({ apiKey, model, messages: msgs, stream, signal, onDelta: (delta) => {
           const md = (assistantEl.__raw || '') + delta;
           assistantEl.__raw = md;
           renderAssistantMarkdown(assistantEl.querySelector('div'), md);
@@ -1285,10 +1375,71 @@ try {
     return full;
   }
 
+  // Mistral chat (streaming and non-streaming)
+  function toMistralPayload(messages, genCfg) {
+    const body = { messages: [] };
+    for (const m of messages || []) {
+      const role = m.role || 'user';
+      const content = typeof m.content === 'string' ? m.content : '';
+      if (!content) continue;
+      body.messages.push({ role, content });
+    }
+    if (genCfg) {
+      if (typeof genCfg.temperature === 'number') body.temperature = genCfg.temperature;
+      if (Number.isInteger(genCfg.maxOutputTokens)) body.max_tokens = genCfg.maxOutputTokens;
+    }
+    return body;
+  }
+  async function mistralChat({ apiKey, model, messages, stream, signal, onDelta, genCfg }) {
+    const key = (apiKey || '').trim();
+    if (!key) throw new Error('Mistral API‑Key fehlt');
+    const mdl = (model || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim();
+    const base = 'https://api.mistral.ai/v1/chat/completions';
+    const body = { model: mdl, stream: !!stream, ...toMistralPayload(messages, genCfg) };
+    if (!stream) {
+      const res = await fetch(base, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body), signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const txt = (data?.choices?.[0]?.message?.content) || '';
+      if (onDelta) onDelta(txt);
+      return txt;
+    }
+    const res = await fetch(base, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body), signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let full = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        const m = line.match(/^data:\s*(.*)\s*$/);
+        if (!m) continue;
+        const payload = m[1];
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const json = JSON.parse(payload);
+          const delta = (json?.choices?.[0]?.delta?.content) || (json?.choices?.[0]?.message?.content) || '';
+          if (delta) {
+            full += delta;
+            onDelta && onDelta(delta);
+          }
+        } catch {}
+      }
+    }
+    return full;
+  }
+
   // Chat events
   chatToggleBtn?.addEventListener('click', () => {
     loadOllamaSettings();
     loadGeminiSettings();
+    try { loadMistralSettings(); } catch {}
     if (chatPanel?.classList.contains('hidden')) openChat(); else closeChat();
   });
   ollamaModelSelect?.addEventListener('change', updateChatModelBadge);
@@ -1297,6 +1448,8 @@ try {
   ollamaTestBtn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 200));
   geminiModelSelect?.addEventListener('change', updateChatModelBadge);
   geminiModelInput?.addEventListener('input', updateChatModelBadge);
+  mistralModelSelect?.addEventListener('change', updateChatModelBadge);
+  mistralModelInput?.addEventListener('input', updateChatModelBadge);
   chatOverlay?.addEventListener('click', closeChat);
   chatCloseBtn?.addEventListener('click', closeChat);
   chatSendBtn?.addEventListener('click', sendChat);
@@ -1348,6 +1501,7 @@ try {
     // Load provider settings
     try { loadOllamaSettings(); } catch {}
     try { loadGeminiSettings(); } catch {}
+    try { loadMistralSettings(); } catch {}
     try { applyProviderUI(); } catch {}
   });
   function closeSettings() { settingsPanel?.classList.add('hidden'); settingsOverlay?.classList.add('hidden'); }
@@ -1387,6 +1541,9 @@ try {
   geminiSaveBtn?.addEventListener('click', saveGeminiSettings);
   geminiTestBtn?.addEventListener('click', testGemini);
   geminiModelSelect?.addEventListener('change', () => { if (geminiModelInput && geminiModelSelect.value) geminiModelInput.value = geminiModelSelect.value; });
+  mistralSaveBtn?.addEventListener('click', saveMistralSettings);
+  mistralTestBtn?.addEventListener('click', testMistral);
+  mistralModelSelect?.addEventListener('change', () => { if (mistralModelInput && mistralModelSelect.value) mistralModelInput.value = mistralModelSelect.value; });
 
   async function loadInfoTab() {
     try {
@@ -1428,7 +1585,8 @@ try {
       if (provEl) {
         const info = resolveCurrentProviderInfo();
         if (info.provider === 'ollama') provEl.textContent = `Ollama • Modell: ${info.model} • URL: ${info.base}`;
-        else provEl.textContent = `Google Gemini • Modell: ${info.model}`;
+        else if (info.provider === 'gemini') provEl.textContent = `Google Gemini • Modell: ${info.model}`;
+        else provEl.textContent = `Mistral • Modell: ${info.model}`;
       }
     } catch {}
   }
@@ -1562,7 +1720,9 @@ async function editorGenerateAI() {
   const provider = getAiProvider();
   const defaultModel = provider === 'ollama'
     ? (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim()
-    : (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+    : (provider === 'gemini'
+      ? (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim()
+      : (mistralModelSelect?.value || mistralModelInput?.value || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim());
   let model = defaultModel;
   try {
     const presetSel = document.getElementById('aiPresetSelect');
@@ -1660,10 +1820,21 @@ async function editorGenerateAI() {
         }
       }
       flush();
-    } else {
+    } else if (provider === 'gemini') {
       const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
       const genCfg = { temperature: isFinite(temperature) ? temperature : undefined, maxOutputTokens: Number.isInteger(num_predict) ? num_predict : undefined };
       await geminiChat({ apiKey, model, messages, stream: true, signal: controller.signal, genCfg, onDelta: (delta) => {
+        if (!delta) return;
+        editor.setRangeText(delta, pos, pos, 'end');
+        pos += delta.length;
+        inserted += delta.length;
+        const now = Date.now();
+        if (now - lastFlush > 100) { flush(); lastFlush = now; }
+      }});
+    } else {
+      const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+      const genCfg = { temperature: isFinite(temperature) ? temperature : undefined, maxOutputTokens: Number.isInteger(num_predict) ? num_predict : undefined };
+      await mistralChat({ apiKey, model, messages, stream: true, signal: controller.signal, genCfg, onDelta: (delta) => {
         if (!delta) return;
         editor.setRangeText(delta, pos, pos, 'end');
         pos += delta.length;
@@ -1761,9 +1932,12 @@ async function editorGenerateAI() {
         if (provider === 'ollama') {
           const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
           models = await fetchOllamaModels(base);
-        } else {
+        } else if (provider === 'gemini') {
           const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
           models = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
+        } else {
+          const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+          models = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
         }
         const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
         modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
@@ -1917,9 +2091,12 @@ async function editorGenerateAI() {
         if (provider === 'ollama') {
           const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
           list = await fetchOllamaModels(base);
-        } else {
+        } else if (provider === 'gemini') {
           const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
           list = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
+        } else {
+          const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+          list = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
         }
         const uniq = Array.from(new Set((list || []).filter(Boolean)));
         uniq.sort((a,b) => a.localeCompare(b));
@@ -2014,6 +2191,8 @@ async function editorGenerateAI() {
     ollamaTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
     geminiSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
     geminiTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
+    mistralSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
+    mistralTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
 
     // Prompt helpers via aktueller Anbieter
     async function getPresetModelForRequest() {
@@ -2023,9 +2202,14 @@ async function editorGenerateAI() {
         const def = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
         const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
         return { provider, base, model: mdl };
-      } else {
+      } else if (provider === 'gemini') {
         const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
         const def = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+        const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
+        return { provider, apiKey, model: mdl };
+      } else {
+        const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+        const def = (mistralModelSelect?.value || mistralModelInput?.value || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim();
         const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
         return { provider, apiKey, model: mdl };
       }
@@ -2041,8 +2225,10 @@ async function editorGenerateAI() {
         let text = '';
         if (req.provider === 'ollama') {
           text = await ollamaChat({ base: req.base, model: req.model, messages, stream: false });
-        } else {
+        } else if (req.provider === 'gemini') {
           text = await geminiChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
+        } else {
+          text = await mistralChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
         }
         if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt generiert', true);
       }
@@ -2061,8 +2247,10 @@ async function editorGenerateAI() {
         let text = '';
         if (req.provider === 'ollama') {
           text = await ollamaChat({ base: req.base, model: req.model, messages, stream: false });
-        } else {
+        } else if (req.provider === 'gemini') {
           text = await geminiChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
+        } else {
+          text = await mistralChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
         }
         if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt verbessert', true);
       }
