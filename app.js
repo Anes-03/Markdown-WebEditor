@@ -145,6 +145,7 @@
     } catch {}
   }
 
+
   function resolveCurrentProviderInfo(presetOverrideModel) {
     const provider = getAiProvider();
     if (provider === 'ollama') {
@@ -163,6 +164,200 @@
       const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
       return { provider, base, model };
     }
+  }
+
+  const inlineGenerator = createInlineGenerator();
+
+  function editorGenerateAI() {
+    inlineGenerator.toggle();
+  }
+
+  function createInlineGenerator() {
+    const state = {
+      controller: null,
+      snapshot: null,
+    };
+    const elements = {
+      editor,
+      prompt: aiPromptInput,
+      useSelection: aiUseSelection,
+      startBtn: aiGenStartBtn,
+      abortBtn: aiGenAbortBtn,
+      resetBtn: aiGenResetBtn,
+      toolbarBtn: aiGenerateBtn,
+    };
+
+    const isRunning = () => !!state.controller;
+
+    const updateToolbarButton = (running) => {
+      const btn = elements.toolbarBtn;
+      if (!btn) return;
+      try {
+        const iconEl = btn.querySelector('iconify-icon');
+        const labelEl = btn.querySelector('.btn-label');
+        if (iconEl) iconEl.setAttribute('icon', running ? 'mdi:stop-circle-outline' : 'mdi:robot-outline');
+        if (labelEl) labelEl.textContent = running ? 'Abbrechen' : 'Generieren';
+        else btn.textContent = running ? 'Abbrechen' : 'Generieren';
+      } catch {
+        btn.textContent = running ? 'Abbrechen' : 'Generieren';
+      }
+      btn.disabled = false;
+    };
+
+    const updateInlineButtons = (running) => {
+      if (elements.startBtn) elements.startBtn.disabled = running;
+      if (elements.abortBtn) elements.abortBtn.disabled = !running;
+    };
+
+    const setResetEnabled = (enabled) => {
+      if (elements.resetBtn) elements.resetBtn.disabled = !enabled;
+    };
+
+    const restoreSnapshot = (snap) => {
+      if (!snap || !elements.editor) return;
+      elements.editor.value = snap.value || '';
+      try { elements.editor.setSelectionRange(snap.selStart ?? 0, snap.selEnd ?? 0); } catch {}
+      elements.editor.dispatchEvent(new Event('input'));
+    };
+
+    const getPrompt = () => {
+      if (elements.prompt) {
+        const text = (elements.prompt.value || '').trim();
+        if (!text) {
+          elements.prompt.focus();
+          return null;
+        }
+        return text;
+      }
+      const fallback = window.prompt('Beschreibe kurz, was generiert werden soll:', 'Zusammenfassung des ausgewählten Textes');
+      if (fallback == null) return null;
+      const trimmed = fallback.trim();
+      return trimmed ? trimmed : null;
+    };
+
+    const runProviderChat = async (info, messages, signal, onDelta) => {
+      if (info.provider === 'ollama') {
+        return await ollamaChat({ base: info.base, model: info.model, messages, stream: true, signal, onDelta });
+      }
+      if (info.provider === 'gemini') {
+        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+        if (!apiKey) throw new Error('Gemini API‑Key fehlt');
+        return await geminiChat({ apiKey, model: info.model, messages, stream: true, signal, onDelta });
+      }
+      const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+      if (!apiKey) throw new Error('Mistral API‑Key fehlt');
+      return await mistralChat({ apiKey, model: info.model, messages, stream: true, signal, onDelta });
+    };
+
+    const abort = () => {
+      if (!state.controller) return;
+      try { state.controller.abort(); } catch {}
+    };
+
+    const reset = () => {
+      if (!state.snapshot) return;
+      restoreSnapshot(state.snapshot);
+      state.snapshot = null;
+      setResetEnabled(false);
+      setStatus('Zurückgesetzt');
+    };
+
+    const run = async () => {
+      if (!elements.editor) return;
+      const prompt = getPrompt();
+      if (!prompt) return;
+
+      const start = elements.editor.selectionStart ?? 0;
+      const end = elements.editor.selectionEnd ?? 0;
+      const useSelection = elements.useSelection ? !!elements.useSelection.checked : (end > start);
+      const hasSelection = useSelection && end > start;
+      const fullText = elements.editor.value || '';
+      const selection = hasSelection ? fullText.slice(start, end) : '';
+
+      const messages = [
+        { role: 'system', content: 'Du bist ein hilfreicher Schreibassistent. Antworte in Markdown. Gib ausschließlich das Ergebnis aus – ohne Einleitung, ohne Meta-Kommentare, ohne Phrasen wie "ich" oder "hier ist".' }
+      ];
+      if (selection) {
+        messages.push({ role: 'system', content: 'Kontext (ausgewählter Editor-Text, nur als Referenz, nicht erneut ausgeben):\n\n' + selection });
+      }
+      messages.push({ role: 'user', content: prompt });
+
+      const info = resolveCurrentProviderInfo();
+      const controller = new AbortController();
+      state.controller = controller;
+      state.snapshot = {
+        value: elements.editor.value,
+        selStart: elements.editor.selectionStart,
+        selEnd: elements.editor.selectionEnd,
+      };
+
+      setResetEnabled(true);
+      updateToolbarButton(true);
+      updateInlineButtons(true);
+      setStatus('KI generiert (Streaming)…');
+
+      let pos = start;
+      if (hasSelection) {
+        elements.editor.setRangeText('', start, end, 'start');
+        pos = start;
+      }
+      let inserted = 0;
+      let lastFlush = 0;
+
+      const flush = () => {
+        elements.editor.dispatchEvent(new Event('input'));
+        try { elements.editor.setSelectionRange(pos, pos); } catch {}
+        try { elements.editor.scrollTop = elements.editor.scrollHeight; } catch {}
+        setStatus('KI generiert (Streaming)…');
+      };
+
+      const onDelta = (delta) => {
+        if (!delta) return;
+        elements.editor.setRangeText(delta, pos, pos, 'end');
+        pos += delta.length;
+        inserted += delta.length;
+        const now = Date.now();
+        if (now - lastFlush > 80) {
+          flush();
+          lastFlush = now;
+        }
+      };
+
+      try {
+        const full = await runProviderChat(info, messages, controller.signal, onDelta);
+        if (inserted === 0 && full) {
+          elements.editor.setRangeText(full, pos, pos, 'end');
+          pos += full.length;
+          inserted += full.length;
+        }
+        flush();
+        setStatus(`KI‑Text eingefügt (${inserted} Zeichen)`);
+      } catch (err) {
+        if (err?.name === 'AbortError') {
+          setStatus('KI‑Generierung abgebrochen');
+        } else {
+          console.error(err);
+          setStatus('KI‑Generierung fehlgeschlagen');
+          alert('KI‑Generierung fehlgeschlagen: ' + (err?.message || err));
+        }
+      } finally {
+        state.controller = null;
+        updateToolbarButton(false);
+        updateInlineButtons(false);
+      }
+    };
+
+    setResetEnabled(false);
+    updateToolbarButton(false);
+    updateInlineButtons(false);
+
+    return {
+      start: () => { if (isRunning()) { abort(); return; } run(); },
+      toggle: () => { isRunning() ? abort() : run(); },
+      abort,
+      reset,
+      isRunning,
+    };
   }
 
   function setFileName(name) {
@@ -876,8 +1071,9 @@ document.addEventListener('keydown', (e) => {
   } else if (mod && e.key === 'Enter') {
     // Alternative Trigger für KI‑Generierung
     e.preventDefault(); editorGenerateAI();
-  } else if (e.key === 'Escape' && window.__aiGenController) {
-    try { window.__aiGenController.abort(); } catch {}
+  } else if (e.key === 'Escape' && inlineGenerator.isRunning()) {
+    e.preventDefault();
+    inlineGenerator.abort();
   }
 });
 
@@ -888,8 +1084,8 @@ try {
     window.addEventListener('keydown', (e) => {
       const mod = e.metaKey || e.ctrlKey;
       const k = (e.key || '').toLowerCase();
-      // Nur für unsere bekannten Kürzel eingreifen
-      if (mod && (k === 's' || k === 'o' || k === 'n' || k === 'b' || k === 'i' || k === 'k' || k === 'g' || e.key === 'Enter')) {
+  // Nur für unsere bekannten Kürzel eingreifen (keine rohe Enter-Taste!)
+  if (mod && (k === 's' || k === 'o' || k === 'n' || k === 'b' || k === 'i' || k === 'k' || k === 'g' || k === 'enter')) {
         // Verhindere doppelte Ausführung
         e.preventDefault();
         e.stopPropagation();
@@ -901,8 +1097,8 @@ try {
         if (k === 'b') { toggleWrapSelection(editor, ['**', '**']); updatePreview(); markDirty(true); return; }
         if (k === 'i') { toggleWrapSelection(editor, ['*', '*']); updatePreview(); markDirty(true); return; }
         if (k === 'k') { insertLink(); updatePreview(); markDirty(true); return; }
-        if (k === 'g' || e.key === 'Enter') { editorGenerateAI(); return; }
-      }
+    if (k === 'g' || k === 'enter') { editorGenerateAI(); return; }
+  }
     }, { capture: true });
     window.__mdKeyHandlerInstalled = true;
   }
@@ -944,14 +1140,14 @@ try {
     try { editorGenerateAI(); } catch {}
   });
   aiGenStartBtn?.addEventListener('click', editorGenerateAI);
-  aiGenAbortBtn?.addEventListener('click', () => { try { window.__aiGenController?.abort(); } catch {} });
-  aiGenResetBtn?.addEventListener('click', () => { if (window.__aiGenSnapshot) { restoreEditorSnapshot(window.__aiGenSnapshot); window.__aiGenSnapshot = null; aiGenResetBtn.disabled = true; setStatus('Zurückgesetzt'); } });
+  aiGenAbortBtn?.addEventListener('click', () => { inlineGenerator.abort(); });
+  aiGenResetBtn?.addEventListener('click', () => { inlineGenerator.reset(); });
   // Enter in prompt field triggers generate; Enter again aborts
   aiPromptInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
       e.preventDefault();
-      if (window.__aiGenController) {
-        try { window.__aiGenController.abort(); } catch {}
+      if (inlineGenerator.isRunning()) {
+        inlineGenerator.abort();
       } else {
         editorGenerateAI();
       }
@@ -960,8 +1156,8 @@ try {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key === 'Enter') {
       e.preventDefault();
-      if (window.__aiGenController) {
-        try { window.__aiGenController.abort(); } catch {}
+      if (inlineGenerator.isRunning()) {
+        inlineGenerator.abort();
       } else {
         editorGenerateAI();
       }
@@ -1751,134 +1947,6 @@ function doExportPdf() {
   }
 }
 
-// AI generation from editor with streaming
-async function editorGenerateAI() {
-  const editor = document.getElementById('editor');
-  const statusEl = document.getElementById('status');
-  const btn = document.getElementById('aiGenerateBtn');
-  const ollamaUrlInput = document.getElementById('ollamaUrlInput');
-  const ollamaModelSelect = document.getElementById('ollamaModelSelect');
-  const ollamaModelInput = document.getElementById('ollamaModelInput');
-  if (!editor) return;
-
-  // If already generating, act as abort toggle
-  if (window.__aiGenController) {
-    try { window.__aiGenController.abort(); } catch {}
-    return;
-  }
-
-  // Inline prompt if available, fallback to prompt()
-  let promptMsg = '';
-  if (document.getElementById('aiPromptInput')) {
-    promptMsg = (document.getElementById('aiPromptInput').value || '').trim();
-    if (!promptMsg) {
-      document.getElementById('aiPromptInput').focus();
-      return;
-    }
-  } else {
-    const p = window.prompt('Beschreibe kurz, was generiert werden soll:', 'Zusammenfassung des ausgewählten Textes');
-    if (p == null) return; promptMsg = p;
-  }
-
-  const provider = getAiProvider();
-  // Resolve model strictly from settings (presets do not override model)
-  const info = resolveCurrentProviderInfo();
-  let model = info.model;
-
-  const start = editor.selectionStart ?? 0;
-  const end = editor.selectionEnd ?? 0;
-  const useSelection = document.getElementById('aiUseSelection') ? !!document.getElementById('aiUseSelection').checked : (end > start);
-  const hasSel = useSelection && end > start;
-  const full = editor.value || '';
-  const selection = hasSel ? full.slice(start, end) : '';
-
-  const messages = [];
-  messages.push({ role: 'system', content: 'Du bist ein hilfreicher Schreibassistent. Antworte in Markdown. Gib ausschließlich das Ergebnis aus – ohne Einleitung, ohne Meta-Kommentare, ohne Phrasen wie "ich" oder "hier ist".' });
-  if (hasSel) {
-    messages.push({ role: 'system', content: 'Kontext (ausgewählter Editor-Text, nur als Referenz, nicht erneut ausgeben):\n\n' + selection });
-  }
-  messages.push({ role: 'user', content: promptMsg });
-
-  const controller = new AbortController();
-  window.__aiGenController = controller;
-  // snapshot before modification for reset
-  window.__aiGenSnapshot = { value: editor.value, selStart: editor.selectionStart, selEnd: editor.selectionEnd };
-  if (document.getElementById('aiGenResetBtn')) document.getElementById('aiGenResetBtn').disabled = false;
-  let pos = start;
-  let inserted = 0;
-  let lastFlush = 0;
-  const flush = () => { editor.dispatchEvent(new Event('input')); };
-  const setBtnState = (running) => {
-    if (!btn) return;
-    try {
-      const iconEl = btn.querySelector('iconify-icon');
-      const lblEl = btn.querySelector('.btn-label');
-      if (iconEl) iconEl.setAttribute('icon', running ? 'mdi:stop-circle-outline' : 'mdi:robot-outline');
-      if (lblEl) lblEl.textContent = running ? 'Abbrechen' : 'Generieren';
-      else btn.textContent = running ? 'Abbrechen' : 'Generieren';
-    } catch {
-      btn.textContent = running ? 'Abbrechen' : 'Generieren';
-    }
-    btn.disabled = false;
-  };
-  if (document.getElementById('aiGenAbortBtn')) document.getElementById('aiGenAbortBtn').disabled = false;
-  if (document.getElementById('aiGenStartBtn')) document.getElementById('aiGenStartBtn').disabled = true;
-  setBtnState(true);
-  statusEl && (statusEl.textContent = 'KI generiert (Streaming)…');
-
-  try {
-    // prepare insertion: if selection, clear it first
-    if (hasSel) {
-      editor.setRangeText('', start, end, 'start');
-      pos = start;
-    }
-
-    const onDelta = (delta) => {
-      if (!delta) return;
-      editor.setRangeText(delta, pos, pos, 'end');
-      pos += delta.length;
-      inserted += delta.length;
-      const now = Date.now();
-      if (now - lastFlush > 100) { flush(); lastFlush = now; }
-    };
-
-    let fullText = '';
-    if (provider === 'ollama') {
-      const base = (info.base || ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
-      fullText = await ollamaChat({ base, model, messages, stream: true, signal: controller.signal, onDelta });
-    } else if (provider === 'gemini') {
-      const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-      fullText = await geminiChat({ apiKey, model, messages, stream: true, signal: controller.signal, onDelta });
-    } else { // mistral
-      const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-      fullText = await mistralChat({ apiKey, model, messages, stream: true, signal: controller.signal, onDelta });
-    }
-
-    // Fallback if streaming produced no updates but we got a final text
-    if (inserted === 0 && fullText) {
-      editor.setRangeText(fullText, pos, pos, 'end');
-      pos += fullText.length;
-      inserted += fullText.length;
-    }
-    flush();
-    statusEl && (statusEl.textContent = `KI‑Text eingefügt (${inserted} Zeichen)`);
-  } catch (e) {
-    if (e?.name === 'AbortError') {
-      statusEl && (statusEl.textContent = 'KI‑Generierung abgebrochen');
-    } else {
-      console.error(e);
-      statusEl && (statusEl.textContent = 'KI‑Generierung fehlgeschlagen');
-      alert('KI‑Generierung fehlgeschlagen: ' + (e?.message || e));
-    }
-  } finally {
-    window.__aiGenController = null;
-    setBtnState(false);
-    if (document.getElementById('aiGenAbortBtn')) document.getElementById('aiGenAbortBtn').disabled = true;
-    if (document.getElementById('aiGenStartBtn')) document.getElementById('aiGenStartBtn').disabled = false;
-  }
-}
-
-// AI inline helpers
   function initAiInlineDefaults() {
   const sel = document.getElementById('aiPresetSelect');
   const name = document.getElementById('aiPresetName');
@@ -2286,11 +2354,4 @@ function applyPrefs() {
   const aiInline = document.getElementById('aiInline');
   if (aiInline) aiInline.classList.toggle('hidden', !showAi);
   try { adjustLayout(); } catch {}
-}
-function restoreEditorSnapshot(snap) {
-  const editor = document.getElementById('editor');
-  if (!editor || !snap) return;
-  editor.value = snap.value || '';
-  try { editor.setSelectionRange(snap.selStart || 0, snap.selEnd || 0); } catch {}
-  editor.dispatchEvent(new Event('input'));
 }
