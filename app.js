@@ -918,31 +918,17 @@ try {
   undoBtn?.addEventListener('click', () => { try { editor.focus(); document.execCommand('undo'); } catch {} updatePreview(); updateCursorInfo(); updateWordCount(); markDirty(true); });
   redoBtn?.addEventListener('click', () => { try { editor.focus(); document.execCommand('redo'); } catch {} updatePreview(); updateCursorInfo(); updateWordCount(); markDirty(true); });
   aiGenerateBtn?.addEventListener('click', () => {
-    // If streaming, toggle abort
-    if (window.__aiGenController) { try { window.__aiGenController.abort(); } catch {} return; }
-    // Toggle panel
+    // Only toggle the inline panel; do not start/abort generation here
     if (aiInline) {
       const open = aiInline.classList.contains('hidden');
       aiInline.classList.toggle('hidden', !open);
       adjustLayout();
-      // default selection checkbox based on current selection
       if (aiUseSelection) {
         const hasSel = (editor.selectionEnd ?? 0) > (editor.selectionStart ?? 0);
         aiUseSelection.checked = !!hasSel;
       }
-      // model info (respect preset-specific model if set)
       if (aiGenInfo) {
-        let presetModel = '';
-        try {
-          const presetSel = document.getElementById('aiPresetSelect');
-          if (presetSel && presetSel.value !== '') {
-            const idx = parseInt(presetSel.value, 10);
-            const list = JSON.parse(localStorage.getItem('ai-presets') || '[]');
-            const p = Array.isArray(list) ? list[idx] : null;
-            if (p && typeof p.model === 'string' && p.model.trim()) presetModel = p.model.trim();
-          }
-        } catch {}
-        const info = resolveCurrentProviderInfo(presetModel);
+        const info = resolveCurrentProviderInfo();
         if (info.provider === 'ollama') {
           aiGenInfo.textContent = `Modell: ${info.model} • URL: ${info.base}`;
         } else if (info.provider === 'gemini') {
@@ -951,15 +937,36 @@ try {
           aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Mistral`;
         }
       }
-      // focus prompt
       setTimeout(() => aiPromptInput?.focus(), 0);
-    } else {
-      editorGenerateAI();
+      return;
     }
+    // Fallback if no inline panel exists
+    try { editorGenerateAI(); } catch {}
   });
   aiGenStartBtn?.addEventListener('click', editorGenerateAI);
   aiGenAbortBtn?.addEventListener('click', () => { try { window.__aiGenController?.abort(); } catch {} });
   aiGenResetBtn?.addEventListener('click', () => { if (window.__aiGenSnapshot) { restoreEditorSnapshot(window.__aiGenSnapshot); window.__aiGenSnapshot = null; aiGenResetBtn.disabled = true; setStatus('Zurückgesetzt'); } });
+  // Enter in prompt field triggers generate; Enter again aborts
+  aiPromptInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      if (window.__aiGenController) {
+        try { window.__aiGenController.abort(); } catch {}
+      } else {
+        editorGenerateAI();
+      }
+    }
+    // Cmd/Ctrl+Enter also triggers
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key === 'Enter') {
+      e.preventDefault();
+      if (window.__aiGenController) {
+        try { window.__aiGenController.abort(); } catch {}
+      } else {
+        editorGenerateAI();
+      }
+    }
+  });
   // Presets dropdown
 
   // Chat logic
@@ -1436,7 +1443,7 @@ try {
   }
 
   // Mistral chat (streaming and non-streaming)
-  function toMistralPayload(messages, genCfg) {
+  function toMistralPayload(messages) {
     const body = { messages: [] };
     for (const m of messages || []) {
       const role = m.role || 'user';
@@ -1444,18 +1451,14 @@ try {
       if (!content) continue;
       body.messages.push({ role, content });
     }
-    if (genCfg) {
-      if (typeof genCfg.temperature === 'number') body.temperature = genCfg.temperature;
-      if (Number.isInteger(genCfg.maxOutputTokens)) body.max_tokens = genCfg.maxOutputTokens;
-    }
     return body;
   }
-  async function mistralChat({ apiKey, model, messages, stream, signal, onDelta, genCfg }) {
+  async function mistralChat({ apiKey, model, messages, stream, signal, onDelta }) {
     const key = (apiKey || '').trim();
     if (!key) throw new Error('Mistral API‑Key fehlt');
     const mdl = (model || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim();
     const base = 'https://api.mistral.ai/v1/chat/completions';
-    const body = { model: mdl, stream: !!stream, ...toMistralPayload(messages, genCfg) };
+    const body = { model: mdl, stream: !!stream, ...toMistralPayload(messages) };
     if (!stream) {
       const res = await fetch(base, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body), signal });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1778,27 +1781,9 @@ async function editorGenerateAI() {
   }
 
   const provider = getAiProvider();
-  const defaultModel = provider === 'ollama'
-    ? (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim()
-    : (provider === 'gemini'
-      ? (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim()
-      : (mistralModelSelect?.value || mistralModelInput?.value || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim());
-  let model = defaultModel;
-  try {
-    const presetSel = document.getElementById('aiPresetSelect');
-    if (presetSel && presetSel.value !== '') {
-      const idx = parseInt(presetSel.value, 10);
-      const list = JSON.parse(localStorage.getItem('ai-presets') || '[]');
-      const p = Array.isArray(list) ? list[idx] : null;
-      if (p && typeof p.model === 'string' && p.model.trim()) model = p.model.trim();
-      if (p && typeof p.temperature === 'number') temperature = p.temperature;
-      if (p && typeof p.max === 'number') num_predict = p.max;
-    }
-  } catch {}
-  const tempEl = document.getElementById('aiTemp');
-  const maxEl = document.getElementById('aiMaxTokens');
-  let temperature = parseFloat((tempEl?.value || localStorage.getItem('ai-temp') || '0.7'));
-  let num_predict = parseInt((maxEl?.value || localStorage.getItem('ai-max') || '512'), 10);
+  // Resolve model strictly from settings (presets do not override model)
+  const info = resolveCurrentProviderInfo();
+  let model = info.model;
 
   const start = editor.selectionStart ?? 0;
   const end = editor.selectionEnd ?? 0;
@@ -1848,61 +1833,34 @@ async function editorGenerateAI() {
       pos = start;
     }
 
+    const onDelta = (delta) => {
+      if (!delta) return;
+      editor.setRangeText(delta, pos, pos, 'end');
+      pos += delta.length;
+      inserted += delta.length;
+      const now = Date.now();
+      if (now - lastFlush > 100) { flush(); lastFlush = now; }
+    };
+
+    let fullText = '';
     if (provider === 'ollama') {
-      const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
-      const url = base + '/api/chat';
-      const body = { model, messages, stream: true, options: { temperature, num_predict } };
-      const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let idx;
-        while ((idx = buf.indexOf('\n')) >= 0) {
-          const line = buf.slice(0, idx).trim();
-          buf = buf.slice(idx + 1);
-          if (!line) continue;
-          try {
-            const json = JSON.parse(line);
-            const delta = json?.message?.content || '';
-            if (delta) {
-              editor.setRangeText(delta, pos, pos, 'end');
-              pos += delta.length;
-              inserted += delta.length;
-              const now = Date.now();
-              if (now - lastFlush > 100) { flush(); lastFlush = now; }
-            }
-          } catch {}
-        }
-      }
-      flush();
+      const base = (info.base || ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
+      fullText = await ollamaChat({ base, model, messages, stream: true, signal: controller.signal, onDelta });
     } else if (provider === 'gemini') {
       const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-      const genCfg = { temperature: isFinite(temperature) ? temperature : undefined, maxOutputTokens: Number.isInteger(num_predict) ? num_predict : undefined };
-      await geminiChat({ apiKey, model, messages, stream: true, signal: controller.signal, genCfg, onDelta: (delta) => {
-        if (!delta) return;
-        editor.setRangeText(delta, pos, pos, 'end');
-        pos += delta.length;
-        inserted += delta.length;
-        const now = Date.now();
-        if (now - lastFlush > 100) { flush(); lastFlush = now; }
-      }});
-    } else {
+      fullText = await geminiChat({ apiKey, model, messages, stream: true, signal: controller.signal, onDelta });
+    } else { // mistral
       const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-      const genCfg = { temperature: isFinite(temperature) ? temperature : undefined, maxOutputTokens: Number.isInteger(num_predict) ? num_predict : undefined };
-      await mistralChat({ apiKey, model, messages, stream: true, signal: controller.signal, genCfg, onDelta: (delta) => {
-        if (!delta) return;
-        editor.setRangeText(delta, pos, pos, 'end');
-        pos += delta.length;
-        inserted += delta.length;
-        const now = Date.now();
-        if (now - lastFlush > 100) { flush(); lastFlush = now; }
-      }});
+      fullText = await mistralChat({ apiKey, model, messages, stream: true, signal: controller.signal, onDelta });
     }
+
+    // Fallback if streaming produced no updates but we got a final text
+    if (inserted === 0 && fullText) {
+      editor.setRangeText(fullText, pos, pos, 'end');
+      pos += fullText.length;
+      inserted += fullText.length;
+    }
+    flush();
     statusEl && (statusEl.textContent = `KI‑Text eingefügt (${inserted} Zeichen)`);
   } catch (e) {
     if (e?.name === 'AbortError') {
@@ -1931,10 +1889,7 @@ async function editorGenerateAI() {
   const exportBtn = document.getElementById('aiPresetExportBtn');
   const importBtn = document.getElementById('aiPresetImportBtn');
   const importFile = document.getElementById('aiPresetImportFile');
-  const temp = document.getElementById('aiTemp');
-  const tempVal = document.getElementById('aiTempVal');
-  const maxT = document.getElementById('aiMaxTokens');
-  const maxVal = document.getElementById('aiMaxVal');
+  // removed temperature/max controls
   if (!sel || !prompt) return;
 
   function getPresets() { try { return JSON.parse(localStorage.getItem('ai-presets') || '[]'); } catch { return []; } }
@@ -2076,15 +2031,7 @@ async function editorGenerateAI() {
     }
   });
 
-  // temperature + max tokens
-  const savedTemp = parseFloat(localStorage.getItem('ai-temp') || '0.7');
-  const savedMax = parseInt(localStorage.getItem('ai-max') || '512', 10);
-  if (temp) temp.value = String(savedTemp);
-  if (tempVal) tempVal.textContent = `(${savedTemp.toFixed(2)})`;
-  if (maxT) maxT.value = String(savedMax);
-  if (maxVal) maxVal.textContent = `(${savedMax})`;
-  temp?.addEventListener('input', () => { tempVal && (tempVal.textContent = `(${parseFloat(temp.value).toFixed(2)})`); try { localStorage.setItem('ai-temp', temp.value); } catch {} });
-  maxT?.addEventListener('input', () => { maxVal && (maxVal.textContent = `(${parseInt(maxT.value,10)})`); try { localStorage.setItem('ai-max', maxT.value); } catch {} });
+  // removed temperature/max persistence
   }
 
   // Preferences helpers
@@ -2092,8 +2039,6 @@ async function editorGenerateAI() {
     const sel = document.getElementById('settingsPresetSelect');
     const name = document.getElementById('settingsPresetName');
     const prompt = document.getElementById('settingsPresetPrompt');
-    const useModel = document.getElementById('settingsPresetUseModel');
-    const modelInput = document.getElementById('settingsPresetModel');
     const saveBtn = document.getElementById('settingsPresetSaveBtn');
     const delBtn = document.getElementById('settingsPresetDeleteBtn');
     const renameBtn = document.getElementById('settingsPresetRenameBtn');
@@ -2102,7 +2047,6 @@ async function editorGenerateAI() {
     const importFile = document.getElementById('settingsPresetImportFile');
     const newBtn = document.getElementById('settingsPresetNewBtn');
     const dupBtn = document.getElementById('settingsPresetDuplicateBtn');
-    const modelReloadBtn = document.getElementById('settingsPresetModelReloadBtn');
     const presetStatus = document.getElementById('settingsPresetStatus');
     if (!sel || !prompt) return;
 
@@ -2155,44 +2099,7 @@ async function editorGenerateAI() {
       inlineSel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
     }
     populate();
-    // Helper to fill model dropdown from Ollama
-    async function populatePresetModelOptions() {
-      if (!modelInput) return;
-      const current = modelInput.value || '';
-      const provider = getAiProvider();
-      try {
-        let list = [];
-        if (provider === 'ollama') {
-          const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
-          list = await fetchOllamaModels(base);
-        } else if (provider === 'gemini') {
-          const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-          list = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
-        } else {
-          const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-          list = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
-        }
-        const uniq = Array.from(new Set((list || []).filter(Boolean)));
-        uniq.sort((a,b) => a.localeCompare(b));
-        const opts = uniq.map(n => `<option value="${n}">${n}</option>`).join('');
-        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
-        // restore selection if present
-        if (current) {
-          if (!Array.from(modelInput.options).some(o => o.value === current)) {
-            const opt = document.createElement('option'); opt.value = current; opt.textContent = current; modelInput.appendChild(opt);
-          }
-          modelInput.value = current;
-        }
-        setPresetStatus(`${uniq.length} Modelle geladen`, true);
-      } catch (e) {
-        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>`;
-        // keep current custom if any
-        if (current) { const opt = document.createElement('option'); opt.value = current; opt.textContent = current; modelInput.appendChild(opt); modelInput.value = current; }
-        setPresetStatus('Modelle konnten nicht geladen werden', false);
-      }
-    }
-    // initial fill
-    populatePresetModelOptions();
+    // no model handling inside presets anymore
 
     sel.addEventListener('change', () => {
       const list = getPresets();
@@ -2201,39 +2108,23 @@ async function editorGenerateAI() {
       if (p) {
         prompt.value = p.prompt;
         name && (name.value = p.name);
-        if (useModel) useModel.checked = !!p.model;
-        if (modelInput) {
-          const val = p.model || '';
-          if (val) {
-            const has = Array.from(modelInput.options).some(o => o.value === val);
-            if (!has) { const opt = document.createElement('option'); opt.value = val; opt.textContent = val; modelInput.appendChild(opt); }
-          }
-          modelInput.value = val;
-          modelInput.disabled = !(useModel && useModel.checked);
-        }
-        const modelArea = document.getElementById('settingsPresetModelArea');
-        if (modelArea) modelArea.classList.toggle('hidden', !(useModel && useModel.checked));
         setPresetStatus('Preset geladen', true);
       }
     });
     newBtn?.addEventListener('click', () => {
       if (name) name.value = '';
       if (prompt) prompt.value = '';
-      if (useModel) useModel.checked = false;
-      if (modelInput) { modelInput.value = ''; modelInput.disabled = true; }
-      const modelArea = document.getElementById('settingsPresetModelArea');
-      if (modelArea) modelArea.classList.add('hidden');
       setPresetStatus('Neues Preset – ausfüllen und speichern', true);
     });
     dupBtn?.addEventListener('click', () => {
       const list = getPresets();
       const idx = parseInt(sel.value, 10);
-      const base = (!isNaN(idx) && list[idx]) ? list[idx] : { name: (name?.value || 'Preset').trim() || 'Preset', prompt: (prompt?.value || '').trim(), model: (useModel?.checked ? (modelInput?.value || '').trim() : '') };
+      const base = (!isNaN(idx) && list[idx]) ? list[idx] : { name: (name?.value || 'Preset').trim() || 'Preset', prompt: (prompt?.value || '').trim() };
       let newName = base.name + ' (Kopie)';
       const existingNames = new Set(list.map(p => p.name));
       let n = 2;
       while (existingNames.has(newName)) { newName = base.name + ` (Kopie ${n++})`; }
-      const copy = { name: newName, prompt: base.prompt || '', ...(base.model ? { model: base.model } : {}), ...(typeof base.temperature === 'number' ? { temperature: base.temperature } : {}), ...(typeof base.max === 'number' ? { max: base.max } : {}) };
+      const copy = { name: newName, prompt: base.prompt || '' };
       list.push(copy);
       setPresets(list);
       populate();
@@ -2243,30 +2134,9 @@ async function editorGenerateAI() {
       // reflect in fields
       if (name) name.value = newName;
       if (prompt) prompt.value = copy.prompt || '';
-      if (useModel) useModel.checked = !!copy.model;
-      if (modelInput) { modelInput.disabled = !useModel.checked; modelInput.value = copy.model || ''; }
-      const modelArea = document.getElementById('settingsPresetModelArea');
-      if (modelArea) modelArea.classList.toggle('hidden', !useModel?.checked);
       setPresetStatus('Preset dupliziert', true);
     });
-    useModel?.addEventListener('change', () => {
-      if (modelInput) modelInput.disabled = !useModel.checked;
-      const modelArea = document.getElementById('settingsPresetModelArea');
-      if (modelArea) modelArea.classList.toggle('hidden', !useModel.checked);
-    });
-    // Repopulate models when settings open
-    settingsBtn?.addEventListener('click', () => {
-      populatePresetModelOptions();
-      const modelArea = document.getElementById('settingsPresetModelArea');
-      if (modelArea) modelArea.classList.toggle('hidden', !useModel?.checked);
-    });
-    modelReloadBtn?.addEventListener('click', () => { populatePresetModelOptions(); });
-    ollamaSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
-    ollamaTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
-    geminiSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
-    geminiTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
-    mistralSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
-    mistralTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
+    // no model reload hooks needed
 
     // Prompt helpers via aktueller Anbieter
     async function getPresetModelForRequest() {
@@ -2274,18 +2144,15 @@ async function editorGenerateAI() {
       if (provider === 'ollama') {
         const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
         const def = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
-        const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
-        return { provider, base, model: mdl };
+        return { provider, base, model: def };
       } else if (provider === 'gemini') {
         const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
         const def = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
-        const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
-        return { provider, apiKey, model: mdl };
+        return { provider, apiKey, model: def };
       } else {
         const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
         const def = (mistralModelSelect?.value || mistralModelInput?.value || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim();
-        const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
-        return { provider, apiKey, model: mdl };
+        return { provider, apiKey, model: def };
       }
     }
     async function suggestPrompt() {
@@ -2337,13 +2204,8 @@ async function editorGenerateAI() {
       const nm = (name?.value || '').trim() || 'Preset';
       const pr = (prompt?.value || '').trim();
       if (!pr) return;
-      const mdl = useModel?.checked ? (modelInput?.value || '').trim() : '';
-      const tEl = document.getElementById('settingsPresetTemp');
-      const mEl = document.getElementById('settingsPresetMaxTokens');
-      const tval = tEl ? parseFloat(tEl.value) : undefined;
-      const mval = mEl ? parseInt(mEl.value, 10) : undefined;
       const exist = list.findIndex(x => x.name === nm);
-      const payload = { name: nm, prompt: pr, ...(mdl ? { model: mdl } : {}), ...(isFinite(tval) ? { temperature: tval } : {}), ...(Number.isInteger(mval) ? { max: mval } : {}) };
+      const payload = { name: nm, prompt: pr };
       if (exist >= 0) list[exist] = payload; else list.push(payload);
       setPresets(list);
       populate();
@@ -2360,12 +2222,7 @@ async function editorGenerateAI() {
       if (!p || !newName) return;
       const dup = list.findIndex(x => x.name === newName);
       if (dup >= 0 && dup !== idx) list.splice(dup, 1);
-      const mdl = useModel?.checked ? (modelInput?.value || '').trim() : '';
-      const tEl = document.getElementById('settingsPresetTemp');
-      const mEl = document.getElementById('settingsPresetMaxTokens');
-      const tval = tEl ? parseFloat(tEl.value) : undefined;
-      const mval = mEl ? parseInt(mEl.value, 10) : undefined;
-      list[idx] = { name: newName, prompt: (prompt?.value || '').trim(), ...(mdl ? { model: mdl } : {}), ...(isFinite(tval) ? { temperature: tval } : {}), ...(Number.isInteger(mval) ? { max: mval } : {}) };
+      list[idx] = { name: newName, prompt: (prompt?.value || '').trim() };
       setPresets(list);
       populate();
       refreshInlineSelect();
@@ -2403,8 +2260,7 @@ async function editorGenerateAI() {
         const map = new Map(existing.map(p => [p.name, { ...p }]));
         for (const item of arr) {
           if (!item || typeof item.name !== 'string' || typeof item.prompt !== 'string') continue;
-          const mdl = typeof item.model === 'string' ? item.model : (map.get(item.name)?.model || '');
-          map.set(item.name, { name: item.name, prompt: item.prompt, ...(mdl ? { model: mdl } : {}) });
+          map.set(item.name, { name: item.name, prompt: item.prompt });
         }
         const merged = Array.from(map.values());
         setPresets(merged);

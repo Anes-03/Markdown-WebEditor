@@ -90,17 +90,16 @@
       <div class="row">
         <input id="aiPromptInput" type="text" placeholder="Beschreibe kurz, was generiert werden soll…" />
         <label class="chk"><input type="checkbox" id="aiUseSelection" /> Auswahl ersetzen</label>
-        <button id="aiGenStartBtn">Start</button>
-        <button id="aiGenAbortBtn" class="secondary" disabled>Abbrechen</button>
-        <button id="aiGenResetBtn" class="secondary" disabled>Zurücksetzen</button>
+        <button id="aiGenStartBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:play-circle-outline"></iconify-icon><span class="btn-label">Start</span></button>
+        <button id="aiGenAbortBtn" class="secondary has-icon" disabled><iconify-icon aria-hidden="true" icon="mdi:stop-circle-outline"></iconify-icon><span class="btn-label">Abbrechen</span></button>
+        <button id="aiGenResetBtn" class="secondary has-icon" disabled><iconify-icon aria-hidden="true" icon="mdi:backup-restore"></iconify-icon><span class="btn-label">Zurücksetzen</span></button>
       </div>
       <div class="row">
         <label>Preset
           <select id="aiPresetSelect"></select>
         </label>
+        <span id="aiGenInfo" class="muted"></span>
       </div>
-      
-      <div id="aiGenInfo" class="muted"></div>
     </div>
 
     <main id="workspace" class="layout layout-edit" aria-label="Arbeitsbereich">
@@ -221,35 +220,11 @@ Viel Spass! ✨"></textarea>
               <textarea id="settingsPresetPrompt" rows="8" placeholder="Prompt-Text…"></textarea>
             </label>
             <div class="row">
-              <label>Kreativität
-                <input type="range" id="settingsPresetTemp" min="0" max="1.5" step="0.05" />
-              </label>
-              <span id="settingsPresetTempVal" class="muted"></span>
-              <label>Max Tokens
-                <input type="range" id="settingsPresetMaxTokens" min="32" max="8192" step="32" />
-              </label>
-              <span id="settingsPresetMaxVal" class="muted"></span>
-            </div>
-            <div class="row">
               <button id="settingsPresetPromptSuggestBtn" class="secondary">Prompt generieren</button>
               <button id="settingsPresetPromptImproveBtn" class="secondary">Prompt verbessern</button>
             </div>
           </div>
-          <div class="settings-group">
-            <h4>Modell</h4>
-            <label class="chk"><input type="checkbox" id="settingsPresetUseModel" /> Eigenes Modell für dieses Preset verwenden</label>
-            <div id="settingsPresetModelArea" class="hidden">
-              <label>
-                Modell
-                <select id="settingsPresetModel" disabled>
-                  <option value="">(Standard – aus Anbieter‑Einstellungen)</option>
-                </select>
-              </label>
-              <div class="row">
-                <button id="settingsPresetModelReloadBtn" class="secondary">Modelle laden</button>
-              </div>
-            </div>
-          </div>
+          
           <div id="settingsPresetStatus" class="muted"></div>
         </section>
           <section class="chat-settings settings-tab hidden" data-tab="providers" role="tabpanel" aria-label="KI‑Anbieter Einstellungen">
