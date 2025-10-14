@@ -163,7 +163,7 @@ Viel Spass! ✨"></textarea>
         <nav class="settings-nav" role="tablist" aria-orientation="vertical">
           <button class="nav-item active" data-tab="general" role="tab" aria-selected="true">Allgemein</button>
           <button class="nav-item" data-tab="presets" role="tab" aria-selected="false">KI‑Presets</button>
-          <button class="nav-item" data-tab="ollama" role="tab" aria-selected="false">Ollama</button>
+          <button class="nav-item" data-tab="providers" role="tab" aria-selected="false">KI‑Anbieter</button>
           <button class="nav-item" data-tab="info" role="tab" aria-selected="false">Info</button>
         </nav>
         <div class="settings-content">
@@ -230,7 +230,7 @@ Viel Spass! ✨"></textarea>
               <label>
                 Modell
                 <select id="settingsPresetModel" disabled>
-                  <option value="">(Standard – aus Ollama‑Einstellungen)</option>
+                  <option value="">(Standard – aus Anbieter‑Einstellungen)</option>
                 </select>
               </label>
               <div class="row">
@@ -252,22 +252,56 @@ Viel Spass! ✨"></textarea>
             </div>
           </div>
         </section>
-          <section class="chat-settings settings-tab hidden" data-tab="ollama" role="tabpanel" aria-label="Ollama Einstellungen">
-            <label>
-              Ollama URL
-              <input type="url" id="ollamaUrlInput" placeholder="http://localhost:11434" />
-            </label>
-            <label>
-              Modell
-              <select id="ollamaModelSelect"><option value="">Modelle laden…</option></select>
-              <input type="text" id="ollamaModelInput" placeholder="llama3.1:8b (optional, manuell)" />
-            </label>
-            <div class="row">
-              <button id="ollamaSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
-              <button id="ollamaTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
-              <label class="chk"><input type="checkbox" id="chatStreamToggle" checked /> Stream</label>
+          <section class="chat-settings settings-tab hidden" data-tab="providers" role="tabpanel" aria-label="KI‑Anbieter Einstellungen">
+            <div class="settings-group">
+              <h4>Anbieter</h4>
+              <label>
+                KI‑Anbieter auswählen
+                <select id="aiProvider">
+                  <option value="ollama">Ollama (lokal)</option>
+                  <option value="gemini">Google Gemini</option>
+                </select>
+              </label>
+              <div class="row">
+                <label class="chk"><input type="checkbox" id="chatStreamToggle" checked /> Stream</label>
+              </div>
             </div>
-            <div id="ollamaStatus" class="ollama-status" aria-live="polite"></div>
+
+            <div id="ollamaSettingsGroup" class="settings-group">
+              <h4>Ollama</h4>
+              <label>
+                Ollama URL
+                <input type="url" id="ollamaUrlInput" placeholder="http://localhost:11434" />
+              </label>
+              <label>
+                Modell
+                <select id="ollamaModelSelect"><option value="">Modelle laden…</option></select>
+                <input type="text" id="ollamaModelInput" placeholder="llama3.1:8b (optional, manuell)" />
+              </label>
+              <div class="row">
+                <button id="ollamaSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
+                <button id="ollamaTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
+              </div>
+              <div id="ollamaStatus" class="ollama-status" aria-live="polite"></div>
+            </div>
+
+            <div id="geminiSettingsGroup" class="settings-group">
+              <h4>Google Gemini</h4>
+              <label>
+                API‑Key
+                <input type="password" id="geminiApiKeyInput" placeholder="AIza..." autocomplete="off" />
+              </label>
+              <label>
+                Modell
+                <select id="geminiModelSelect"><option value="">Modelle laden…</option></select>
+                <input type="text" id="geminiModelInput" placeholder="gemini-1.5-flash (optional, manuell)" />
+              </label>
+              <div class="row">
+                <button id="geminiSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
+                <button id="geminiTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
+              </div>
+              <div id="geminiStatus" class="ollama-status" aria-live="polite"></div>
+            </div>
           </section>
         </div>
       </div>

@@ -59,6 +59,16 @@
   const chatStreamToggle = document.getElementById('chatStreamToggle');
   const applyModeSelect = null;
   const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+  // Provider + Gemini elements
+  const aiProviderSelect = document.getElementById('aiProvider');
+  const ollamaSettingsGroup = document.getElementById('ollamaSettingsGroup');
+  const geminiSettingsGroup = document.getElementById('geminiSettingsGroup');
+  const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
+  const geminiModelInput = document.getElementById('geminiModelInput');
+  const geminiModelSelect = document.getElementById('geminiModelSelect');
+  const geminiSaveBtn = document.getElementById('geminiSaveBtn');
+  const geminiTestBtn = document.getElementById('geminiTestBtn');
+  const geminiStatus = document.getElementById('geminiStatus');
   const ollamaUrlInput = document.getElementById('ollamaUrlInput');
   const ollamaModelInput = document.getElementById('ollamaModelInput');
   const ollamaModelSelect = document.getElementById('ollamaModelSelect');
@@ -97,6 +107,47 @@
 
   function setStatus(msg) {
     statusEl.textContent = msg;
+  }
+
+  // Provider helpers
+  function getAiProvider() {
+    try { return localStorage.getItem('ai-provider') || 'ollama'; } catch { return 'ollama'; }
+  }
+  function setAiProvider(p) {
+    try { localStorage.setItem('ai-provider', p); } catch {}
+  }
+  function applyProviderUI() {
+    const p = getAiProvider();
+    if (aiProviderSelect) aiProviderSelect.value = p;
+    if (ollamaSettingsGroup) ollamaSettingsGroup.style.display = p === 'ollama' ? '' : 'none';
+    if (geminiSettingsGroup) geminiSettingsGroup.style.display = p === 'gemini' ? '' : 'none';
+    // Update inline info/badge
+    try { updateChatModelBadge(); } catch {}
+    try {
+      if (aiGenInfo) {
+        const info = resolveCurrentProviderInfo();
+        if (info.provider === 'ollama') {
+          aiGenInfo.textContent = `Modell: ${info.model} • URL: ${info.base}`;
+        } else {
+          aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Gemini`;
+        }
+      }
+    } catch {}
+  }
+
+  function resolveCurrentProviderInfo(presetOverrideModel) {
+    const provider = getAiProvider();
+    if (provider === 'ollama') {
+      const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
+      const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+      const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
+      return { provider, base, model };
+    } else {
+      const base = 'gemini';
+      const defaultModel = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+      const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
+      return { provider, base, model };
+    }
   }
 
   function setFileName(name) {
@@ -776,19 +827,22 @@ document.addEventListener('keydown', (e) => {
       }
       // model info (respect preset-specific model if set)
       if (aiGenInfo) {
-        const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
-        const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
-        let model = defaultModel;
+        let presetModel = '';
         try {
           const presetSel = document.getElementById('aiPresetSelect');
           if (presetSel && presetSel.value !== '') {
             const idx = parseInt(presetSel.value, 10);
             const list = JSON.parse(localStorage.getItem('ai-presets') || '[]');
             const p = Array.isArray(list) ? list[idx] : null;
-            if (p && typeof p.model === 'string' && p.model.trim()) model = p.model.trim();
+            if (p && typeof p.model === 'string' && p.model.trim()) presetModel = p.model.trim();
           }
         } catch {}
-        aiGenInfo.textContent = `Modell: ${model} • URL: ${base}`;
+        const info = resolveCurrentProviderInfo(presetModel);
+        if (info.provider === 'ollama') {
+          aiGenInfo.textContent = `Modell: ${info.model} • URL: ${info.base}`;
+        } else {
+          aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Gemini`;
+        }
       }
       // focus prompt
       setTimeout(() => aiPromptInput?.focus(), 0);
@@ -828,6 +882,66 @@ document.addEventListener('keydown', (e) => {
     } catch {}
   }
 
+  // Gemini settings
+  function setGeminiStatus(msg, ok = false) {
+    if (!geminiStatus) return;
+    geminiStatus.textContent = msg || '';
+    geminiStatus.style.color = ok ? 'var(--accent)' : 'var(--muted)';
+  }
+  function loadGeminiSettings() {
+    try {
+      const apiKey = localStorage.getItem('gemini-api-key') || '';
+      const model = localStorage.getItem('gemini-model') || 'gemini-1.5-flash';
+      if (geminiApiKeyInput) geminiApiKeyInput.value = apiKey;
+      if (geminiModelInput) geminiModelInput.value = model;
+      if (geminiModelSelect) geminiModelSelect.value = '';
+    } catch {}
+  }
+  function saveGeminiSettings() {
+    try {
+      const apiKey = (geminiApiKeyInput?.value || '').trim();
+      const model = (geminiModelInput?.value || '').trim();
+      if (apiKey) localStorage.setItem('gemini-api-key', apiKey);
+      if (model) localStorage.setItem('gemini-model', model);
+      setGeminiStatus('Gespeichert', true);
+    } catch {}
+  }
+  async function fetchGeminiModels(apiKey) {
+    const key = (apiKey || localStorage.getItem('gemini-api-key') || '').trim();
+    if (!key) throw new Error('Kein API‑Key');
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, { method: 'GET', mode: 'cors' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const arr = Array.isArray(data?.models) ? data.models : [];
+    // Extract short names like "gemini-1.5-pro" from name "models/gemini-1.5-pro"
+    const names = arr.map(m => (m?.name || '').replace(/^models\//, '')).filter(Boolean);
+    // Prefer only text-capable models
+    const uniq = Array.from(new Set(names));
+    return uniq;
+  }
+  function populateGeminiModelSelect(models, preferred) {
+    if (!geminiModelSelect) return;
+    const opts = models.map(name => `<option value="${name}">${name}</option>`).join('');
+    const header = '<option value="" disabled selected>Modell wählen…</option>';
+    geminiModelSelect.innerHTML = header + opts;
+    const choose = preferred && models.includes(preferred) ? preferred : '';
+    if (choose) geminiModelSelect.value = choose;
+  }
+  async function testGemini() {
+    const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+    if (!key) { setGeminiStatus('Bitte API‑Key angeben'); return; }
+    setGeminiStatus('Lade Modelle…');
+    try {
+      const models = await fetchGeminiModels(key);
+      populateGeminiModelSelect(models, (geminiModelInput?.value || '').trim());
+      const list = models.filter(n => /gemini/i.test(n)).slice(0, 8).join(', ');
+      setGeminiStatus(models.length ? `OK. ${models.length} Modelle: ${list}${models.length>8?'…':''}` : 'OK, keine Modelle gefunden', true);
+    } catch (e) {
+      setGeminiStatus('Fehler: API‑Key oder Netzwerk prüfen');
+    }
+  }
+
   async function fetchOllamaModels(base) {
     const res = await fetch((base || 'http://localhost:11434').replace(/\/$/, '') + '/api/tags', { method: 'GET', mode: 'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -865,8 +979,13 @@ document.addEventListener('keydown', (e) => {
     document.body.classList.add('chat-open');
     adjustLayout();
     chatInput?.focus();
-    const base = (ollamaUrlInput?.value || '').trim();
-    if (base) testOllama();
+    const provider = getAiProvider();
+    if (provider === 'ollama') {
+      const base = (ollamaUrlInput?.value || '').trim();
+      if (base) testOllama();
+    } else {
+      testGemini();
+    }
     updateChatModelBadge();
   }
   function closeChat() {
@@ -880,15 +999,24 @@ document.addEventListener('keydown', (e) => {
   }
 
   function effectiveChatModel() {
-    const selVal = (ollamaModelSelect?.value || '').trim();
-    const inpVal = (ollamaModelInput?.value || '').trim();
-    const local = (localStorage.getItem('ollama-model') || '').trim();
-    return selVal || inpVal || local || '';
+    const provider = getAiProvider();
+    if (provider === 'ollama') {
+      const selVal = (ollamaModelSelect?.value || '').trim();
+      const inpVal = (ollamaModelInput?.value || '').trim();
+      const local = (localStorage.getItem('ollama-model') || '').trim();
+      return selVal || inpVal || local || '';
+    } else {
+      const selVal = (geminiModelSelect?.value || '').trim();
+      const inpVal = (geminiModelInput?.value || '').trim();
+      const local = (localStorage.getItem('gemini-model') || '').trim();
+      return selVal || inpVal || local || 'gemini-1.5-flash';
+    }
   }
   function updateChatModelBadge() {
     if (!chatModelBadge) return;
     const m = effectiveChatModel();
-    chatModelBadge.textContent = m ? `Modell: ${m}` : 'Modell: (keins)';
+    const provider = getAiProvider();
+    chatModelBadge.textContent = m ? `Modell: ${m} (${provider === 'ollama' ? 'Ollama' : 'Gemini'})` : 'Modell: (keins)';
   }
 
   function appendChatMessage(role, content) {
@@ -981,21 +1109,32 @@ document.addEventListener('keydown', (e) => {
     msgs.push(currentUserMsg);
     chatHistory.push(currentUserMsg);
     appendChatMessage('user', text);
+    const provider = getAiProvider();
     const base = (ollamaUrlInput?.value || '').replace(/\/$/, '');
-    const model = (ollamaModelSelect?.value || ollamaModelInput?.value || '').trim();
+    const model = effectiveChatModel();
     const stream = !!chatStreamToggle?.checked;
     try {
       const assistantEl = appendChatMessage('assistant', '');
       setChatBusy(true);
       chatAbortController = new AbortController();
       const signal = chatAbortController.signal;
-      const content = await ollamaChat({ base, model, messages: msgs, stream, signal, onDelta: (delta) => {
-        // Append delta to last assistant element
-        const md = (assistantEl.__raw || '') + delta;
-        assistantEl.__raw = md;
-        renderAssistantMarkdown(assistantEl.querySelector('div'), md);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      }});
+      let content = '';
+      if (provider === 'ollama') {
+        content = await ollamaChat({ base, model, messages: msgs, stream, signal, onDelta: (delta) => {
+          const md = (assistantEl.__raw || '') + delta;
+          assistantEl.__raw = md;
+          renderAssistantMarkdown(assistantEl.querySelector('div'), md);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }});
+      } else {
+        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+        content = await geminiChat({ apiKey, model, messages: msgs, stream, signal, onDelta: (delta) => {
+          const md = (assistantEl.__raw || '') + delta;
+          assistantEl.__raw = md;
+          renderAssistantMarkdown(assistantEl.querySelector('div'), md);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }});
+      }
       chatHistory.push({ role: 'assistant', content });
       // Apply modes
       // no auto-apply/diff handling
@@ -1050,15 +1189,84 @@ document.addEventListener('keydown', (e) => {
     return full;
   }
 
+  // Gemini chat (streaming and non-streaming)
+  function toGeminiPayload(messages, genCfg) {
+    const contents = [];
+    const sys = [];
+    for (const m of messages || []) {
+      const role = m.role || 'user';
+      const text = typeof m.content === 'string' ? m.content : '';
+      if (!text) continue;
+      if (role === 'system') {
+        sys.push(text);
+      } else if (role === 'assistant') {
+        contents.push({ role: 'model', parts: [{ text }] });
+      } else {
+        contents.push({ role: 'user', parts: [{ text }] });
+      }
+    }
+    const body = { contents };
+    if (sys.length) body.system_instruction = { parts: [{ text: sys.join('\n\n') }] };
+    if (genCfg) body.generationConfig = genCfg;
+    return body;
+  }
+  async function geminiChat({ apiKey, model, messages, stream, signal, onDelta, genCfg }) {
+    const key = (apiKey || '').trim();
+    if (!key) throw new Error('Gemini API‑Key fehlt');
+    const mdl = (model || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+    const body = toGeminiPayload(messages, genCfg);
+    const base = 'https://generativelanguage.googleapis.com/v1beta/models/';
+    if (!stream) {
+      const url = `${base}${encodeURIComponent(mdl)}:generateContent?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const txt = ((data?.candidates?.[0]?.content?.parts || []).map(p => p?.text || '').join('')) || '';
+      if (onDelta) onDelta(txt);
+      return txt;
+    }
+    const url = `${base}${encodeURIComponent(mdl)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' }, body: JSON.stringify(body), signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let full = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        const m = line.match(/^data:\s*(\{.*\})\s*$/);
+        if (!m) continue;
+        try {
+          const json = JSON.parse(m[1]);
+          const delta = ((json?.candidates?.[0]?.content?.parts || []).map(p => p?.text || '').join('')) || '';
+          if (delta) {
+            full += delta;
+            onDelta && onDelta(delta);
+          }
+        } catch {}
+      }
+    }
+    return full;
+  }
+
   // Chat events
   chatToggleBtn?.addEventListener('click', () => {
     loadOllamaSettings();
+    loadGeminiSettings();
     if (chatPanel?.classList.contains('hidden')) openChat(); else closeChat();
   });
   ollamaModelSelect?.addEventListener('change', updateChatModelBadge);
   ollamaModelInput?.addEventListener('input', updateChatModelBadge);
   ollamaSaveBtn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 50));
   ollamaTestBtn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 200));
+  geminiModelSelect?.addEventListener('change', updateChatModelBadge);
+  geminiModelInput?.addEventListener('input', updateChatModelBadge);
   chatOverlay?.addEventListener('click', closeChat);
   chatCloseBtn?.addEventListener('click', closeChat);
   chatSendBtn?.addEventListener('click', sendChat);
@@ -1107,8 +1315,10 @@ document.addEventListener('keydown', (e) => {
       const dv = getPrefStr('default-view', 'split');
       prefDefaultView.value = ['edit','split','reader'].includes(dv) ? dv : 'split';
     }
-    // Load Ollama values into settings fields
+    // Load provider settings
     try { loadOllamaSettings(); } catch {}
+    try { loadGeminiSettings(); } catch {}
+    try { applyProviderUI(); } catch {}
   });
   function closeSettings() { settingsPanel?.classList.add('hidden'); settingsOverlay?.classList.add('hidden'); }
   settingsOverlay?.addEventListener('click', closeSettings);
@@ -1141,6 +1351,12 @@ document.addEventListener('keydown', (e) => {
     const id = btn.dataset.tab;
     if (id) showSettingsTab(id);
   });
+
+  // Provider / Gemini events
+  aiProviderSelect?.addEventListener('change', () => { setAiProvider(aiProviderSelect.value); applyProviderUI(); });
+  geminiSaveBtn?.addEventListener('click', saveGeminiSettings);
+  geminiTestBtn?.addEventListener('click', testGemini);
+  geminiModelSelect?.addEventListener('change', () => { if (geminiModelInput && geminiModelSelect.value) geminiModelInput.value = geminiModelSelect.value; });
 
   async function loadInfoTab() {
     try {
@@ -1202,6 +1418,9 @@ document.addEventListener('keydown', (e) => {
       setView(mode);
     } catch { setView('split'); }
   })();
+
+  // Init provider
+  (function initProvider() { try { applyProviderUI(); } catch {} })();
 
   // Initial render
   updatePreview();
@@ -1282,8 +1501,10 @@ async function editorGenerateAI() {
     if (p == null) return; promptMsg = p;
   }
 
-  const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
-  const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+  const provider = getAiProvider();
+  const defaultModel = provider === 'ollama'
+    ? (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim()
+    : (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
   let model = defaultModel;
   try {
     const presetSel = document.getElementById('aiPresetSelect');
@@ -1349,36 +1570,50 @@ async function editorGenerateAI() {
       pos = start;
     }
 
-    const url = base + '/api/chat';
-    const body = { model, messages, stream: true, options: { temperature, num_predict } };
-    const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      let idx;
-      while ((idx = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, idx).trim();
-        buf = buf.slice(idx + 1);
-        if (!line) continue;
-        try {
-          const json = JSON.parse(line);
-          const delta = json?.message?.content || '';
-          if (delta) {
-            editor.setRangeText(delta, pos, pos, 'end');
-            pos += delta.length;
-            inserted += delta.length;
-            const now = Date.now();
-            if (now - lastFlush > 100) { flush(); lastFlush = now; }
-          }
-        } catch {}
+    if (provider === 'ollama') {
+      const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
+      const url = base + '/api/chat';
+      const body = { model, messages, stream: true, options: { temperature, num_predict } };
+      const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (!line) continue;
+          try {
+            const json = JSON.parse(line);
+            const delta = json?.message?.content || '';
+            if (delta) {
+              editor.setRangeText(delta, pos, pos, 'end');
+              pos += delta.length;
+              inserted += delta.length;
+              const now = Date.now();
+              if (now - lastFlush > 100) { flush(); lastFlush = now; }
+            }
+          } catch {}
+        }
       }
+      flush();
+    } else {
+      const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+      const genCfg = { temperature: isFinite(temperature) ? temperature : undefined, maxOutputTokens: Number.isInteger(num_predict) ? num_predict : undefined };
+      await geminiChat({ apiKey, model, messages, stream: true, signal: controller.signal, genCfg, onDelta: (delta) => {
+        if (!delta) return;
+        editor.setRangeText(delta, pos, pos, 'end');
+        pos += delta.length;
+        inserted += delta.length;
+        const now = Date.now();
+        if (now - lastFlush > 100) { flush(); lastFlush = now; }
+      }});
     }
-    flush();
     statusEl && (statusEl.textContent = `KI‑Text eingefügt (${inserted} Zeichen)`);
   } catch (e) {
     if (e?.name === 'AbortError') {
@@ -1459,17 +1694,23 @@ async function editorGenerateAI() {
     if (exist >= 0) list[exist] = { name: nm, prompt: pr }; else list.push({ name: nm, prompt: pr });
     setPresets(list);
     populate();
-    // Fill model dropdown from Ollama
+    // Modelle aus aktuellem Anbieter laden
     (async () => {
-      if (modelInput) {
-        try {
+      if (!modelInput) return;
+      try {
+        const provider = getAiProvider();
+        let models = [];
+        if (provider === 'ollama') {
           const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
-          const models = await fetchOllamaModels(base);
-          const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
-          modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>` + opts;
-        } catch {
-          modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>`;
+          models = await fetchOllamaModels(base);
+        } else {
+          const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+          models = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
         }
+        const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
+        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
+      } catch {
+        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>`;
       }
     })();
     // select this preset
@@ -1612,13 +1853,20 @@ async function editorGenerateAI() {
     async function populatePresetModelOptions() {
       if (!modelInput) return;
       const current = modelInput.value || '';
+      const provider = getAiProvider();
       try {
-        const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
-        const arr = await fetchOllamaModels(base);
-        const uniq = Array.from(new Set(arr.filter(Boolean)));
+        let list = [];
+        if (provider === 'ollama') {
+          const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
+          list = await fetchOllamaModels(base);
+        } else {
+          const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+          list = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
+        }
+        const uniq = Array.from(new Set((list || []).filter(Boolean)));
         uniq.sort((a,b) => a.localeCompare(b));
         const opts = uniq.map(n => `<option value="${n}">${n}</option>`).join('');
-        modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>` + opts;
+        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
         // restore selection if present
         if (current) {
           if (!Array.from(modelInput.options).some(o => o.value === current)) {
@@ -1628,7 +1876,7 @@ async function editorGenerateAI() {
         }
         setPresetStatus(`${uniq.length} Modelle geladen`, true);
       } catch (e) {
-        modelInput.innerHTML = `<option value="">(Standard – aus Ollama‑Einstellungen)</option>`;
+        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>`;
         // keep current custom if any
         if (current) { const opt = document.createElement('option'); opt.value = current; opt.textContent = current; modelInput.appendChild(opt); modelInput.value = current; }
         setPresetStatus('Modelle konnten nicht geladen werden', false);
@@ -1706,34 +1954,60 @@ async function editorGenerateAI() {
     modelReloadBtn?.addEventListener('click', () => { populatePresetModelOptions(); });
     ollamaSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
     ollamaTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
+    geminiSaveBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 50); });
+    geminiTestBtn?.addEventListener('click', () => { setTimeout(populatePresetModelOptions, 200); });
 
-    // Prompt helpers via Ollama
+    // Prompt helpers via aktueller Anbieter
     async function getPresetModelForRequest() {
-      const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
-      const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
-      const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : defaultModel;
-      return { base, model: mdl };
+      const provider = getAiProvider();
+      if (provider === 'ollama') {
+        const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
+        const def = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+        const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
+        return { provider, base, model: mdl };
+      } else {
+        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+        const def = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+        const mdl = (useModel?.checked && modelInput?.value) ? modelInput.value.trim() : def;
+        return { provider, apiKey, model: mdl };
+      }
     }
     async function suggestPrompt() {
       const nm = (name?.value || '').trim() || 'Preset';
-      const { base, model } = await getPresetModelForRequest();
+      const req = await getPresetModelForRequest();
       const messages = [
         { role: 'system', content: 'Du bist ein hilfreicher Prompt‑Engineer. Liefere nur den Prompt‑Text, ohne Einleitung oder Erklärungen. Sprache: Deutsch.' },
         { role: 'user', content: `Erzeuge einen prägnanten, robusten Prompt für ein KI‑Schreibpreset namens "${nm}". Der Prompt soll klar beschreiben, was die KI tun soll, inkl. Format (Markdown), Stil und Grenzen. Nur den Prompt‑Text zurückgeben.` }
       ];
-      try { const text = await ollamaChat({ base, model, messages, stream: false }); if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt generiert', true); }
+      try {
+        let text = '';
+        if (req.provider === 'ollama') {
+          text = await ollamaChat({ base: req.base, model: req.model, messages, stream: false });
+        } else {
+          text = await geminiChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
+        }
+        if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt generiert', true);
+      }
       catch (e) { setPresetStatus('Generierung fehlgeschlagen', false); }
     }
     async function improvePrompt() {
       const current = (prompt?.value || '').trim();
       if (!current) { await suggestPrompt(); return; }
       const nm = (name?.value || '').trim() || 'Preset';
-      const { base, model } = await getPresetModelForRequest();
+      const req = await getPresetModelForRequest();
       const messages = [
         { role: 'system', content: 'Du bist ein hilfreicher Prompt‑Engineer. Überarbeite Prompts präzise. Nur den verbesserten Prompt‑Text zurückgeben. Sprache: Deutsch.' },
         { role: 'user', content: `Verbessere den folgenden Prompt für das Preset "${nm}":\n\n${current}` }
       ];
-      try { const text = await ollamaChat({ base, model, messages, stream: false }); if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt verbessert', true); }
+      try {
+        let text = '';
+        if (req.provider === 'ollama') {
+          text = await ollamaChat({ base: req.base, model: req.model, messages, stream: false });
+        } else {
+          text = await geminiChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
+        }
+        if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt verbessert', true);
+      }
       catch (e) { setPresetStatus('Verbesserung fehlgeschlagen', false); }
     }
     document.getElementById('settingsPresetPromptSuggestBtn')?.addEventListener('click', suggestPrompt);
