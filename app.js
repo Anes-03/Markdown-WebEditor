@@ -798,10 +798,40 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault(); insertLink(); updatePreview(); markDirty(true);
   } else if (mod && e.key.toLowerCase() === 'g') {
     e.preventDefault(); editorGenerateAI();
+  } else if (mod && e.key === 'Enter') {
+    // Alternative Trigger für KI‑Generierung
+    e.preventDefault(); editorGenerateAI();
   } else if (e.key === 'Escape' && window.__aiGenController) {
     try { window.__aiGenController.abort(); } catch {}
   }
 });
+
+// Zusätzlicher globaler Listener im Capture‑Modus für mehr Zuverlässigkeit
+// (unterbindet Browser‑Defaults wie Suchen/Seite speichern, wo erlaubt)
+try {
+  if (!window.__mdKeyHandlerInstalled) {
+    window.addEventListener('keydown', (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const k = (e.key || '').toLowerCase();
+      // Nur für unsere bekannten Kürzel eingreifen
+      if (mod && (k === 's' || k === 'o' || k === 'n' || k === 'b' || k === 'i' || k === 'k' || k === 'g' || e.key === 'Enter')) {
+        // Verhindere doppelte Ausführung
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        // Delegiere an obige Logik (wird nicht erneut laufen, da gestoppt)
+        if (k === 's') { if (e.shiftKey) doSaveFileAs(); else doSaveFile(); return; }
+        if (k === 'o') { doOpenFile(); return; }
+        if (k === 'n') { doNewFile(); return; }
+        if (k === 'b') { toggleWrapSelection(editor, ['**', '**']); updatePreview(); markDirty(true); return; }
+        if (k === 'i') { toggleWrapSelection(editor, ['*', '*']); updatePreview(); markDirty(true); return; }
+        if (k === 'k') { insertLink(); updatePreview(); markDirty(true); return; }
+        if (k === 'g' || e.key === 'Enter') { editorGenerateAI(); return; }
+      }
+    }, { capture: true });
+    window.__mdKeyHandlerInstalled = true;
+  }
+} catch {}
 
   // Button events
   newBtn.addEventListener('click', doNewFile);
@@ -1373,6 +1403,34 @@ document.addEventListener('keydown', (e) => {
       if (infoAvatar && !infoAvatar.src) infoAvatar.src = '';
       if (infoName && !infoName.textContent) infoName.textContent = 'Anes-03';
     }
+    // Populate extra info fields
+    try {
+      const verEl = document.getElementById('infoVersion');
+      const buildEl = document.getElementById('infoBuild');
+      const themeEl = document.getElementById('infoTheme');
+      const viewEl = document.getElementById('infoView');
+      const provEl = document.getElementById('infoProvider');
+      if (verEl) verEl.textContent = '—';
+      if (buildEl) {
+        const d = new Date(document.lastModified || Date.now());
+        buildEl.textContent = d.toLocaleString('de-DE');
+      }
+      if (themeEl) {
+        const id = document.body?.dataset?.theme || 'light';
+        const t = (function(){ try { return findTheme(id); } catch { return { id, label: id }; } })();
+        themeEl.textContent = t.label || id;
+      }
+      if (viewEl) {
+        const v = localStorage.getItem('md-view') || 'split';
+        const label = v === 'edit' ? 'Editor' : (v === 'reader' ? 'Reader' : 'Split');
+        viewEl.textContent = label;
+      }
+      if (provEl) {
+        const info = resolveCurrentProviderInfo();
+        if (info.provider === 'ollama') provEl.textContent = `Ollama • Modell: ${info.model} • URL: ${info.base}`;
+        else provEl.textContent = `Google Gemini • Modell: ${info.model}`;
+      }
+    } catch {}
   }
 
   // Sync model select -> input
