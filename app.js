@@ -12,6 +12,10 @@
   const appTitleEl = document.getElementById('appTitle');
   const hiddenFile = document.getElementById('hiddenFile');
   const hiddenImage = document.getElementById('hiddenImage');
+  const hiddenPdf = document.getElementById('hiddenPdf');
+  const hiddenDocx = document.getElementById('hiddenDocx');
+  const importBtn = document.getElementById('importBtn');
+  const importMenu = document.getElementById('importMenu');
   const hljsThemeLink = document.getElementById('hljs-theme');
 
   // Buttons
@@ -108,12 +112,41 @@
   let currentFileName = '';
   let dirty = false;
   let allowEditorContext = false;
+  let importMenuVisible = false;
 
   // Utilities
   const supportsFSA = () => 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
 
+  if (window.pdfjsLib?.GlobalWorkerOptions) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.js';
+  }
+
+  let turndownService = null;
+
+  function getTurndownService() {
+    if (!turndownService && window.TurndownService) {
+      turndownService = new window.TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
+      if (typeof turndownService.keep === 'function') {
+        try { turndownService.keep(['table']); } catch {}
+      }
+    }
+    return turndownService;
+  }
+
   function setStatus(msg) {
     statusEl.textContent = msg;
+  }
+
+  function setImportMenuVisible(visible) {
+    importMenuVisible = !!visible;
+    if (!importMenu || !importBtn) return;
+    importMenu.classList.toggle('hidden', !importMenuVisible);
+    importBtn.setAttribute('aria-expanded', importMenuVisible ? 'true' : 'false');
+    importMenu.setAttribute('aria-hidden', importMenuVisible ? 'false' : 'true');
+  }
+
+  function closeImportMenu() {
+    setImportMenuVisible(false);
   }
 
   // Provider helpers
@@ -675,7 +708,7 @@
     }
   });
 
-  // Drag & drop: .md to open, images to embed
+  // Drag & drop: .md to open, PDFs/Word zum Importieren, Bilder zum Einfügen
   ['dragenter','dragover'].forEach((type) => document.addEventListener(type, (e) => {
     e.preventDefault(); e.stopPropagation(); document.body.classList.add('dragging');
   }));
@@ -697,6 +730,14 @@
       setFileName(file.name);
       fileHandle = null; // dropped file is not a persistent handle
       markDirty(false);
+      return;
+    }
+    if (files.length === 1 && /\.pdf$/i.test(files[0].name)) {
+      await importPdfFile(files[0], { suggestedName: files[0].name.replace(/\.pdf$/i, '.md') });
+      return;
+    }
+    if (files.length === 1 && /\.docx$/i.test(files[0].name)) {
+      await importDocxFile(files[0], { suggestedName: files[0].name.replace(/\.docx$/i, '.md') });
       return;
     }
     // Insert all images
@@ -903,12 +944,272 @@
   });
   // Close theme menu when clicking outside
   document.addEventListener('click', (e) => {
-    if (!themeMenu || themeMenu.classList.contains('hidden')) return;
-    const within = themeMenu.contains(e.target) || themeCycleBtn?.contains(e.target);
-    if (!within) themeMenu.classList.add('hidden');
+    if (themeMenu && !themeMenu.classList.contains('hidden')) {
+      const withinTheme = themeMenu.contains(e.target) || themeCycleBtn?.contains(e.target);
+      if (!withinTheme) themeMenu.classList.add('hidden');
+    }
+    if (importMenuVisible && importMenu && importBtn) {
+      const withinImport = importMenu.contains(e.target) || importBtn.contains(e.target);
+      if (!withinImport) closeImportMenu();
+    }
   });
 
   // File actions
+  function estimatePdfFontSize(item) {
+    if (!item) return 0;
+    if (typeof item.height === 'number') {
+      return Math.abs(item.height);
+    }
+    if (typeof item.fontSize === 'number') {
+      return Math.abs(item.fontSize);
+    }
+    if (Array.isArray(item.transform) && item.transform.length >= 4) {
+      const scaleX = Number.isFinite(item.transform[0]) ? Math.abs(item.transform[0]) : 0;
+      const scaleY = Number.isFinite(item.transform[3]) ? Math.abs(item.transform[3]) : 0;
+      return Math.max(scaleX, scaleY);
+    }
+    return 0;
+  }
+
+  function decoratePdfLinesWithHeadings(lines) {
+    const fontSizes = lines.map((l) => l.fontSize).filter((size) => size > 0).sort((a, b) => a - b);
+    const medianIndex = fontSizes.length ? Math.floor(fontSizes.length / 2) : -1;
+    const medianFontSize = medianIndex >= 0 ? fontSizes[medianIndex] : 0;
+    const maxFontSize = fontSizes.length ? fontSizes[fontSizes.length - 1] : 0;
+
+    return lines.map((line, index) => {
+      let text = line.text.trim();
+      if (!text) return '';
+
+      const fontSize = line.fontSize || 0;
+      const normalized = text.replace(/^#+\s*/, '');
+      const looksSentence = /[.!?]\s*$/.test(normalized);
+      const shortEnough = normalized.length <= 120;
+      let shouldHeading = false;
+
+      if (fontSize && medianFontSize && fontSize >= medianFontSize * 1.25 && shortEnough && !looksSentence) {
+        shouldHeading = true;
+      } else if (index === 0 && fontSize && maxFontSize && fontSize >= maxFontSize * 0.95 && shortEnough && !looksSentence) {
+        shouldHeading = true;
+      }
+
+      if (shouldHeading) {
+        text = `# ${normalized}`;
+      } else {
+        text = normalized;
+      }
+
+      return text;
+    });
+  }
+
+  async function importPdfFile(file, { suggestedName } = {}) {
+    if (!file) return false;
+    if (!window.pdfjsLib) {
+      alert('PDF-Import ist nicht verfügbar (pdf.js konnte nicht geladen werden).');
+      return false;
+    }
+
+    setStatus('PDF wird importiert…');
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pages = [];
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        const lines = [];
+        let currentLine = [];
+        let currentFontSize = 0;
+        const segments = [];
+
+        for (const item of content.items) {
+          const raw = (item.str || '').replace(/\u00a0/g, ' ');
+          const text = raw.replace(/\s+/g, ' ').trim();
+          if (!text) continue;
+          currentLine.push(text);
+          const fontSize = estimatePdfFontSize(item);
+          if (fontSize > currentFontSize) {
+            currentFontSize = fontSize;
+          }
+          if (item.hasEOL) {
+            const joined = currentLine.join(' ').replace(/\s+/g, ' ').trim();
+            if (joined) {
+              lines.push({ text: joined, fontSize: currentFontSize });
+            }
+            currentLine = [];
+            currentFontSize = 0;
+          }
+        }
+
+        if (currentLine.length) {
+          const joined = currentLine.join(' ').replace(/\s+/g, ' ').trim();
+          if (joined) {
+            lines.push({ text: joined, fontSize: currentFontSize });
+          }
+        }
+
+        const decoratedLines = decoratePdfLinesWithHeadings(lines);
+        const pageText = decoratedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+        if (pageText) {
+          segments.push(pageText);
+        }
+
+        try {
+          const viewport = page.getViewport({ scale: 2 });
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: context, viewport }).promise;
+          const dataUrl = canvas.toDataURL('image/png');
+          if (dataUrl) {
+            segments.push(`![PDF Seite ${pageNum}](${dataUrl})`);
+          }
+          canvas.width = 0;
+          canvas.height = 0;
+        } catch (renderErr) {
+          console.warn('PDF page render fehlgeschlagen', renderErr);
+        }
+
+        if (segments.length) {
+          pages.push(segments.join('\n\n'));
+        }
+      }
+
+      const finalText = pages.join('\n\n').trim();
+      editor.value = finalText ? `${finalText}\n` : '';
+      updatePreview();
+      updateCursorInfo();
+      updateWordCount();
+      editor.focus();
+      markDirty(true);
+
+      const baseName = suggestedName || file.name.replace(/\.pdf$/i, '.md');
+      if (baseName) setFileName(baseName);
+      fileHandle = null;
+      setStatus('PDF importiert – Änderungen nicht gespeichert');
+      return true;
+    } catch (err) {
+      console.error(err);
+      setStatus('PDF-Import fehlgeschlagen');
+      alert('PDF-Import fehlgeschlagen: ' + (err?.message || err));
+      return false;
+    }
+  }
+
+  async function importDocxFile(file, { suggestedName } = {}) {
+    if (!file) return false;
+    if (!window.mammoth) {
+      alert('Word-Import ist nicht verfügbar (mammoth.js konnte nicht geladen werden).');
+      return false;
+    }
+    const td = getTurndownService();
+    if (!td) {
+      alert('Word-Import ist nicht verfügbar (Turndown konnte nicht geladen werden).');
+      return false;
+    }
+
+    setStatus('Word-Dokument wird importiert…');
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const inlineImageConverter = window.mammoth?.images?.inline
+        ? window.mammoth.images.inline(async (element) => {
+            try {
+              const data = await element.read('base64');
+              return { src: `data:${element.contentType};base64,${data}` };
+            } catch (imageErr) {
+              console.warn('Word-Bild konnte nicht konvertiert werden', imageErr);
+              return {};
+            }
+          })
+        : undefined;
+      const mammothOptions = {
+        includeDefaultStyleMap: true,
+        convertImage: inlineImageConverter,
+        styleMap: [
+          "p[style-name='Title'] => h1:fresh",
+          "p[style-name='Subtitle'] => h2:fresh",
+          "p[style-name='Überschrift 1'] => h1:fresh",
+          "p[style-name='Überschrift 2'] => h2:fresh",
+        ],
+      };
+      const result = await window.mammoth.convertToHtml({ arrayBuffer }, mammothOptions);
+      const rawHtml = result?.value || '';
+      const sanitizedHtml = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } }) : rawHtml;
+      const markdown = sanitizedHtml ? td.turndown(sanitizedHtml).trim() : '';
+      editor.value = markdown ? `${markdown}\n` : '';
+      updatePreview();
+      updateCursorInfo();
+      updateWordCount();
+      editor.focus();
+      markDirty(true);
+
+      const baseName = suggestedName || file.name.replace(/\.docx$/i, '.md');
+      if (baseName) setFileName(baseName);
+      fileHandle = null;
+      setStatus('Word-Dokument importiert – Änderungen nicht gespeichert');
+      return true;
+    } catch (err) {
+      console.error(err);
+      setStatus('Word-Import fehlgeschlagen');
+      alert('Word-Import fehlgeschlagen: ' + (err?.message || err));
+      return false;
+    }
+  }
+
+  const importConfig = {
+    pdf: {
+      pickerTypes: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+      hiddenInput: hiddenPdf,
+      importer: importPdfFile,
+      suggestName: (name) => name.replace(/\.pdf$/i, '.md'),
+    },
+    docx: {
+      pickerTypes: [{
+        description: 'Word-Dokument',
+        accept: {
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+        },
+      }],
+      hiddenInput: hiddenDocx,
+      importer: importDocxFile,
+      suggestName: (name) => name.replace(/\.docx$/i, '.md'),
+    },
+  };
+
+  async function handleImportFile(kind, file) {
+    if (!file) return;
+    const config = importConfig[kind];
+    if (!config || typeof config.importer !== 'function') return;
+    const suggestedName = typeof config.suggestName === 'function' ? config.suggestName(file.name) : undefined;
+    await config.importer(file, { suggestedName });
+  }
+
+  async function startImportFlow(kind) {
+    const config = importConfig[kind];
+    if (!config) return;
+    if (supportsFSA()) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: config.pickerTypes,
+          excludeAcceptAllOption: true,
+        });
+        const file = await handle.getFile();
+        await handleImportFile(kind, file);
+      } catch (err) {
+        // dialog cancelled
+      }
+    } else if (config.hiddenInput) {
+      config.hiddenInput.value = '';
+      config.hiddenInput.click();
+    }
+  }
+
   async function doOpenFile() {
     if (supportsFSA()) {
       try {
@@ -946,6 +1247,70 @@
     updateCursorInfo();
     updateWordCount();
     markDirty(false);
+  });
+
+  if (importBtn && importMenu) {
+    importBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (importMenuVisible) {
+        closeImportMenu();
+      } else {
+        setImportMenuVisible(true);
+      }
+    });
+
+    importBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setImportMenuVisible(true);
+        const firstItem = importMenu.querySelector('button[data-import]');
+        firstItem?.focus({ preventScroll: true });
+      } else if (e.key === 'Escape' && importMenuVisible) {
+        e.preventDefault();
+        closeImportMenu();
+      }
+    });
+  }
+
+  importMenu?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-import]');
+    if (!btn) return;
+    e.preventDefault();
+    closeImportMenu();
+    try {
+      await startImportFlow(btn.dataset.import);
+    } catch (err) {
+      console.error('Import fehlgeschlagen', err);
+    }
+  });
+
+  importMenu?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeImportMenu();
+      importBtn?.focus();
+    }
+  });
+
+  importMenu?.addEventListener('focusout', (e) => {
+    if (!importMenuVisible) return;
+    const next = e.relatedTarget;
+    if (!next) return;
+    if (importMenu.contains(next) || importBtn?.contains(next)) return;
+    closeImportMenu();
+  });
+
+  hiddenPdf?.addEventListener('change', async () => {
+    const file = hiddenPdf.files && hiddenPdf.files[0];
+    hiddenPdf.value = '';
+    await handleImportFile('pdf', file);
+  });
+
+  hiddenDocx?.addEventListener('change', async () => {
+    const file = hiddenDocx.files && hiddenDocx.files[0];
+    hiddenDocx.value = '';
+    await handleImportFile('docx', file);
   });
 
   async function doSaveFile() {

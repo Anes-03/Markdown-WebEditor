@@ -24,6 +24,9 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"></script>
+    <script src="vendor/pdfjs/pdf.js"></script>
+    <script src="vendor/mammoth/mammoth.browser.min.js"></script>
+    <script src="vendor/turndown/turndown.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
   </head>
   <body>
@@ -39,10 +42,19 @@
         <button id="openBtn" class="has-icon" title="Öffnen (Cmd/Ctrl+O)"><iconify-icon aria-hidden="true" icon="lucide:folder-open"></iconify-icon><span class="btn-label">Öffnen</span></button>
         <button id="saveBtn" class="has-icon" title="Speichern (Cmd/Ctrl+S)"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
         <button id="saveAsBtn" class="has-icon" title="Speichern unter (Shift+Cmd/Ctrl+S)"><iconify-icon aria-hidden="true" icon="mdi:content-save-edit-outline"></iconify-icon><span class="btn-label">Speichern unter</span></button>
+        <div class="import-group">
+          <button id="importBtn" type="button" class="has-icon" title="Datei importieren" aria-haspopup="true" aria-expanded="false"><iconify-icon aria-hidden="true" icon="mdi:file-import-outline"></iconify-icon><span class="btn-label">Import</span></button>
+          <div id="importMenu" class="toolbar-menu hidden" role="menu" aria-label="Datei importieren" aria-hidden="true">
+            <button type="button" class="has-icon" data-import="pdf" role="menuitem"><iconify-icon aria-hidden="true" icon="mdi:file-pdf-box"></iconify-icon><span class="btn-label">PDF importieren</span></button>
+            <button type="button" class="has-icon" data-import="docx" role="menuitem"><iconify-icon aria-hidden="true" icon="mdi:file-word-outline"></iconify-icon><span class="btn-label">Word importieren</span></button>
+          </div>
+        </div>
         <button id="exportHtmlBtn" class="has-icon" title="Als HTML exportieren"><iconify-icon aria-hidden="true" icon="lucide:file-code"></iconify-icon><span class="btn-label">Export HTML</span></button>
         <button id="exportPdfBtn" class="has-icon" title="Als PDF exportieren"><iconify-icon aria-hidden="true" icon="mdi:file-pdf-box"></iconify-icon><span class="btn-label">Export PDF</span></button>
         <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
         <input type="file" id="hiddenImage" accept="image/*" hidden />
+        <input type="file" id="hiddenPdf" accept="application/pdf" hidden />
+        <input type="file" id="hiddenDocx" accept="application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" hidden />
       </div>
       <div class="right">
         <div class="view-toggle" role="group" aria-label="Ansicht">
