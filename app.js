@@ -899,6 +899,7 @@
     { id: 'light', label: 'Light', icon: '🌞', dark: false },
     { id: 'dark', label: 'Dark', icon: '🌙', dark: true },
     { id: 'black', label: 'Pitch Black', icon: '⬛', dark: true },
+    { id: 'high-contrast', label: 'High Contrast', icon: '⚡', dark: true },
     { id: 'sepia', label: 'Sepia', icon: '📜', dark: false },
     { id: 'solarized-light', label: 'Solarized Light', icon: '🌤️', dark: false },
     { id: 'solarized-dark', label: 'Solarized Dark', icon: '🌌', dark: true },
@@ -994,6 +995,7 @@
       case 'light': return 'lucide:sun';
       case 'dark': return 'lucide:moon';
       case 'black': return 'mdi:brightness-2';
+      case 'high-contrast': return 'mdi:contrast-circle';
       case 'sepia': return 'mdi:book-open-page-variant-outline';
       case 'solarized-light': return 'mdi:white-balance-sunny';
       case 'solarized-dark': return 'mdi:weather-night';

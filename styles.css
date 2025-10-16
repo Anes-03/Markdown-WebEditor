@@ -47,6 +47,18 @@ body[data-theme="black"] {
   --btn-bg-hover: #151515;
 }
 
+/* High Contrast */
+body[data-theme="high-contrast"] {
+  --bg: #000000;
+  --bg-elev: #000000;
+  --text: #ffff00;
+  --muted: #ffe066;
+  --border: #ffffff;
+  --accent: #ff8c00;
+  --btn-bg: #000000;
+  --btn-bg-hover: #1a1a1a;
+}
+
 /* Sepia */
 body[data-theme="sepia"] {
   --bg: #f6f1e7;

@@ -11,7 +11,7 @@ Ein leichter, rein clientseitiger Markdown‑Editor mit:
 - Öffnen/Speichern lokaler `.md`‑Dateien über die File System Access API (Chrome/Edge) mit Fallback (Download) für andere Browser
 - Export als HTML und PDF (PDF mit html2pdf.js; exportiert nur die Vorschau)
 - Import-Menü für PDF-Dateien (Text plus Seitenabbildungen) und Word-Dokumente (`.docx` via Mammoth.js → Markdown) – inklusive automatischer Überschriften-Erkennung, soweit möglich; alle benötigten Bibliotheken liegen gebündelt bei und funktionieren dadurch auch offline
-- Themes per Dropdown: Light, Dark, Pitch Black, Sepia, Solarized Light/Dark (Auswahl wird gespeichert)
+- Themes per Dropdown: Light, Dark, Pitch Black, High Contrast, Sepia, Solarized Light/Dark (Auswahl wird gespeichert)
 - Autosave in `localStorage`
 
 ## Ollama Chat
