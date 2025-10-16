@@ -253,6 +253,8 @@ Viel Spaß beim Schreiben! ✨"></textarea>
               <label>
                 KI‑Anbieter auswählen
                 <select id="aiProvider">
+                  <option value="openai">OpenAI</option>
+                  <option value="claude">Anthropic Claude</option>
                   <option value="ollama">Ollama (lokal)</option>
                   <option value="gemini">Google Gemini</option>
                   <option value="mistral">Mistral AI</option>
@@ -261,6 +263,56 @@ Viel Spaß beim Schreiben! ✨"></textarea>
               <div class="row">
                 <label class="chk"><input type="checkbox" id="chatStreamToggle" checked /> Stream</label>
               </div>
+            </div>
+
+            <div id="openaiSettingsGroup" class="settings-group">
+              <h4>OpenAI</h4>
+              <label>
+                API‑Key
+                <input type="password" id="openaiApiKeyInput" placeholder="sk-..." autocomplete="off" />
+                <div class="muted">
+                  Kein Schlüssel? <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">API‑Keys erstellen</a>
+                </div>
+              </label>
+              <label>
+                Basis‑URL
+                <input type="url" id="openaiBaseInput" placeholder="https://api.openai.com/v1" />
+              </label>
+              <label>
+                Modell
+                <select id="openaiModelSelect"><option value="">Modelle laden…</option></select>
+                <input type="text" id="openaiModelInput" placeholder="gpt-4o-mini (optional, manuell)" />
+              </label>
+              <div class="row">
+                <button id="openaiSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
+                <button id="openaiTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
+              </div>
+              <div id="openaiStatus" class="ollama-status" aria-live="polite"></div>
+            </div>
+
+            <div id="claudeSettingsGroup" class="settings-group" style="display: none;">
+              <h4>Anthropic Claude</h4>
+              <label>
+                API‑Key
+                <input type="password" id="claudeApiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
+                <div class="muted">
+                  Kein Schlüssel? <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">API‑Keys erstellen</a>
+                </div>
+              </label>
+              <label>
+                Basis‑URL
+                <input type="url" id="claudeBaseInput" placeholder="https://api.anthropic.com" />
+              </label>
+              <label>
+                Modell
+                <select id="claudeModelSelect"><option value="">Modelle laden…</option></select>
+                <input type="text" id="claudeModelInput" placeholder="claude-3-5-sonnet-latest (optional, manuell)" />
+              </label>
+              <div class="row">
+                <button id="claudeSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
+                <button id="claudeTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
+              </div>
+              <div id="claudeStatus" class="ollama-status" aria-live="polite"></div>
             </div>
 
             <div id="ollamaSettingsGroup" class="settings-group">
@@ -281,7 +333,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
               <div id="ollamaStatus" class="ollama-status" aria-live="polite"></div>
             </div>
 
-            <div id="geminiSettingsGroup" class="settings-group">
+            <div id="geminiSettingsGroup" class="settings-group" style="display: none;">
               <h4>Google Gemini</h4>
               <label>
                 API‑Key
@@ -322,6 +374,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
               </div>
               <div id="mistralStatus" class="ollama-status" aria-live="polite"></div>
             </div>
+
           </section>
         <section class="chat-settings settings-tab hidden" data-tab="info" role="tabpanel" aria-label="Info">
           <div class="info-panel">
@@ -397,7 +450,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             <ul>
               <li>Deine Dokumente bleiben lokal im Browser, Autosave nutzt LocalStorage.</li>
               <li>Beim Einbetten von Bildern werden Daten‑URLs im Dokument gespeichert.</li>
-              <li>KI‑Funktionen senden Inhalte an den gewählten Anbieter (Ollama lokal oder Google Gemini), sofern aktiviert.</li>
+              <li>KI‑Funktionen senden Inhalte an den gewählten Anbieter (z. B. Ollama lokal, OpenAI, Claude, Gemini oder Mistral), sofern aktiviert.</li>
             </ul>
           </div>
           <div class="settings-group">

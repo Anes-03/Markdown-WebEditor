@@ -26,14 +26,22 @@ Hinweis zu CORS: Wenn die Seite lokal läuft (file:// oder anderer Origin), muss
 
 ## Weitere KI‑Anbieter
 
+- OpenAI
+  - In den Einstellungen unter „KI‑Anbieter“ → „OpenAI“ API‑Key, Basis‑URL (optional) und Modell setzen.
+  - „Verbindung testen“ ruft `GET /models` auf und füllt die Auswahlliste.
+  - API‑Keys erstellen: https://platform.openai.com/api-keys
+- Anthropic Claude
+  - API‑Key und optional Basis‑URL eintragen, Modelle z. B. `claude-3-5-sonnet-latest` auswählen.
+  - Beim Test werden `https://api.anthropic.com/v1/models` geladen.
+  - API‑Keys erstellen: https://console.anthropic.com/settings/keys
 - Google Gemini
-  - In den Einstellungen unter „KI‑Anbieter“ → „Google Gemini“ den API‑Key eintragen und ein Modell auswählen (oder manuell eintragen).
-  - Hinweis: Aufrufe erfolgen direkt aus dem Browser; ggf. gelten CORS‑Beschränkungen von Google.
-
+  - API‑Key hinterlegen, Modell per Dropdown wählen oder manuell eintragen.
+  - „Verbindung testen“ ruft `https://generativelanguage.googleapis.com/v1beta/models` auf.
 - Mistral AI
-  - In den Einstellungen unter „KI‑Anbieter“ → „Mistral AI“ den API‑Key eintragen und ein Modell auswählen (oder manuell eintragen).
-  - Test „Verbindung testen“ lädt die verfügbaren Modelle via `https://api.mistral.ai/v1/models`.
-  - Hinweis: Aufrufe erfolgen direkt aus dem Browser; ggf. gelten CORS‑Beschränkungen von Mistral.
+  - API‑Key hinterlegen und Modell wählen.
+  - „Verbindung testen“ nutzt `https://api.mistral.ai/v1/models`.
+
+> **Hinweis:** Alle genannten Cloud‑Anbieter werden direkt aus dem Browser angesprochen. Prüfe ggf. CORS‑Beschränkungen des Dienstes und teile nur Inhalte, die dort verarbeitet werden dürfen.
 
 ## Starten
 

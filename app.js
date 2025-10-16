@@ -65,6 +65,22 @@
   const aiGenerateBtn = document.getElementById('aiGenerateBtn');
   // Provider + Gemini/Mistral elements
   const aiProviderSelect = document.getElementById('aiProvider');
+  const openaiSettingsGroup = document.getElementById('openaiSettingsGroup');
+  const openaiApiKeyInput = document.getElementById('openaiApiKeyInput');
+  const openaiBaseInput = document.getElementById('openaiBaseInput');
+  const openaiModelInput = document.getElementById('openaiModelInput');
+  const openaiModelSelect = document.getElementById('openaiModelSelect');
+  const openaiSaveBtn = document.getElementById('openaiSaveBtn');
+  const openaiTestBtn = document.getElementById('openaiTestBtn');
+  const openaiStatus = document.getElementById('openaiStatus');
+  const claudeSettingsGroup = document.getElementById('claudeSettingsGroup');
+  const claudeApiKeyInput = document.getElementById('claudeApiKeyInput');
+  const claudeBaseInput = document.getElementById('claudeBaseInput');
+  const claudeModelInput = document.getElementById('claudeModelInput');
+  const claudeModelSelect = document.getElementById('claudeModelSelect');
+  const claudeSaveBtn = document.getElementById('claudeSaveBtn');
+  const claudeTestBtn = document.getElementById('claudeTestBtn');
+  const claudeStatus = document.getElementById('claudeStatus');
   const ollamaSettingsGroup = document.getElementById('ollamaSettingsGroup');
   const geminiSettingsGroup = document.getElementById('geminiSettingsGroup');
   const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
@@ -150,30 +166,65 @@
   }
 
   // Provider helpers
+  const SUPPORTED_PROVIDERS = ['openai', 'claude', 'ollama', 'gemini', 'mistral'];
   function getAiProvider() {
-    try { return localStorage.getItem('ai-provider') || 'ollama'; } catch { return 'ollama'; }
+    try {
+      const stored = localStorage.getItem('ai-provider') || 'openai';
+      return SUPPORTED_PROVIDERS.includes(stored) ? stored : 'openai';
+    } catch {
+      return 'openai';
+    }
   }
   function setAiProvider(p) {
-    try { localStorage.setItem('ai-provider', p); } catch {}
+    const normalized = SUPPORTED_PROVIDERS.includes(p) ? p : 'openai';
+    try { localStorage.setItem('ai-provider', normalized); } catch {}
   }
+  const PROVIDER_LABELS = {
+    openai: 'OpenAI',
+    claude: 'Anthropic Claude',
+    ollama: 'Ollama',
+    gemini: 'Google Gemini',
+    mistral: 'Mistral',
+  };
+
+  function formatProviderInfo(info) {
+    if (!info) return '';
+    const label = PROVIDER_LABELS[info.provider] || info.provider;
+    switch (info.provider) {
+      case 'ollama':
+        return `Modell: ${info.model} • URL: ${info.base}`;
+      case 'gemini':
+        return `Modell: ${info.model} • Anbieter: Google Gemini`;
+      case 'mistral':
+        return `Modell: ${info.model} • Anbieter: Mistral`;
+      case 'openai':
+      case 'claude':
+        return `Modell: ${info.model} • Anbieter: ${label}${info.base ? ` • Basis: ${info.base}` : ''}`;
+      default:
+        return `Modell: ${info.model} • Anbieter: ${label}`;
+    }
+  }
+
   function applyProviderUI() {
     const p = getAiProvider();
     if (aiProviderSelect) aiProviderSelect.value = p;
-    if (ollamaSettingsGroup) ollamaSettingsGroup.style.display = p === 'ollama' ? '' : 'none';
-    if (geminiSettingsGroup) geminiSettingsGroup.style.display = p === 'gemini' ? '' : 'none';
-    if (mistralSettingsGroup) mistralSettingsGroup.style.display = p === 'mistral' ? '' : 'none';
+    const groups = [
+      ['openai', openaiSettingsGroup],
+      ['claude', claudeSettingsGroup],
+      ['ollama', ollamaSettingsGroup],
+      ['gemini', geminiSettingsGroup],
+      ['mistral', mistralSettingsGroup],
+    ];
+    for (const [id, el] of groups) {
+      if (!el) continue;
+      el.style.display = p === id ? '' : 'none';
+    }
     // Update inline info/badge
     try { updateChatModelBadge(); } catch {}
     try {
       if (aiGenInfo) {
         const info = resolveCurrentProviderInfo();
-        if (info.provider === 'ollama') {
-          aiGenInfo.textContent = `Modell: ${info.model} • URL: ${info.base}`;
-        } else if (info.provider === 'gemini') {
-          aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Gemini`;
-        } else {
-          aiGenInfo.textContent = `Modell: ${info.model} • Anbieter: Mistral`;
-        }
+        aiGenInfo.textContent = formatProviderInfo(info);
       }
     } catch {}
   }
@@ -181,21 +232,38 @@
 
   function resolveCurrentProviderInfo(presetOverrideModel) {
     const provider = getAiProvider();
-    if (provider === 'ollama') {
-      const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').replace(/\/$/, '');
-      const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
-      const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
-      return { provider, base, model };
-    } else if (provider === 'gemini') {
-      const base = 'gemini';
-      const defaultModel = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
-      const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
-      return { provider, base, model };
-    } else {
-      const base = 'mistral';
-      const defaultModel = (mistralModelSelect?.value || mistralModelInput?.value || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim();
-      const model = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : defaultModel;
-      return { provider, base, model };
+    const override = (presetOverrideModel && presetOverrideModel.trim()) ? presetOverrideModel.trim() : null;
+    switch (provider) {
+      case 'openai': {
+        const base = ((openaiBaseInput?.value || localStorage.getItem('openai-base') || 'https://api.openai.com/v1').trim() || 'https://api.openai.com/v1').replace(/\/$/, '');
+        const defaultModel = (openaiModelSelect?.value || openaiModelInput?.value || localStorage.getItem('openai-model') || 'gpt-4o-mini').trim();
+        return { provider, base, model: override || defaultModel };
+      }
+      case 'claude': {
+        const base = ((claudeBaseInput?.value || localStorage.getItem('claude-base') || 'https://api.anthropic.com').trim() || 'https://api.anthropic.com').replace(/\/$/, '');
+        const defaultModel = (claudeModelSelect?.value || claudeModelInput?.value || localStorage.getItem('claude-model') || 'claude-3-5-sonnet-latest').trim();
+        return { provider, base, model: override || defaultModel };
+      }
+      case 'ollama': {
+        const base = ((ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434').trim() || 'http://localhost:11434').replace(/\/$/, '');
+        const defaultModel = (ollamaModelSelect?.value || ollamaModelInput?.value || localStorage.getItem('ollama-model') || 'llama3.1:8b').trim();
+        return { provider, base, model: override || defaultModel };
+      }
+      case 'gemini': {
+        const base = 'gemini';
+        const defaultModel = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+        return { provider, base, model: override || defaultModel };
+      }
+      case 'mistral': {
+        const base = 'mistral';
+        const defaultModel = (mistralModelSelect?.value || mistralModelInput?.value || localStorage.getItem('mistral-model') || 'mistral-small-latest').trim();
+        return { provider, base, model: override || defaultModel };
+      }
+      default: {
+        const base = 'gemini';
+        const defaultModel = (geminiModelSelect?.value || geminiModelInput?.value || localStorage.getItem('gemini-model') || 'gemini-1.5-flash').trim();
+        return { provider, base, model: override || defaultModel };
+      }
     }
   }
 
@@ -269,17 +337,35 @@
     };
 
     const runProviderChat = async (info, messages, signal, onDelta) => {
-      if (info.provider === 'ollama') {
-        return await ollamaChat({ base: info.base, model: info.model, messages, stream: true, signal, onDelta });
+      switch (info.provider) {
+        case 'openai': {
+          const apiKey = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+          if (!apiKey) throw new Error('OpenAI API‑Key fehlt');
+          return await openAiCompatibleChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: true, signal, onDelta });
+        }
+        case 'claude': {
+          const apiKey = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+          if (!apiKey) throw new Error('Claude API‑Key fehlt');
+          return await anthropicChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: true, signal, onDelta });
+        }
+        case 'ollama':
+          return await ollamaChat({ base: info.base, model: info.model, messages, stream: true, signal, onDelta });
+        case 'gemini': {
+          const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+          if (!apiKey) throw new Error('Gemini API‑Key fehlt');
+          return await geminiChat({ apiKey, model: info.model, messages, stream: true, signal, onDelta });
+        }
+        case 'mistral': {
+          const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+          if (!apiKey) throw new Error('Mistral API‑Key fehlt');
+          return await mistralChat({ apiKey, model: info.model, messages, stream: true, signal, onDelta });
+        }
+        default: {
+          const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+          if (!apiKey) throw new Error('Mistral API‑Key fehlt');
+          return await mistralChat({ apiKey, model: info.model, messages, stream: true, signal, onDelta });
+        }
       }
-      if (info.provider === 'gemini') {
-        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-        if (!apiKey) throw new Error('Gemini API‑Key fehlt');
-        return await geminiChat({ apiKey, model: info.model, messages, stream: true, signal, onDelta });
-      }
-      const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-      if (!apiKey) throw new Error('Mistral API‑Key fehlt');
-      return await mistralChat({ apiKey, model: info.model, messages, stream: true, signal, onDelta });
     };
 
     const abort = () => {
@@ -1557,6 +1643,62 @@ try {
     } catch {}
   }
 
+  function setOpenAiStatus(msg, ok = false) {
+    if (!openaiStatus) return;
+    openaiStatus.textContent = msg || '';
+    openaiStatus.style.color = ok ? 'var(--accent)' : 'var(--muted)';
+  }
+  function loadOpenAiSettings() {
+    try {
+      const apiKey = localStorage.getItem('openai-api-key') || '';
+      const base = localStorage.getItem('openai-base') || 'https://api.openai.com/v1';
+      const model = localStorage.getItem('openai-model') || 'gpt-4o-mini';
+      if (openaiApiKeyInput) openaiApiKeyInput.value = apiKey;
+      if (openaiBaseInput) openaiBaseInput.value = base;
+      if (openaiModelInput) openaiModelInput.value = model;
+      if (openaiModelSelect) openaiModelSelect.value = '';
+    } catch {}
+  }
+  function saveOpenAiSettings() {
+    try {
+      const apiKey = (openaiApiKeyInput?.value || '').trim();
+      const base = (openaiBaseInput?.value || '').trim();
+      const model = (openaiModelInput?.value || '').trim();
+      if (apiKey) localStorage.setItem('openai-api-key', apiKey);
+      if (base) localStorage.setItem('openai-base', base);
+      if (model) localStorage.setItem('openai-model', model);
+      setOpenAiStatus('Gespeichert', true);
+    } catch {}
+  }
+
+  function setClaudeStatus(msg, ok = false) {
+    if (!claudeStatus) return;
+    claudeStatus.textContent = msg || '';
+    claudeStatus.style.color = ok ? 'var(--accent)' : 'var(--muted)';
+  }
+  function loadClaudeSettings() {
+    try {
+      const apiKey = localStorage.getItem('claude-api-key') || '';
+      const base = localStorage.getItem('claude-base') || 'https://api.anthropic.com';
+      const model = localStorage.getItem('claude-model') || 'claude-3-5-sonnet-latest';
+      if (claudeApiKeyInput) claudeApiKeyInput.value = apiKey;
+      if (claudeBaseInput) claudeBaseInput.value = base;
+      if (claudeModelInput) claudeModelInput.value = model;
+      if (claudeModelSelect) claudeModelSelect.value = '';
+    } catch {}
+  }
+  function saveClaudeSettings() {
+    try {
+      const apiKey = (claudeApiKeyInput?.value || '').trim();
+      const base = (claudeBaseInput?.value || '').trim();
+      const model = (claudeModelInput?.value || '').trim();
+      if (apiKey) localStorage.setItem('claude-api-key', apiKey);
+      if (base) localStorage.setItem('claude-base', base);
+      if (model) localStorage.setItem('claude-model', model);
+      setClaudeStatus('Gespeichert', true);
+    } catch {}
+  }
+
   // Gemini settings
   function setGeminiStatus(msg, ok = false) {
     if (!geminiStatus) return;
@@ -1705,6 +1847,73 @@ try {
     }
   }
 
+  function populateGenericModelSelect(selectEl, models, preferred) {
+    if (!selectEl) return;
+    const list = Array.isArray(models) ? models : [];
+    const opts = list.map(name => `<option value="${name}">${name}</option>`).join('');
+    const header = '<option value="" disabled selected>Modell wählen…</option>';
+    selectEl.innerHTML = header + opts;
+    const choose = preferred && list.includes(preferred) ? preferred : '';
+    if (choose) selectEl.value = choose;
+  }
+
+  async function fetchOpenAiModels(baseUrl, apiKey, headers = {}) {
+    const key = (apiKey || '').trim();
+    if (!key) throw new Error('Kein API‑Key');
+    const base = ((baseUrl || '').trim() || 'https://api.openai.com/v1').replace(/\/$/, '');
+    const url = `${base}/models`;
+    const hdrs = { 'Authorization': `Bearer ${key}`, ...headers };
+    const res = await fetch(url, { method: 'GET', mode: 'cors', headers: hdrs });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const arr = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.models) ? data.models : []);
+    const names = arr.map(m => m?.id || m?.name || m?.model || '').filter(Boolean);
+    return Array.from(new Set(names));
+  }
+
+  async function fetchAnthropicModels(apiKey, baseUrl) {
+    const key = (apiKey || '').trim();
+    if (!key) throw new Error('Kein API‑Key');
+    const base = ((baseUrl || '').trim() || 'https://api.anthropic.com').replace(/\/$/, '');
+    const url = `${base}/v1/models`;
+    const res = await fetch(url, { method: 'GET', mode: 'cors', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const arr = Array.isArray(data?.data) ? data.data : [];
+    const names = arr.map(m => m?.id || '').filter(Boolean);
+    return Array.from(new Set(names));
+  }
+
+  async function testOpenAi() {
+    const apiKey = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+    if (!apiKey) { setOpenAiStatus('Bitte API‑Key angeben'); return; }
+    const base = ((openaiBaseInput?.value || localStorage.getItem('openai-base') || 'https://api.openai.com/v1').trim() || 'https://api.openai.com/v1');
+    setOpenAiStatus('Lade Modelle…');
+    try {
+      const models = await fetchOpenAiModels(base, apiKey);
+      populateGenericModelSelect(openaiModelSelect, models, (openaiModelInput?.value || '').trim());
+      const list = models.slice(0, 8).join(', ');
+      setOpenAiStatus(models.length ? `OK. ${models.length} Modelle: ${list}${models.length>8?'…':''}` : 'OK, keine Modelle gefunden', true);
+    } catch (e) {
+      setOpenAiStatus('Fehler: API‑Key oder Netzwerk prüfen');
+    }
+  }
+
+  async function testClaude() {
+    const apiKey = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+    if (!apiKey) { setClaudeStatus('Bitte API‑Key angeben'); return; }
+    const base = ((claudeBaseInput?.value || localStorage.getItem('claude-base') || 'https://api.anthropic.com').trim() || 'https://api.anthropic.com');
+    setClaudeStatus('Lade Modelle…');
+    try {
+      const models = await fetchAnthropicModels(apiKey, base);
+      populateGenericModelSelect(claudeModelSelect, models, (claudeModelInput?.value || '').trim());
+      const list = models.slice(0, 8).join(', ');
+      setClaudeStatus(models.length ? `OK. ${models.length} Modelle: ${list}${models.length>8?'…':''}` : 'OK, keine Modelle gefunden', true);
+    } catch (e) {
+      setClaudeStatus('Fehler: API‑Key oder Netzwerk prüfen');
+    }
+  }
+
   function openChat() {
     chatPanel?.classList.remove('hidden');
     chatOverlay?.classList.remove('hidden');
@@ -1712,13 +1921,27 @@ try {
     adjustLayout();
     chatInput?.focus();
     const provider = getAiProvider();
-    if (provider === 'ollama') {
-      const base = (ollamaUrlInput?.value || '').trim();
-      if (base) testOllama();
-    } else if (provider === 'gemini') {
-      testGemini();
-    } else {
-      testMistral();
+    switch (provider) {
+      case 'openai':
+        testOpenAi();
+        break;
+      case 'claude':
+        testClaude();
+        break;
+      case 'ollama': {
+        const base = (ollamaUrlInput?.value || '').trim();
+        if (base) testOllama();
+        break;
+      }
+      case 'gemini':
+        testGemini();
+        break;
+      case 'mistral':
+        testMistral();
+        break;
+      default:
+        testMistral();
+        break;
     }
     updateChatModelBadge();
   }
@@ -1733,29 +1956,17 @@ try {
   }
 
   function effectiveChatModel() {
-    const provider = getAiProvider();
-    if (provider === 'ollama') {
-      const selVal = (ollamaModelSelect?.value || '').trim();
-      const inpVal = (ollamaModelInput?.value || '').trim();
-      const local = (localStorage.getItem('ollama-model') || '').trim();
-      return selVal || inpVal || local || '';
-    } else if (provider === 'gemini') {
-      const selVal = (geminiModelSelect?.value || '').trim();
-      const inpVal = (geminiModelInput?.value || '').trim();
-      const local = (localStorage.getItem('gemini-model') || '').trim();
-      return selVal || inpVal || local || 'gemini-1.5-flash';
-    } else {
-      const selVal = (mistralModelSelect?.value || '').trim();
-      const inpVal = (mistralModelInput?.value || '').trim();
-      const local = (localStorage.getItem('mistral-model') || '').trim();
-      return selVal || inpVal || local || 'mistral-small-latest';
+    try {
+      return resolveCurrentProviderInfo().model || '';
+    } catch {
+      return '';
     }
   }
   function updateChatModelBadge() {
     if (!chatModelBadge) return;
     const m = effectiveChatModel();
     const provider = getAiProvider();
-    const provLabel = provider === 'ollama' ? 'Ollama' : (provider === 'gemini' ? 'Gemini' : 'Mistral');
+    const provLabel = PROVIDER_LABELS[provider] || provider;
     chatModelBadge.textContent = m ? `Modell: ${m} (${provLabel})` : 'Modell: (keins)';
   }
 
@@ -1850,50 +2061,80 @@ try {
     chatHistory.push(currentUserMsg);
     appendChatMessage('user', text);
     const provider = getAiProvider();
-    const base = (ollamaUrlInput?.value || '').replace(/\/$/, '');
-    const model = effectiveChatModel();
+    const info = resolveCurrentProviderInfo();
     const stream = !!chatStreamToggle?.checked;
+    let assistantEl = null;
+    let assistantBody = null;
     try {
-      const assistantEl = appendChatMessage('assistant', '');
+      assistantEl = appendChatMessage('assistant', '');
+      assistantBody = assistantEl?.querySelector('div') || null;
+      if (assistantEl) assistantEl.__raw = assistantEl.__raw || '';
+      const updateAssistant = (text) => {
+        if (!assistantEl) return;
+        assistantEl.__raw = text;
+        if (assistantBody) {
+          renderAssistantMarkdown(assistantBody, text);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      };
+      const applyDelta = (delta) => {
+        if (!delta) return;
+        updateAssistant((assistantEl.__raw || '') + delta);
+      };
       setChatBusy(true);
       chatAbortController = new AbortController();
       const signal = chatAbortController.signal;
       let content = '';
-      if (provider === 'ollama') {
-        content = await ollamaChat({ base, model, messages: msgs, stream, signal, onDelta: (delta) => {
-          const md = (assistantEl.__raw || '') + delta;
-          assistantEl.__raw = md;
-          renderAssistantMarkdown(assistantEl.querySelector('div'), md);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }});
-      } else if (provider === 'gemini') {
-        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-        content = await geminiChat({ apiKey, model, messages: msgs, stream, signal, onDelta: (delta) => {
-          const md = (assistantEl.__raw || '') + delta;
-          assistantEl.__raw = md;
-          renderAssistantMarkdown(assistantEl.querySelector('div'), md);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }});
-      } else {
-        const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-        content = await mistralChat({ apiKey, model, messages: msgs, stream, signal, onDelta: (delta) => {
-          const md = (assistantEl.__raw || '') + delta;
-          assistantEl.__raw = md;
-          renderAssistantMarkdown(assistantEl.querySelector('div'), md);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }});
+      switch (provider) {
+        case 'openai': {
+          const apiKey = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+          if (!apiKey) throw new Error('OpenAI API‑Key fehlt');
+          content = await openAiCompatibleChat({ apiKey, baseUrl: info.base, model: info.model, messages: msgs, stream, signal, onDelta: applyDelta });
+          break;
+        }
+        case 'claude': {
+          const apiKey = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+          if (!apiKey) throw new Error('Claude API‑Key fehlt');
+          content = await anthropicChat({ apiKey, baseUrl: info.base, model: info.model, messages: msgs, stream, signal, onDelta: applyDelta });
+          break;
+        }
+        case 'ollama': {
+          content = await ollamaChat({ base: info.base, model: info.model, messages: msgs, stream, signal, onDelta: applyDelta });
+          break;
+        }
+        case 'gemini': {
+          const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+          content = await geminiChat({ apiKey, model: info.model, messages: msgs, stream, signal, onDelta: applyDelta });
+          break;
+        }
+        case 'mistral':
+        default: {
+          const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+          if (!apiKey) throw new Error('Mistral API‑Key fehlt');
+          content = await mistralChat({ apiKey, model: info.model, messages: msgs, stream, signal, onDelta: applyDelta });
+          break;
+        }
       }
-      chatHistory.push({ role: 'assistant', content });
-      // Apply modes
-      // no auto-apply/diff handling
-      setChatBusy(false);
-      chatAbortController = null;
+      const finalText = content || '';
+      updateAssistant(finalText);
+      chatHistory.push({ role: 'assistant', content: finalText });
     } catch (e) {
-      if (e?.name === 'AbortError') {
-        appendChatMessage('assistant', '⏹️ Abgebrochen.');
+      const isAbort = e?.name === 'AbortError';
+      const msgText = isAbort ? '⏹️ Abgebrochen.' : `Fehler: ${e?.message || e}`;
+      if (assistantEl) {
+        assistantEl.__raw = msgText;
+        if (assistantBody) {
+          assistantBody.textContent = msgText;
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        } else {
+          appendChatMessage('assistant', msgText);
+        }
       } else {
-        appendChatMessage('assistant', 'Fehler: ' + (e?.message || e));
+        appendChatMessage('assistant', msgText);
       }
+      const last = chatHistory[chatHistory.length - 1];
+      if (last === currentUserMsg) chatHistory.pop();
+    } finally {
       setChatBusy(false);
       chatAbortController = null;
     }
@@ -2059,21 +2300,200 @@ try {
     return full;
   }
 
+  function toOpenAiMessages(messages) {
+    const arr = [];
+    for (const m of messages || []) {
+      const role = m?.role || 'user';
+      const content = typeof m?.content === 'string' ? m.content : '';
+      if (!content) continue;
+      arr.push({ role, content });
+    }
+    return arr;
+  }
+
+  function extractOpenAiDelta(choice) {
+    if (!choice) return '';
+    if (choice.delta) {
+      const delta = choice.delta;
+      if (typeof delta.content === 'string') return delta.content;
+      if (Array.isArray(delta.content)) {
+        return delta.content.map((part) => part?.text || part?.content || '').join('');
+      }
+      if (typeof delta.text === 'string') return delta.text;
+    }
+    if (choice.message) {
+      const msg = choice.message;
+      if (typeof msg.content === 'string') return msg.content;
+      if (Array.isArray(msg.content)) {
+        return msg.content.map((part) => part?.text || part?.content || '').join('');
+      }
+    }
+    if (typeof choice.text === 'string') return choice.text;
+    return '';
+  }
+
+  async function openAiCompatibleChat({ apiKey, baseUrl, model, messages, stream, signal, onDelta, headers = {} }) {
+    const key = (apiKey || '').trim();
+    if (!key) throw new Error('API‑Key fehlt');
+    const mdl = (model || '').trim();
+    if (!mdl) throw new Error('Modell fehlt');
+    const base = ((baseUrl || '').trim() || 'https://api.openai.com/v1').replace(/\/$/, '');
+    const url = `${base}/chat/completions`;
+    const body = { model: mdl, stream: !!stream, messages: toOpenAiMessages(messages) };
+    const hdrs = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}`, ...headers };
+    if (stream) hdrs['Accept'] = 'text/event-stream';
+    const res = await fetch(url, { method: 'POST', mode: 'cors', headers: hdrs, body: JSON.stringify(body), signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!stream) {
+      const data = await res.json();
+      const choice = Array.isArray(data?.choices) ? data.choices[0] : null;
+      let text = '';
+      if (choice?.message?.content) {
+        text = typeof choice.message.content === 'string'
+          ? choice.message.content
+          : Array.isArray(choice.message.content) ? choice.message.content.map(part => part?.text || part?.content || '').join('') : '';
+      } else if (typeof choice?.text === 'string') {
+        text = choice.text;
+      }
+      if (text && onDelta) onDelta(text);
+      return text;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let full = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        let line = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        line = line.replace(/\r$/, '').trim();
+        if (!line) continue;
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const json = JSON.parse(payload);
+          const delta = extractOpenAiDelta(Array.isArray(json?.choices) ? json.choices[0] : null);
+          if (delta) {
+            full += delta;
+            onDelta && onDelta(delta);
+          }
+        } catch {}
+      }
+    }
+    return full;
+  }
+
+  function toAnthropicMessages(messages) {
+    const sys = [];
+    const conv = [];
+    for (const m of messages || []) {
+      const role = m?.role || 'user';
+      const text = typeof m?.content === 'string' ? m.content : '';
+      if (!text) continue;
+      if (role === 'system') {
+        sys.push(text);
+      } else {
+        conv.push({ role: role === 'assistant' ? 'assistant' : 'user', content: [{ type: 'text', text }] });
+      }
+    }
+    return { system: sys, messages: conv };
+  }
+
+  async function anthropicChat({ apiKey, baseUrl, model, messages, stream, signal, onDelta }) {
+    const key = (apiKey || '').trim();
+    if (!key) throw new Error('Claude API‑Key fehlt');
+    const mdl = (model || '').trim();
+    if (!mdl) throw new Error('Modell fehlt');
+    const base = ((baseUrl || '').trim() || 'https://api.anthropic.com').replace(/\/$/, '');
+    const url = `${base}/v1/messages`;
+    const prepared = toAnthropicMessages(messages);
+    const body = {
+      model: mdl,
+      stream: !!stream,
+      max_tokens: 8192,
+      messages: prepared.messages,
+    };
+    if (prepared.system.length) body.system = prepared.system.join('\n\n');
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+    };
+    if (stream) headers['Accept'] = 'text/event-stream';
+    const res = await fetch(url, { method: 'POST', mode: 'cors', headers, body: JSON.stringify(body), signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!stream) {
+      const data = await res.json();
+      const content = Array.isArray(data?.content) ? data.content : [];
+      const text = content.map(part => part?.text || '').join('');
+      if (text && onDelta) onDelta(text);
+      return text;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let full = '';
+    let eventType = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        let line = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        line = line.replace(/\r$/, '');
+        if (!line) { eventType = ''; continue; }
+        if (line.startsWith('event:')) { eventType = line.slice(6).trim(); continue; }
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const json = JSON.parse(payload);
+          if (eventType === 'content_block_delta' || eventType === 'message_delta') {
+            const delta = json?.delta?.text || '';
+            if (delta) {
+              full += delta;
+              onDelta && onDelta(delta);
+            }
+          }
+        } catch {}
+      }
+    }
+    return full;
+  }
+
   // Chat events
   chatToggleBtn?.addEventListener('click', () => {
-    loadOllamaSettings();
-    loadGeminiSettings();
+    try { loadOpenAiSettings(); } catch {}
+    try { loadClaudeSettings(); } catch {}
+    try { loadOllamaSettings(); } catch {}
+    try { loadGeminiSettings(); } catch {}
     try { loadMistralSettings(); } catch {}
     if (chatPanel?.classList.contains('hidden')) openChat(); else closeChat();
   });
-  ollamaModelSelect?.addEventListener('change', updateChatModelBadge);
-  ollamaModelInput?.addEventListener('input', updateChatModelBadge);
-  ollamaSaveBtn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 50));
-  ollamaTestBtn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 200));
-  geminiModelSelect?.addEventListener('change', updateChatModelBadge);
-  geminiModelInput?.addEventListener('input', updateChatModelBadge);
-  mistralModelSelect?.addEventListener('change', updateChatModelBadge);
-  mistralModelInput?.addEventListener('input', updateChatModelBadge);
+  const badgeInputs = [
+    [openaiModelSelect, openaiModelInput],
+    [claudeModelSelect, claudeModelInput],
+    [ollamaModelSelect, ollamaModelInput],
+    [geminiModelSelect, geminiModelInput],
+    [mistralModelSelect, mistralModelInput],
+  ];
+  for (const [sel, inp] of badgeInputs) {
+    sel?.addEventListener('change', () => { if (inp && sel.value) inp.value = sel.value; updateChatModelBadge(); });
+    inp?.addEventListener('input', updateChatModelBadge);
+  }
+  [openaiSaveBtn, claudeSaveBtn, ollamaSaveBtn, geminiSaveBtn, mistralSaveBtn].forEach(btn => {
+    btn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 50));
+  });
+  [openaiTestBtn, claudeTestBtn, ollamaTestBtn, geminiTestBtn, mistralTestBtn].forEach(btn => {
+    btn?.addEventListener('click', () => setTimeout(updateChatModelBadge, 200));
+  });
   chatOverlay?.addEventListener('click', closeChat);
   chatCloseBtn?.addEventListener('click', closeChat);
   chatSendBtn?.addEventListener('click', sendChat);
@@ -2107,6 +2527,10 @@ try {
   chatInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
   });
+  openaiSaveBtn?.addEventListener('click', saveOpenAiSettings);
+  openaiTestBtn?.addEventListener('click', testOpenAi);
+  claudeSaveBtn?.addEventListener('click', saveClaudeSettings);
+  claudeTestBtn?.addEventListener('click', testClaude);
   ollamaSaveBtn?.addEventListener('click', saveOllamaSettings);
   ollamaTestBtn?.addEventListener('click', testOllama);
   // Settings handlers
@@ -2123,6 +2547,8 @@ try {
       prefDefaultView.value = ['edit','split','reader'].includes(dv) ? dv : 'split';
     }
     // Load provider settings
+    try { loadOpenAiSettings(); } catch {}
+    try { loadClaudeSettings(); } catch {}
     try { loadOllamaSettings(); } catch {}
     try { loadGeminiSettings(); } catch {}
     try { loadMistralSettings(); } catch {}
@@ -2164,10 +2590,8 @@ try {
   aiProviderSelect?.addEventListener('change', () => { setAiProvider(aiProviderSelect.value); applyProviderUI(); });
   geminiSaveBtn?.addEventListener('click', saveGeminiSettings);
   geminiTestBtn?.addEventListener('click', testGemini);
-  geminiModelSelect?.addEventListener('change', () => { if (geminiModelInput && geminiModelSelect.value) geminiModelInput.value = geminiModelSelect.value; });
   mistralSaveBtn?.addEventListener('click', saveMistralSettings);
   mistralTestBtn?.addEventListener('click', testMistral);
-  mistralModelSelect?.addEventListener('change', () => { if (mistralModelInput && mistralModelSelect.value) mistralModelInput.value = mistralModelSelect.value; });
 
   async function loadInfoTab() {
     try {
@@ -2208,9 +2632,7 @@ try {
       }
       if (provEl) {
         const info = resolveCurrentProviderInfo();
-        if (info.provider === 'ollama') provEl.textContent = `Ollama • Modell: ${info.model} • URL: ${info.base}`;
-        else if (info.provider === 'gemini') provEl.textContent = `Google Gemini • Modell: ${info.model}`;
-        else provEl.textContent = `Mistral • Modell: ${info.model}`;
+        provEl.textContent = formatProviderInfo(info);
       }
     } catch {}
   }
@@ -2384,15 +2806,37 @@ function doExportPdf() {
       try {
         const provider = getAiProvider();
         let models = [];
-        if (provider === 'ollama') {
-          const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
-          models = await fetchOllamaModels(base);
-        } else if (provider === 'gemini') {
-          const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-          models = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
-        } else {
-          const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-          models = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
+        switch (provider) {
+          case 'openai': {
+            const key = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+            const base = (openaiBaseInput?.value || localStorage.getItem('openai-base') || 'https://api.openai.com/v1');
+            models = key ? await fetchOpenAiModels(base, key) : ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
+            break;
+          }
+          case 'claude': {
+            const key = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+            const base = (claudeBaseInput?.value || localStorage.getItem('claude-base') || 'https://api.anthropic.com');
+            models = key ? await fetchAnthropicModels(key, base) : ['claude-3-5-sonnet-latest', 'claude-3-haiku-20240307'];
+            break;
+          }
+          case 'ollama': {
+            const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
+            models = await fetchOllamaModels(base);
+            break;
+          }
+          case 'gemini': {
+            const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+            models = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
+            break;
+          }
+          case 'mistral': {
+            const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+            models = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
+            break;
+          }
+          default:
+            models = [];
+            break;
         }
         const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
         modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
