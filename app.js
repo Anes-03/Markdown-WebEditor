@@ -2512,6 +2512,7 @@ try {
       const len = prompt.length;
       try { chatInput.setSelectionRange(len, len); } catch {}
     }
+    void sendChat();
   });
   chatSendBtn?.addEventListener('click', sendChat);
   chatAbortBtn?.addEventListener('click', () => { try { chatAbortController?.abort(); } catch {} });
