@@ -159,12 +159,26 @@ Viel Spaß beim Schreiben! ✨"></textarea>
       
       <section id="chatMessages" class="chat-messages" aria-live="polite"></section>
       <section class="chat-input">
+        <ul id="chatSuggestions" class="chat-suggestions" aria-label="Vorgeschlagene Prompts">
+          <li>
+            <button type="button" data-prompt="Fasse die wichtigsten Punkte zusammen. Bitte fasse die Kernaussagen knapp zusammen."><strong>Fasse die wichtigsten Punkte zusammen.</strong> Bitte fasse die Kernaussagen knapp zusammen.</button>
+          </li>
+          <li>
+            <button type="button" data-prompt="Worum geht es hier? Bitte beschreibe den Kontext in wenigen Sätzen."><strong>Worum geht es hier?</strong> Bitte beschreibe den Kontext in wenigen Sätzen.</button>
+          </li>
+          <li>
+            <button type="button" data-prompt="Welche offenen Fragen gibt es noch? Liste verbleibende Unklarheiten auf."><strong>Welche offenen Fragen gibt es noch?</strong> Liste verbleibende Unklarheiten auf.</button>
+          </li>
+          <li>
+            <button type="button" data-prompt="Welche nächsten Schritte empfiehlst du? Formuliere konkrete To-dos."><strong>Welche nächsten Schritte empfiehlst du?</strong> Formuliere konkrete To-dos.</button>
+          </li>
+        </ul>
         <textarea id="chatInput" rows="2" placeholder="Frage eingeben und Enter senden…"></textarea>
         <div class="row">
           <button id="chatSendBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:send"></iconify-icon><span class="btn-label">Senden</span></button>
           <button id="chatAbortBtn" class="secondary has-icon" disabled><iconify-icon aria-hidden="true" icon="mdi:stop-circle-outline"></iconify-icon><span class="btn-label">Abbrechen</span></button>
           <button id="chatClearBtn" class="secondary has-icon"><iconify-icon aria-hidden="true" icon="mdi:eraser"></iconify-icon><span class="btn-label">Leeren</span></button>
-          <button id="editorContextBtn" class="secondary has-icon" title="Erlaube Zugriff auf den aktuellen Editor-Inhalt"><iconify-icon aria-hidden="true" icon="mdi:file-document-outline"></iconify-icon><span class="btn-label">Editor-Kontext: AUS</span></button>
+          <button id="editorContextBtn" class="secondary has-icon" title="Erlaube Zugriff auf den aktuellen Editor-Inhalt"><iconify-icon aria-hidden="true" icon="mdi:file-document-outline"></iconify-icon><span class="btn-label">Editor-Kontext: EIN</span></button>
           <span id="editorContextInfo" class="muted"></span>
         </div>
       </section>

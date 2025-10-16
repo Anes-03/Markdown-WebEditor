@@ -57,6 +57,7 @@
   const chatModelBadge = document.getElementById('chatModelBadge');
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
+  const chatSuggestions = document.getElementById('chatSuggestions');
   const chatSendBtn = document.getElementById('chatSendBtn');
   const chatAbortBtn = document.getElementById('chatAbortBtn');
   const chatClearBtn = document.getElementById('chatClearBtn');
@@ -127,7 +128,7 @@
   let fileHandle = null;
   let currentFileName = '';
   let dirty = false;
-  let allowEditorContext = false;
+  let allowEditorContext = true;
   let importMenuVisible = false;
 
   // Utilities
@@ -2040,6 +2041,9 @@ try {
     if (chatSendBtn) chatSendBtn.disabled = !!busy;
     if (chatAbortBtn) chatAbortBtn.disabled = !busy;
     if (chatInput) chatInput.disabled = !!busy;
+    if (chatSuggestions) {
+      chatSuggestions.querySelectorAll('button').forEach(btn => { btn.disabled = !!busy; });
+    }
   }
 
   async function sendChat() {
@@ -2496,6 +2500,19 @@ try {
   });
   chatOverlay?.addEventListener('click', closeChat);
   chatCloseBtn?.addEventListener('click', closeChat);
+  chatSuggestions?.addEventListener('click', (e) => {
+    if (chatInput?.disabled) return;
+    const btn = e.target.closest('button[data-prompt]');
+    if (!btn) return;
+    const prompt = btn.dataset.prompt || btn.textContent || '';
+    if (!prompt) return;
+    chatInput.value = prompt;
+    chatInput.focus();
+    if (typeof chatInput.setSelectionRange === 'function') {
+      const len = prompt.length;
+      try { chatInput.setSelectionRange(len, len); } catch {}
+    }
+  });
   chatSendBtn?.addEventListener('click', sendChat);
   chatAbortBtn?.addEventListener('click', () => { try { chatAbortController?.abort(); } catch {} });
   chatClearBtn?.addEventListener('click', () => { chatMessages.innerHTML = ''; chatHistory = []; });

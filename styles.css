@@ -329,6 +329,37 @@ kbd { display: inline-block; padding: 2px 6px; border: 1px solid var(--border); 
 .think-block > .think-body { padding: 0 8px 8px; }
 .think-block pre { margin: 8px 0; }
 .chat-input { border-top: 1px solid var(--border); padding: 10px 12px; display: grid; gap: 8px; }
+.chat-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.chat-suggestions li {
+  margin: 0;
+}
+.chat-suggestions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+}
+.chat-suggestions button strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.chat-suggestions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .chat-input textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); resize: vertical; max-height: 40vh; }
 .chat-input .row { display: flex; gap: 8px; }
 .chat-input .secondary { background: var(--btn-bg); }
