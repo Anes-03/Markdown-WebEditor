@@ -137,6 +137,8 @@
     statusEl.textContent = msg;
   }
 
+<<<<<<< ours
+<<<<<<< ours
   function setImportMenuVisible(visible) {
     importMenuVisible = !!visible;
     if (!importMenu || !importBtn) return;
@@ -147,8 +149,90 @@
 
   function closeImportMenu() {
     setImportMenuVisible(false);
+=======
+  function sanitizeAltText(text) {
+    if (!text) return 'KI Bild';
+    const first = String(text).split(/\r?\n/)[0].trim();
+    const clean = first.replace(/[\[\]]/g, '').replace(/\s+/g, ' ');
+    const trimmed = clean.slice(0, 120).trim();
+    return trimmed || 'KI Bild';
   }
 
+  function buildInlineImageMarkdown(dataUrl, promptText, selectionText) {
+    const alt = sanitizeAltText(selectionText || promptText || '');
+    return `![${alt}](${dataUrl})`;
+  }
+
+  function normalizeImageResult(payload, fallbackMime = 'image/png') {
+    if (!payload && payload !== 0) return null;
+    if (typeof payload === 'string') {
+      const trimmed = payload.trim();
+      if (!trimmed) return null;
+      if (/^data:/i.test(trimmed)) {
+        const match = trimmed.match(/^data:([^;,]+)[;,]/i);
+        return { dataUrl: trimmed, mimeType: match ? match[1] : fallbackMime };
+      }
+      if (/^https?:/i.test(trimmed)) {
+        return { dataUrl: trimmed, mimeType: fallbackMime, remote: true };
+      }
+      if (/^[A-Za-z0-9+/=\s]+$/.test(trimmed)) {
+        const base64 = trimmed.replace(/\s+/g, '');
+        return { dataUrl: `data:${fallbackMime};base64,${base64}`, mimeType: fallbackMime, base64: true };
+      }
+      return null;
+    }
+    if (Array.isArray(payload)) {
+      for (const item of payload) {
+        const res = normalizeImageResult(item, fallbackMime);
+        if (res) return res;
+      }
+      return null;
+    }
+    if (typeof payload === 'object') {
+      if (payload == null) return null;
+      if (payload.inlineData && payload.inlineData.data) {
+        const mime = payload.inlineData.mimeType || fallbackMime;
+        return normalizeImageResult(`data:${mime};base64,${payload.inlineData.data}`, mime);
+      }
+      if (payload.b64_json) return normalizeImageResult(payload.b64_json, payload.mimeType || fallbackMime);
+      if (payload.base64) return normalizeImageResult(payload.base64, payload.mimeType || fallbackMime);
+      if (payload.image) return normalizeImageResult(payload.image, payload.mimeType || fallbackMime);
+      if (payload.images) return normalizeImageResult(payload.images, payload.mimeType || fallbackMime);
+      if (payload.generatedImages) return normalizeImageResult(payload.generatedImages, payload.mimeType || fallbackMime);
+      if (payload.data) return normalizeImageResult(payload.data, payload.mimeType || fallbackMime);
+      if (payload.response) return normalizeImageResult(payload.response, payload.mimeType || fallbackMime);
+    }
+    return null;
+  }
+
+  function setSelectValue(select, value) {
+    if (!select) return;
+    const val = (value || '').trim();
+    if (!val) {
+      select.value = '';
+      return;
+    }
+    const options = Array.from(select.options || []);
+    const match = options.find(opt => opt.value === val);
+    select.value = match ? val : '';
+  }
+
+  function populateSelectOptions(select, models, preferred, placeholder = 'Modell wählen…') {
+    if (!select) return;
+    const list = uniqueModels(Array.isArray(models) ? models : []);
+    const options = list.map(name => `<option value="${name}">${name}</option>`).join('');
+    const shouldSelectHeader = !preferred || !list.includes(preferred);
+    select.innerHTML = `<option value="" disabled${shouldSelectHeader ? ' selected' : ''}>${placeholder}</option>` + options;
+    if (!shouldSelectHeader && preferred) setSelectValue(select, preferred);
+  }
+
+  function uniqueModels(list) {
+    return Array.from(new Set((list || []).map(item => (item == null ? '' : String(item))).map(s => s.trim()).filter(Boolean)));
+>>>>>>> theirs
+  }
+
+=======
+>>>>>>> theirs
   // Provider helpers
   function getAiProvider() {
     try { return localStorage.getItem('ai-provider') || 'ollama'; } catch { return 'ollama'; }
