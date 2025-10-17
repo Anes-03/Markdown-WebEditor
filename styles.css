@@ -309,6 +309,12 @@ body.chat-open .ai-inline { margin-right: var(--chat-w, 0px); }
 .settings-panel input[type="range"] { accent-color: var(--accent); }
 .settings-panel .settings-group { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; background: var(--bg); }
 .settings-panel .settings-group h4 { margin: 0 0 8px 0; font-size: 14px; color: var(--muted); }
+.feedback-form { display: grid; gap: 10px; margin-top: 8px; }
+.feedback-form .form-row { display: grid; gap: 4px; }
+.feedback-form label { font-size: 12px; color: var(--muted); }
+.feedback-form input,
+.feedback-form textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 14px; }
+.feedback-form textarea { resize: vertical; min-height: 120px; }
 .settings-panel .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); border-radius: 6px; padding: 6px 10px; text-decoration: none; }
 .settings-panel .btn:hover { background: var(--btn-bg-hover); }
 .info-panel { display: grid; justify-items: center; gap: 10px; padding: 10px 0; }

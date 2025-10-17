@@ -477,6 +477,25 @@ Viel Spaß beim Schreiben! ✨"></textarea>
               <li>Icons: Iconify</li>
             </ul>
           </div>
+          <div class="settings-group">
+            <h4>Feedback</h4>
+            <form id="feedbackForm" class="feedback-form">
+              <div class="form-row">
+                <label for="feedbackName">Name</label>
+                <input type="text" id="feedbackName" name="name" placeholder="Dein Name" autocomplete="name" />
+              </div>
+              <div class="form-row">
+                <label for="feedbackEmail">E‑Mail</label>
+                <input type="email" id="feedbackEmail" name="email" placeholder="deine@mail.de" autocomplete="email" />
+              </div>
+              <div class="form-row">
+                <label for="feedbackMessage">Nachricht<span aria-hidden="true">*</span></label>
+                <textarea id="feedbackMessage" name="message" rows="4" required placeholder="Dein Feedback…"></textarea>
+              </div>
+              <button type="submit" id="feedbackSubmit" class="secondary">Feedback senden</button>
+            </form>
+            <div id="feedbackHint" class="muted">Beim Senden wird dein Mail‑Programm mit allen Angaben geöffnet.</div>
+          </div>
         </section>
         </div>
       </div>

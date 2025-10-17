@@ -121,6 +121,10 @@
   const prefStickyTools = document.getElementById('prefStickyTools');
   const prefAiInlineAutoOpen = document.getElementById('prefAiInlineAutoOpen');
   const prefDefaultView = document.getElementById('prefDefaultView');
+  const feedbackForm = document.getElementById('feedbackForm');
+  const feedbackNameInput = document.getElementById('feedbackName');
+  const feedbackEmailInput = document.getElementById('feedbackEmail');
+  const feedbackMessageInput = document.getElementById('feedbackMessage');
 
   const toolbar = document.querySelector('.toolbar');
 
@@ -2584,6 +2588,24 @@ try {
     if (prefDefaultView && prefDefaultView.value) setPrefStr('default-view', prefDefaultView.value);
     applyPrefs();
     closeSettings();
+  });
+  feedbackForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const subject = 'Feedback zum Markdown WebEditor';
+    const name = (feedbackNameInput?.value || '').trim();
+    const email = (feedbackEmailInput?.value || '').trim();
+    const message = (feedbackMessageInput?.value || '').trim();
+    if (!message) {
+      feedbackMessageInput?.focus();
+      return;
+    }
+    const parts = [];
+    if (name) parts.push(`Name: ${name}`);
+    if (email) parts.push(`E-Mail: ${email}`);
+    if (parts.length) parts.push('');
+    parts.push(message);
+    const mailtoUrl = `mailto:info@252425.xyz?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(parts.join('\n'))}`;
+    window.location.href = mailtoUrl;
   });
 
   function showSettingsTab(id) {
