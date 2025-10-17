@@ -14,8 +14,6 @@
   const hiddenImage = document.getElementById('hiddenImage');
   const hiddenPdf = document.getElementById('hiddenPdf');
   const hiddenDocx = document.getElementById('hiddenDocx');
-  const textColorPicker = document.getElementById('textColorPicker');
-  const textColorPreview = document.getElementById('textColorPreview');
   const importBtn = document.getElementById('importBtn');
   const importMenu = document.getElementById('importMenu');
   const hljsThemeLink = document.getElementById('hljs-theme');
@@ -137,11 +135,7 @@
   let dirty = false;
   let allowEditorContext = true;
   let importMenuVisible = false;
-<<<<<<< ours
   let exportMenuVisible = false;
-=======
-  let lastSelection = { start: 0, end: 0 };
->>>>>>> theirs
 
   // Utilities
   const supportsFSA = () => 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
@@ -151,27 +145,6 @@
   }
 
   let turndownService = null;
-
-  if (window.DOMPurify) {
-    try {
-      window.DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
-        if (data.attrName === 'style') {
-          const tag = node?.tagName ? node.tagName.toLowerCase() : '';
-          if (tag === 'span') {
-            const match = data.attrValue?.match(/^color\s*:\s*(#[0-9a-f]{3}|#[0-9a-f]{6})\s*;?$/i);
-            if (match) {
-              const normalized = normalizeColorHex(match[1]);
-              if (normalized) {
-                data.attrValue = `color: ${normalized};`;
-                return;
-              }
-            }
-          }
-          data.keepAttr = false;
-        }
-      });
-    } catch {}
-  }
 
   function getTurndownService() {
     if (!turndownService && window.TurndownService) {
@@ -559,7 +532,7 @@
   function updatePreview() {
     const md = editor.value;
     const html = marked.parse(md);
-    const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, ADD_ATTR: ['style'] });
+    const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
     preview.innerHTML = safe;
     // re-highlight just in case
     preview.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
@@ -599,13 +572,6 @@
     const line = lines.length;
     const col = lines[lines.length - 1].length + 1;
     cursorPosEl.textContent = `Zeile ${line}, Spalte ${col}`;
-  }
-
-  function captureSelection() {
-    lastSelection = {
-      start: editor.selectionStart ?? 0,
-      end: editor.selectionEnd ?? 0,
-    };
   }
 
   function updateWordCount() {
@@ -680,62 +646,6 @@
 
   function toSafeFileName(name) {
     return name.replace(/[^\p{L}\p{N}\-_\.\s]/gu, '').replace(/\s+/g, ' ').trim().replace(/\s/g, '-');
-  }
-
-  function normalizeColorHex(color) {
-    if (typeof color !== 'string') return null;
-    const value = color.trim();
-    if (/^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
-    if (/^#[0-9a-f]{3}$/i.test(value)) {
-      const hex = value.slice(1);
-      return ('#' + hex.split('').map((ch) => ch + ch).join('')).toLowerCase();
-    }
-    return null;
-  }
-
-  function updateTextColorPreview(color) {
-    if (!textColorPreview) return;
-    const normalized = normalizeColorHex(color) || '#ff0000';
-    textColorPreview.style.backgroundColor = normalized;
-  }
-
-  function getSelectionRangeForColor() {
-    let start = editor.selectionStart ?? 0;
-    let end = editor.selectionEnd ?? start;
-    if (document.activeElement !== editor) {
-      start = lastSelection.start ?? start;
-      end = lastSelection.end ?? end;
-    }
-    start = Math.max(0, Math.min(start, editor.value.length));
-    end = Math.max(start, Math.min(end, editor.value.length));
-    return { start, end };
-  }
-
-  function applyTextColor(color) {
-    const normalized = normalizeColorHex(color);
-    if (!normalized) return;
-    updateTextColorPreview(normalized);
-    const { start, end } = getSelectionRangeForColor();
-    const selected = editor.value.slice(start, end);
-    const placeholder = 'farbiger Text';
-    const spanMatch = selected.match(/^<span\s+style="color:\s*#[0-9a-f]{3,6};?">([\s\S]*)<\/span>$/i);
-    let content = spanMatch ? spanMatch[1] : selected;
-    if (!content) content = placeholder;
-    const prefix = `<span style="color: ${normalized};">`;
-    const suffix = '</span>';
-    try { editor.setSelectionRange(start, end); } catch {}
-    editor.setRangeText(prefix + content + suffix, start, end, 'end');
-    editor.focus();
-    if (!selected) {
-      const newStart = start + prefix.length;
-      const newEnd = newStart + content.length;
-      try { editor.setSelectionRange(newStart, newEnd); } catch {}
-    }
-    updatePreview();
-    updateCursorInfo();
-    updateWordCount();
-    markDirty(true);
-    captureSelection();
   }
 
   // Toolbar helpers
@@ -977,12 +887,6 @@
     updateWordCount();
     markDirty(true);
   });
-
-  if (textColorPicker) {
-    updateTextColorPreview(textColorPicker.value);
-    textColorPicker.addEventListener('input', () => updateTextColorPreview(textColorPicker.value));
-    textColorPicker.addEventListener('change', () => applyTextColor(textColorPicker.value));
-  }
 
   // View switching
   function setView(mode) {
@@ -1441,7 +1345,7 @@
       };
       const result = await window.mammoth.convertToHtml({ arrayBuffer }, mammothOptions);
       const rawHtml = result?.value || '';
-      const sanitizedHtml = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true }, ADD_ATTR: ['style'] }) : rawHtml;
+      const sanitizedHtml = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } }) : rawHtml;
       const markdown = sanitizedHtml ? td.turndown(sanitizedHtml).trim() : '';
       editor.value = markdown ? `${markdown}\n` : '';
       updatePreview();
@@ -1732,7 +1636,7 @@
   function doExportHtml() {
     const md = editor.value;
     const html = marked.parse(md);
-    const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, ADD_ATTR: ['style'] });
+    const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
     const title = extractTitle(md) || (currentFileName ? currentFileName.replace(/\.[^.]+$/, '') : 'Export');
     const doc = `<!DOCTYPE html>
 <html lang="de">
@@ -2311,7 +2215,7 @@ try {
   function renderAssistantMarkdown(container, md) {
     const processed = preprocessThinking(md || '');
     const html = marked.parse(processed);
-    const safe = DOMPurify.sanitize(html, { ADD_TAGS: ['details','summary'], ADD_ATTR: ['open','class','style'] });
+    const safe = DOMPurify.sanitize(html, { ADD_TAGS: ['details','summary'], ADD_ATTR: ['open','class'] });
     container.innerHTML = safe;
     container.querySelectorAll('pre code').forEach((node) => hljs.highlightElement(node));
   }
@@ -2343,7 +2247,7 @@ try {
     try {
       const processed = preprocessThinking(md || '');
       const html = marked.parse(processed);
-      const safe = DOMPurify.sanitize(html, { ADD_TAGS: ['details','summary'], ADD_ATTR: ['open','class','style'] });
+      const safe = DOMPurify.sanitize(html, { ADD_TAGS: ['details','summary'], ADD_ATTR: ['open','class'] });
       const tmp = document.createElement('div');
       tmp.innerHTML = safe;
       return tmp.textContent || tmp.innerText || '';
@@ -3042,12 +2946,9 @@ try {
   });
 
   // Editor events
-  editor.addEventListener('input', () => { updatePreview(); updateWordCount(); autosave(); markDirty(true); updateEditorContextInfo(); captureSelection(); });
-  editor.addEventListener('click', () => { updateCursorInfo(); captureSelection(); });
-  editor.addEventListener('keyup', () => { updateCursorInfo(); updateEditorContextInfo(); captureSelection(); });
-  editor.addEventListener('select', captureSelection);
-  editor.addEventListener('mouseup', captureSelection);
-  editor.addEventListener('blur', captureSelection);
+  editor.addEventListener('input', () => { updatePreview(); updateWordCount(); autosave(); markDirty(true); updateEditorContextInfo(); });
+  editor.addEventListener('click', updateCursorInfo);
+  editor.addEventListener('keyup', () => { updateCursorInfo(); updateEditorContextInfo(); });
   // In reader mode, clicking preview focuses the hidden editor for typing
   preview.addEventListener('mousedown', () => {
     if (document.body.classList.contains('reader-mode') && window.enableReaderInput) {
@@ -3090,7 +2991,6 @@ try {
   updatePreview();
   updateWordCount();
   updateCursorInfo();
-  captureSelection();
   loadAutosaveIfAny();
   markDirty(false);
   adjustLayout();
