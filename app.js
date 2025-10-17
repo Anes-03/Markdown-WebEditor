@@ -36,6 +36,7 @@
   const themeSelect = null; // removed select dropdown
   const themeCycleBtn = document.getElementById('themeCycleBtn');
   const themeMenu = document.getElementById('themeMenu');
+  const fullscreenToggleBtn = document.getElementById('fullscreenToggleBtn');
   // Inline AI elements
   const aiInline = document.getElementById('aiInline');
   const aiPromptInput = document.getElementById('aiPromptInput');
@@ -1063,6 +1064,101 @@
       if (!withinExport) closeExportMenu();
     }
   });
+
+  // Fullscreen toggle button
+  function isFullscreenSupported() {
+    if (!document) return false;
+    return !!(
+      document.fullscreenEnabled ||
+      document.webkitFullscreenEnabled ||
+      document.mozFullScreenEnabled ||
+      document.msFullscreenEnabled ||
+      document.documentElement?.requestFullscreen ||
+      document.documentElement?.webkitRequestFullscreen ||
+      document.documentElement?.mozRequestFullScreen ||
+      document.documentElement?.msRequestFullscreen
+    );
+  }
+
+  function isFullscreenActive() {
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+  }
+
+  function enterFullscreen() {
+    const el = document.documentElement;
+    let result;
+    if (el.requestFullscreen) result = el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) result = el.webkitRequestFullscreen();
+    else if (el.mozRequestFullScreen) result = el.mozRequestFullScreen();
+    else if (el.msRequestFullscreen) result = el.msRequestFullscreen();
+    else return Promise.reject(new Error('Fullscreen API nicht verfügbar'));
+    return Promise.resolve(result);
+  }
+
+  function exitFullscreen() {
+    let result;
+    if (document.exitFullscreen) result = document.exitFullscreen();
+    else if (document.webkitExitFullscreen) result = document.webkitExitFullscreen();
+    else if (document.mozCancelFullScreen) result = document.mozCancelFullScreen();
+    else if (document.msExitFullscreen) result = document.msExitFullscreen();
+    else return Promise.reject(new Error('Fullscreen API nicht verfügbar'));
+    return Promise.resolve(result);
+  }
+
+  function updateFullscreenButton() {
+    if (!fullscreenToggleBtn) return;
+    const supported = isFullscreenSupported();
+    if (!supported) {
+      fullscreenToggleBtn.disabled = true;
+      fullscreenToggleBtn.setAttribute('aria-disabled', 'true');
+      fullscreenToggleBtn.setAttribute('aria-pressed', 'false');
+      fullscreenToggleBtn.title = 'Vollbildmodus wird von diesem Browser nicht unterstützt';
+      const icon = fullscreenToggleBtn.querySelector('iconify-icon');
+      if (icon) icon.setAttribute('icon', 'lucide:maximize-2');
+      return;
+    }
+
+    fullscreenToggleBtn.disabled = false;
+    fullscreenToggleBtn.removeAttribute('aria-disabled');
+    const active = isFullscreenActive();
+    fullscreenToggleBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    fullscreenToggleBtn.title = active ? 'Vollbildmodus verlassen (Esc)' : 'Vollbildmodus aktivieren';
+    const icon = fullscreenToggleBtn.querySelector('iconify-icon');
+    if (icon) icon.setAttribute('icon', active ? 'lucide:minimize-2' : 'lucide:maximize-2');
+  }
+
+  async function toggleFullscreen() {
+    if (!isFullscreenSupported()) return;
+    const active = isFullscreenActive();
+    try {
+      if (active) {
+        await exitFullscreen();
+      } else {
+        await enterFullscreen();
+      }
+    } catch (err) {
+      console.error('Fullscreen toggle failed', err);
+    } finally {
+      updateFullscreenButton();
+    }
+  }
+
+  if (fullscreenToggleBtn) {
+    fullscreenToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      toggleFullscreen();
+    });
+  }
+
+  ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((evt) => {
+    document.addEventListener(evt, updateFullscreenButton);
+  });
+  updateFullscreenButton();
 
   // File actions
   function estimatePdfFontSize(item) {
