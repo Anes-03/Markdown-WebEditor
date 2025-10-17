@@ -23,8 +23,8 @@
   const openBtn = document.getElementById('openBtn');
   const saveBtn = document.getElementById('saveBtn');
   const saveAsBtn = document.getElementById('saveAsBtn');
-  const exportHtmlBtn = document.getElementById('exportHtmlBtn');
-  const exportPdfBtn = document.getElementById('exportPdfBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const exportMenu = document.getElementById('exportMenu');
   const undoBtn = document.getElementById('undoBtn');
   const redoBtn = document.getElementById('redoBtn');
 
@@ -134,6 +134,7 @@
   let dirty = false;
   let allowEditorContext = true;
   let importMenuVisible = false;
+  let exportMenuVisible = false;
 
   // Utilities
   const supportsFSA = () => 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
@@ -168,6 +169,18 @@
 
   function closeImportMenu() {
     setImportMenuVisible(false);
+  }
+
+  function setExportMenuVisible(visible) {
+    exportMenuVisible = !!visible;
+    if (!exportMenu || !exportBtn) return;
+    exportMenu.classList.toggle('hidden', !exportMenuVisible);
+    exportBtn.setAttribute('aria-expanded', exportMenuVisible ? 'true' : 'false');
+    exportMenu.setAttribute('aria-hidden', exportMenuVisible ? 'false' : 'true');
+  }
+
+  function closeExportMenu() {
+    setExportMenuVisible(false);
   }
 
   // Provider helpers
@@ -1045,6 +1058,10 @@
       const withinImport = importMenu.contains(e.target) || importBtn.contains(e.target);
       if (!withinImport) closeImportMenu();
     }
+    if (exportMenuVisible && exportMenu && exportBtn) {
+      const withinExport = exportMenu.contains(e.target) || exportBtn.contains(e.target);
+      if (!withinExport) closeExportMenu();
+    }
   });
 
   // File actions
@@ -1394,6 +1411,65 @@
     closeImportMenu();
   });
 
+  if (exportBtn && exportMenu) {
+    exportBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (exportMenuVisible) {
+        closeExportMenu();
+      } else {
+        setExportMenuVisible(true);
+      }
+    });
+
+    exportBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setExportMenuVisible(true);
+        const firstItem = exportMenu.querySelector('button[data-export]');
+        firstItem?.focus({ preventScroll: true });
+      } else if (e.key === 'Escape' && exportMenuVisible) {
+        e.preventDefault();
+        closeExportMenu();
+      }
+    });
+  }
+
+  const EXPORT_ACTIONS = {
+    html: () => doExportHtml(),
+    pdf: () => doExportPdf(),
+  };
+
+  exportMenu?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-export]');
+    if (!btn) return;
+    e.preventDefault();
+    closeExportMenu();
+    const action = btn.dataset.export;
+    const handler = EXPORT_ACTIONS[action];
+    try {
+      handler?.();
+    } catch (err) {
+      console.error('Export fehlgeschlagen', err);
+    }
+  });
+
+  exportMenu?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeExportMenu();
+      exportBtn?.focus();
+    }
+  });
+
+  exportMenu?.addEventListener('focusout', (e) => {
+    if (!exportMenuVisible) return;
+    const next = e.relatedTarget;
+    if (!next) return;
+    if (exportMenu.contains(next) || exportBtn?.contains(next)) return;
+    closeExportMenu();
+  });
+
   hiddenPdf?.addEventListener('change', async () => {
     const file = hiddenPdf.files && hiddenPdf.files[0];
     hiddenPdf.value = '';
@@ -1567,8 +1643,6 @@ try {
   openBtn.addEventListener('click', doOpenFile);
   saveBtn.addEventListener('click', doSaveFile);
   saveAsBtn.addEventListener('click', doSaveFileAs);
-  exportHtmlBtn.addEventListener('click', doExportHtml);
-  if (exportPdfBtn) exportPdfBtn.addEventListener('click', doExportPdf);
   undoBtn?.addEventListener('click', () => { try { editor.focus(); document.execCommand('undo'); } catch {} updatePreview(); updateCursorInfo(); updateWordCount(); markDirty(true); });
   redoBtn?.addEventListener('click', () => { try { editor.focus(); document.execCommand('redo'); } catch {} updatePreview(); updateCursorInfo(); updateWordCount(); markDirty(true); });
   aiGenerateBtn?.addEventListener('click', () => {
