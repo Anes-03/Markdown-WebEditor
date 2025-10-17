@@ -334,13 +334,16 @@ body.chat-open .ai-inline { margin-right: var(--chat-w, 0px); }
 .shortcuts .desc { color: var(--muted); }
 kbd { display: inline-block; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
 .chat-messages { flex: 1; overflow: auto; padding: 12px; display: grid; gap: 10px; }
-.msg { position: relative; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); padding-right: 40px; }
+.msg { position: relative; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); padding-right: 90px; }
 .msg.user { border-color: var(--accent); }
 .msg.assistant { }
 .msg .role { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-.msg .copy-btn { position: absolute; top: 6px; right: 6px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); border-radius: 6px; font-size: 12px; padding: 2px 6px; opacity: 0.75; cursor: pointer; z-index: 1; display: inline-flex; align-items: center; justify-content: center; }
-.msg .copy-btn iconify-icon { font-size: 14px; line-height: 1; }
-.msg .copy-btn:hover { opacity: 1; background: var(--btn-bg-hover); }
+.msg .msg-actions { position: absolute; top: 6px; right: 6px; display: inline-flex; flex-direction: row-reverse; gap: 6px; }
+.msg .msg-actions button { border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); border-radius: 6px; font-size: 12px; padding: 2px 6px; opacity: 0.75; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.msg .msg-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+.msg .msg-actions button iconify-icon { font-size: 14px; line-height: 1; }
+.msg .msg-actions button:hover { opacity: 1; background: var(--btn-bg-hover); }
+.msg .msg-actions button.speak-btn.speaking { border-color: var(--accent); color: var(--accent); }
 .think-block { border: 1px dashed var(--border); border-radius: 6px; background: transparent; }
 .think-block > summary { cursor: pointer; list-style: none; color: var(--muted); padding: 6px 8px; }
 .think-block > summary::marker, .think-block > summary::-webkit-details-marker { display: none; }

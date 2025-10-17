@@ -1956,6 +1956,7 @@ try {
     chatOverlay?.classList.add('hidden');
     chatPanel?.classList.add('hidden');
     try { chatAbortController?.abort(); } catch {}
+    stopChatSpeech();
     setChatBusy(false);
     document.body.classList.remove('chat-open');
     document.documentElement.style.setProperty('--chat-w', '0px');
@@ -1994,13 +1995,23 @@ try {
       body.textContent = el.__raw;
     }
     el.appendChild(body);
-    // Copy button
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.className = 'copy-btn';
     copyBtn.title = 'Kopieren';
     copyBtn.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:copy"></iconify-icon>';
-    el.appendChild(copyBtn);
+    actions.appendChild(copyBtn);
+    const speakBtn = document.createElement('button');
+    speakBtn.type = 'button';
+    speakBtn.className = 'speak-btn';
+    speakBtn.title = 'Vorlesen';
+    speakBtn.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:volume-2"></iconify-icon>';
+    speakBtn.setAttribute('aria-pressed', 'false');
+    if (!supportsChatSpeech()) speakBtn.disabled = true;
+    actions.appendChild(speakBtn);
+    el.appendChild(actions);
     chatMessages.appendChild(el);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return el;
@@ -2037,6 +2048,75 @@ try {
     const safe = DOMPurify.sanitize(html, { ADD_TAGS: ['details','summary'], ADD_ATTR: ['open','class'] });
     container.innerHTML = safe;
     container.querySelectorAll('pre code').forEach((node) => hljs.highlightElement(node));
+  }
+
+  const supportsChatSpeech = () => 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
+  let chatSpeechUtterance = null;
+  let chatSpeechActiveMsg = null;
+  let chatSpeechActiveBtn = null;
+
+  function clearChatSpeechState() {
+    if (chatSpeechActiveBtn) {
+      chatSpeechActiveBtn.classList.remove('speaking');
+      chatSpeechActiveBtn.setAttribute('aria-pressed', 'false');
+    }
+    chatSpeechActiveBtn = null;
+    chatSpeechActiveMsg = null;
+  }
+
+  function stopChatSpeech() {
+    if (supportsChatSpeech()) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
+    chatSpeechUtterance = null;
+    clearChatSpeechState();
+  }
+
+  function markdownToPlainText(md) {
+    if (!md) return '';
+    try {
+      const processed = preprocessThinking(md || '');
+      const html = marked.parse(processed);
+      const safe = DOMPurify.sanitize(html, { ADD_TAGS: ['details','summary'], ADD_ATTR: ['open','class'] });
+      const tmp = document.createElement('div');
+      tmp.innerHTML = safe;
+      return tmp.textContent || tmp.innerText || '';
+    } catch (_) {
+      return md;
+    }
+  }
+
+  function chatMessageToSpeechText(el) {
+    if (!el) return '';
+    const raw = el.__raw || '';
+    if (el.classList.contains('assistant')) {
+      return markdownToPlainText(raw).trim();
+    }
+    return (raw || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function speakChatMessageEl(msgEl, triggerBtn) {
+    if (!supportsChatSpeech()) return;
+    const text = chatMessageToSpeechText(msgEl);
+    if (!text) return;
+    stopChatSpeech();
+    const utter = new window.SpeechSynthesisUtterance(text);
+    utter.lang = navigator.language || 'de-DE';
+    chatSpeechActiveMsg = msgEl || null;
+    chatSpeechActiveBtn = triggerBtn || msgEl?.querySelector('.speak-btn') || null;
+    if (chatSpeechActiveBtn) {
+      chatSpeechActiveBtn.classList.add('speaking');
+      chatSpeechActiveBtn.setAttribute('aria-pressed', 'true');
+    }
+    utter.onend = () => { chatSpeechUtterance = null; clearChatSpeechState(); };
+    utter.onerror = () => { chatSpeechUtterance = null; clearChatSpeechState(); };
+    chatSpeechUtterance = utter;
+    try {
+      window.speechSynthesis.speak(utter);
+    } catch (_) {
+      chatSpeechUtterance = null;
+      clearChatSpeechState();
+    }
   }
 
   let chatHistory = [];
@@ -2522,10 +2602,21 @@ try {
   });
   chatSendBtn?.addEventListener('click', sendChat);
   chatAbortBtn?.addEventListener('click', () => { try { chatAbortController?.abort(); } catch {} });
-  chatClearBtn?.addEventListener('click', () => { chatMessages.innerHTML = ''; chatHistory = []; });
+  chatClearBtn?.addEventListener('click', () => { chatMessages.innerHTML = ''; chatHistory = []; stopChatSpeech(); });
   editorContextBtn?.addEventListener('click', () => { allowEditorContext = !allowEditorContext; updateEditorContextInfo(); });
   // removed applyModeSelect listener
   chatMessages?.addEventListener('click', async (e) => {
+    const speakBtn = e.target.closest('button.speak-btn');
+    if (speakBtn) {
+      const msg = speakBtn.closest('.msg');
+      if (!msg) return;
+      if (chatSpeechActiveMsg === msg && chatSpeechUtterance) {
+        stopChatSpeech();
+      } else {
+        speakChatMessageEl(msg, speakBtn);
+      }
+      return;
+    }
     const copyBtn = e.target.closest('button.copy-btn');
     if (!copyBtn) return;
     const msg = copyBtn.closest('.msg');
