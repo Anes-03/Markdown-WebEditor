@@ -159,23 +159,19 @@ button:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .toolbar-menu button { width: 100%; display: inline-flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; border: 1px solid transparent; background: transparent; text-align: left; justify-content: flex-start; }
 .toolbar-menu button:hover { background: var(--btn-bg-hover); border-color: var(--border); }
 
-.sticky-tools .toolbar {
+.toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-elev);
+  justify-content: center; /* center buttons horizontally */
+}
+.sticky-tools .toolbar {
   position: sticky;
   top: var(--header-h);
   z-index: 49;
-  justify-content: center; /* center buttons horizontally */
-}
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center; /* center buttons horizontally */
 }
 .toolbar .sep { width: 1px; background: var(--border); margin: 0 4px; }
 .toolbar button { font-size: 13px; }
