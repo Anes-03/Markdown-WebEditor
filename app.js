@@ -3335,50 +3335,6 @@ function doExportPdf() {
         return { provider, apiKey, model: def };
       }
     }
-    async function suggestPrompt() {
-      const nm = (name?.value || '').trim() || 'Preset';
-      const req = await getPresetModelForRequest();
-      const messages = [
-        { role: 'system', content: 'Du bist ein hilfreicher Prompt‑Engineer. Liefere nur den Prompt‑Text, ohne Einleitung oder Erklärungen. Sprache: Deutsch.' },
-        { role: 'user', content: `Erzeuge einen prägnanten, robusten Prompt für ein KI‑Schreibpreset namens "${nm}". Der Prompt soll klar beschreiben, was die KI tun soll, inkl. Format (Markdown), Stil und Grenzen. Nur den Prompt‑Text zurückgeben.` }
-      ];
-      try {
-        let text = '';
-        if (req.provider === 'ollama') {
-          text = await ollamaChat({ base: req.base, model: req.model, messages, stream: false });
-        } else if (req.provider === 'gemini') {
-          text = await geminiChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
-        } else {
-          text = await mistralChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
-        }
-        if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt generiert', true);
-      }
-      catch (e) { setPresetStatus('Generierung fehlgeschlagen', false); }
-    }
-    async function improvePrompt() {
-      const current = (prompt?.value || '').trim();
-      if (!current) { await suggestPrompt(); return; }
-      const nm = (name?.value || '').trim() || 'Preset';
-      const req = await getPresetModelForRequest();
-      const messages = [
-        { role: 'system', content: 'Du bist ein hilfreicher Prompt‑Engineer. Überarbeite Prompts präzise. Nur den verbesserten Prompt‑Text zurückgeben. Sprache: Deutsch.' },
-        { role: 'user', content: `Verbessere den folgenden Prompt für das Preset "${nm}":\n\n${current}` }
-      ];
-      try {
-        let text = '';
-        if (req.provider === 'ollama') {
-          text = await ollamaChat({ base: req.base, model: req.model, messages, stream: false });
-        } else if (req.provider === 'gemini') {
-          text = await geminiChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
-        } else {
-          text = await mistralChat({ apiKey: req.apiKey, model: req.model, messages, stream: false });
-        }
-        if (prompt) prompt.value = (text || '').trim(); setPresetStatus('Prompt verbessert', true);
-      }
-      catch (e) { setPresetStatus('Verbesserung fehlgeschlagen', false); }
-    }
-    document.getElementById('settingsPresetPromptSuggestBtn')?.addEventListener('click', suggestPrompt);
-    document.getElementById('settingsPresetPromptImproveBtn')?.addEventListener('click', improvePrompt);
     saveBtn?.addEventListener('click', () => {
       const list = getPresets();
       const nm = (name?.value || '').trim() || 'Preset';
