@@ -45,10 +45,6 @@
   const aiGenAbortBtn = document.getElementById('aiGenAbortBtn');
   const aiGenResetBtn = document.getElementById('aiGenResetBtn');
   const aiGenInfo = document.getElementById('aiGenInfo');
-  const aiPresetRenameBtn = document.getElementById('aiPresetRenameBtn');
-  const aiPresetExportBtn = document.getElementById('aiPresetExportBtn');
-  const aiPresetImportBtn = document.getElementById('aiPresetImportBtn');
-  const aiPresetImportFile = document.getElementById('aiPresetImportFile');
 
   // Chat elements
   const chatToggleBtn = document.getElementById('chatToggleBtn');
@@ -3178,39 +3174,6 @@ function doExportPdf() {
     if (name) name.value = '';
     prompt.value = '';
   });
-  exportBtn?.addEventListener('click', () => {
-    const list = getPresets();
-    const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'ai-presets.json';
-    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
-  });
-  importBtn?.addEventListener('click', () => { importFile?.click(); });
-  importFile?.addEventListener('change', async () => {
-    const f = importFile.files && importFile.files[0];
-    if (!f) return;
-    try {
-      const text = await f.text();
-      const arr = JSON.parse(text);
-      if (!Array.isArray(arr)) throw new Error('Format');
-      // merge by name
-      const existing = getPresets();
-      const map = new Map(existing.map(p => [p.name, p.prompt]));
-      for (const item of arr) {
-        if (!item || typeof item.name !== 'string' || typeof item.prompt !== 'string') continue;
-        map.set(item.name, item.prompt);
-      }
-      const merged = Array.from(map.entries()).map(([name, prompt]) => ({ name, prompt }));
-      setPresets(merged);
-      populate();
-    } catch (e) {
-      alert('Import fehlgeschlagen. Bitte gültige JSON-Presets wählen.');
-    } finally {
-      importFile.value = '';
-    }
-  });
-
   // removed temperature/max persistence
   }
 
@@ -3222,9 +3185,6 @@ function doExportPdf() {
     const saveBtn = document.getElementById('settingsPresetSaveBtn');
     const delBtn = document.getElementById('settingsPresetDeleteBtn');
     const renameBtn = document.getElementById('settingsPresetRenameBtn');
-    const exportBtn = document.getElementById('settingsPresetExportBtn');
-    const importBtn = document.getElementById('settingsPresetImportBtn');
-    const importFile = document.getElementById('settingsPresetImportFile');
     const newBtn = document.getElementById('settingsPresetNewBtn');
     const dupBtn = document.getElementById('settingsPresetDuplicateBtn');
     const presetStatus = document.getElementById('settingsPresetStatus');
