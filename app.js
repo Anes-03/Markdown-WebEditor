@@ -3258,199 +3258,167 @@ try {
   // Focus editor for immediate typing
   try { editor.focus(); } catch {}
   updateEditorContextInfo();
-  initAiInlineDefaults();
-  initPresetSettings();
+  initAiInlineDefaults(BUILT_IN_PRESETS);
+  initPresetSettings(BUILT_IN_PRESETS);
   // Apply settings
   applyPrefs();
 
-})();
+  function initAiInlineDefaults(builtIns) {
+    const sel = document.getElementById('aiPresetSelect');
+    const name = document.getElementById('aiPresetName');
+    const prompt = document.getElementById('aiPromptInput');
+    const saveBtn = document.getElementById('aiPresetSaveBtn');
+    const delBtn = document.getElementById('aiPresetDeleteBtn');
+    const renameBtn = document.getElementById('aiPresetRenameBtn');
+    const exportBtn = document.getElementById('aiPresetExportBtn');
+    const importBtn = document.getElementById('aiPresetImportBtn');
+    const importFile = document.getElementById('aiPresetImportFile');
+    // removed temperature/max controls
+    if (!sel || !prompt) return;
+    const builtInPresets = Array.isArray(builtIns) ? builtIns : [];
 
-// PDF export via html2pdf.js
-function doExportPdf() {
-  const preview = document.getElementById('preview');
-  if (!preview) return;
-  const mdTitle = (function () {
-    const editor = document.getElementById('editor');
-    if (!editor) return '';
-    const m = editor.value.match(/^\s*#\s+(.+)/m);
-    return m ? m[1].trim() : '';
-  })();
-  const currentFileName = document.getElementById('fileName')?.textContent?.replace(/^Datei:\s*/, '') || '';
-  const baseName = (mdTitle || currentFileName || 'Export').replace(/\.[^.]+$/, '');
-  const safeName = baseName.replace(/[^\p{L}\p{N}\-_\.\s]/gu, '').trim().replace(/\s+/g, '-');
-
-  const cs = getComputedStyle(document.body);
-  const bg = cs.getPropertyValue('--bg') || '#ffffff';
-
-  const opt = {
-    margin:       10,
-    filename:     `${safeName || 'Export'}.pdf`,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, backgroundColor: bg.trim() || '#ffffff' },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-
-  if (window.html2pdf) {
-    window.html2pdf().from(preview).set(opt).save();
-  } else {
-    // Fallback to print if library not ready
-    window.print();
-  }
-}
-
-  function initAiInlineDefaults() {
-  const sel = document.getElementById('aiPresetSelect');
-  const name = document.getElementById('aiPresetName');
-  const prompt = document.getElementById('aiPromptInput');
-  const saveBtn = document.getElementById('aiPresetSaveBtn');
-  const delBtn = document.getElementById('aiPresetDeleteBtn');
-  const renameBtn = document.getElementById('aiPresetRenameBtn');
-  const exportBtn = document.getElementById('aiPresetExportBtn');
-  const importBtn = document.getElementById('aiPresetImportBtn');
-  const importFile = document.getElementById('aiPresetImportFile');
-  // removed temperature/max controls
-  if (!sel || !prompt) return;
-
-  function getPresets() {
-    try {
-      return normalizePresetList(JSON.parse(localStorage.getItem('ai-presets') || '[]'));
-    } catch {
-      return [];
-    }
-  }
-  function setPresets(list) {
-    const sanitized = normalizePresetList(list);
-    try { localStorage.setItem('ai-presets', JSON.stringify(sanitized)); } catch {}
-  }
-  function ensureDefaults() {
-    const list = getPresets();
-    const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
-    for (const preset of BUILT_IN_PRESETS) {
-      const name = preset.name;
-      if (!map.has(name)) map.set(name, { ...preset });
-    }
-    const merged = Array.from(map.values());
-    setPresets(merged);
-    return merged;
-  }
-  function populate() {
-    const list = ensureDefaults();
-    sel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
-  }
-  populate();
-
-  sel.addEventListener('change', () => {
-    const list = getPresets();
-    const idx = parseInt(sel.value, 10);
-    const p = list[idx];
-    if (p) { prompt.value = p.prompt; name && (name.value = p.name); }
-  });
-  saveBtn?.addEventListener('click', () => {
-    const list = getPresets();
-    const nm = (name?.value || '').trim() || 'Preset';
-    const pr = (prompt?.value || '').trim();
-    if (!pr) return;
-    const exist = list.findIndex(x => x.name === nm);
-    if (exist >= 0) list[exist] = { name: nm, prompt: pr }; else list.push({ name: nm, prompt: pr });
-    setPresets(list);
-    populate();
-    // Modelle aus aktuellem Anbieter laden
-    (async () => {
-      if (!modelInput) return;
+    function getPresets() {
       try {
-        const provider = getAiProvider();
-        let models = [];
-        switch (provider) {
-          case 'openai': {
-            const key = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
-            const base = (openaiBaseInput?.value || localStorage.getItem('openai-base') || 'https://api.openai.com/v1');
-            models = key ? await fetchOpenAiModels(base, key) : ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
-            break;
-          }
-          case 'claude': {
-            const key = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
-            const base = (claudeBaseInput?.value || localStorage.getItem('claude-base') || 'https://api.anthropic.com');
-            models = key ? await fetchAnthropicModels(key, base) : ['claude-3-5-sonnet-latest', 'claude-3-haiku-20240307'];
-            break;
-          }
-          case 'ollama': {
-            const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
-            models = await fetchOllamaModels(base);
-            break;
-          }
-          case 'gemini': {
-            const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-            models = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
-            break;
-          }
-          case 'mistral': {
-            const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-            models = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
-            break;
-          }
-          default:
-            models = [];
-            break;
-        }
-        const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
-        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
+        return normalizePresetList(JSON.parse(localStorage.getItem('ai-presets') || '[]'));
       } catch {
-        modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>`;
+        return [];
       }
-    })();
-    // select this preset
-    const idx = list.findIndex(x => x.name === nm);
-    if (idx >= 0) sel.value = String(idx);
-  });
-  renameBtn?.addEventListener('click', () => {
-    const list = getPresets();
-    const idx = parseInt(sel.value, 10);
-    if (isNaN(idx)) return;
-    const p = list[idx];
-    const newName = (name?.value || '').trim();
-    if (!p || !newName) return;
-    // avoid duplicate name by renaming existing duplicate
-    const dup = list.findIndex(x => x.name === newName);
-    if (dup >= 0 && dup !== idx) list.splice(dup, 1);
-    list[idx] = { name: newName, prompt: (prompt?.value || '').trim() };
-    setPresets(list);
+    }
+    function setPresets(list) {
+      const sanitized = normalizePresetList(list);
+      try { localStorage.setItem('ai-presets', JSON.stringify(sanitized)); } catch {}
+    }
+    function ensureDefaults() {
+      const list = getPresets();
+      const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
+      for (const preset of builtInPresets) {
+        if (!preset || typeof preset.name !== 'string') continue;
+        const name = preset.name.trim();
+        if (!name) continue;
+        if (!map.has(name)) map.set(name, { ...preset, name });
+      }
+      const merged = Array.from(map.values());
+      setPresets(merged);
+      return merged;
+    }
+    function populate() {
+      const list = ensureDefaults();
+      sel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
+    }
     populate();
-    const nidx = list.findIndex(x => x.name === newName);
-    if (nidx >= 0) sel.value = String(nidx);
-  });
-  delBtn?.addEventListener('click', () => {
-    const list = getPresets();
-    const idx = parseInt(sel.value, 10);
-    if (isNaN(idx)) return;
-    list.splice(idx, 1);
-    setPresets(list);
-    populate();
-    // clear fields
-    if (name) name.value = '';
-    prompt.value = '';
-  });
-  // removed temperature/max persistence
-  document.addEventListener('presets-updated', () => {
-    populate();
-    const list = getPresets();
-    let idx = parseInt(sel.value, 10);
-    if (isNaN(idx) || !list[idx]) {
-      idx = list.length ? 0 : -1;
+
+    sel.addEventListener('change', () => {
+      const list = getPresets();
+      const idx = parseInt(sel.value, 10);
+      const p = list[idx];
+      if (p) { prompt.value = p.prompt; name && (name.value = p.name); }
+    });
+    saveBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const nm = (name?.value || '').trim() || 'Preset';
+      const pr = (prompt?.value || '').trim();
+      if (!pr) return;
+      const exist = list.findIndex(x => x.name === nm);
+      if (exist >= 0) list[exist] = { name: nm, prompt: pr }; else list.push({ name: nm, prompt: pr });
+      setPresets(list);
+      populate();
+      // Modelle aus aktuellem Anbieter laden
+      (async () => {
+        if (!modelInput) return;
+        try {
+          const provider = getAiProvider();
+          let models = [];
+          switch (provider) {
+            case 'openai': {
+              const key = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+              const base = (openaiBaseInput?.value || localStorage.getItem('openai-base') || 'https://api.openai.com/v1');
+              models = key ? await fetchOpenAiModels(base, key) : ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
+              break;
+            }
+            case 'claude': {
+              const key = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+              const base = (claudeBaseInput?.value || localStorage.getItem('claude-base') || 'https://api.anthropic.com');
+              models = key ? await fetchAnthropicModels(key, base) : ['claude-3-5-sonnet-latest', 'claude-3-haiku-20240307'];
+              break;
+            }
+            case 'ollama': {
+              const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
+              models = await fetchOllamaModels(base);
+              break;
+            }
+            case 'gemini': {
+              const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+              models = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
+              break;
+            }
+            case 'mistral': {
+              const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+              models = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
+              break;
+            }
+            default:
+              models = [];
+              break;
+          }
+          const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
+          modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
+        } catch {
+          modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>`;
+        }
+      })();
+      // select this preset
+      const idx = list.findIndex(x => x.name === nm);
       if (idx >= 0) sel.value = String(idx);
-    }
-    const active = idx >= 0 ? list[idx] : null;
-    if (active) {
-      prompt.value = active.prompt || '';
-      if (name) name.value = active.name || '';
-    } else {
-      prompt.value = '';
+    });
+    renameBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const idx = parseInt(sel.value, 10);
+      if (isNaN(idx)) return;
+      const p = list[idx];
+      const newName = (name?.value || '').trim();
+      if (!p || !newName) return;
+      // avoid duplicate name by renaming existing duplicate
+      const dup = list.findIndex(x => x.name === newName);
+      if (dup >= 0 && dup !== idx) list.splice(dup, 1);
+      list[idx] = { name: newName, prompt: (prompt?.value || '').trim() };
+      setPresets(list);
+      populate();
+      const nidx = list.findIndex(x => x.name === newName);
+      if (nidx >= 0) sel.value = String(nidx);
+    });
+    delBtn?.addEventListener('click', () => {
+      const list = getPresets();
+      const idx = parseInt(sel.value, 10);
+      if (isNaN(idx)) return;
+      list.splice(idx, 1);
+      setPresets(list);
+      populate();
+      // clear fields
       if (name) name.value = '';
-    }
-  });
+      prompt.value = '';
+    });
+    // removed temperature/max persistence
+    document.addEventListener('presets-updated', () => {
+      populate();
+      const list = getPresets();
+      let idx = parseInt(sel.value, 10);
+      if (isNaN(idx) || !list[idx]) {
+        idx = list.length ? 0 : -1;
+        if (idx >= 0) sel.value = String(idx);
+      }
+      const active = idx >= 0 ? list[idx] : null;
+      if (active) {
+        prompt.value = active.prompt || '';
+        if (name) name.value = active.name || '';
+      } else {
+        prompt.value = '';
+        if (name) name.value = '';
+      }
+    });
   }
 
   // Preferences helpers
-  function initPresetSettings() {
+  function initPresetSettings(builtIns) {
     const sel = document.getElementById('settingsPresetSelect');
     const name = document.getElementById('settingsPresetName');
     const prompt = document.getElementById('settingsPresetPrompt');
@@ -3461,6 +3429,8 @@ function doExportPdf() {
     const dupBtn = document.getElementById('settingsPresetDuplicateBtn');
     const presetStatus = document.getElementById('settingsPresetStatus');
     if (!sel || !prompt) return;
+
+    const builtInPresets = Array.isArray(builtIns) ? builtIns : [];
 
     const setPresetStatus = (msg, ok = false) => {
       if (!presetStatus) return;
@@ -3482,9 +3452,11 @@ function doExportPdf() {
     function ensureDefaults() {
       const list = getPresets();
       const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
-      for (const preset of BUILT_IN_PRESETS) {
-        const name = preset.name;
-        if (!map.has(name)) map.set(name, { ...preset });
+      for (const preset of builtInPresets) {
+        if (!preset || typeof preset.name !== 'string') continue;
+        const name = preset.name.trim();
+        if (!name) continue;
+        if (!map.has(name)) map.set(name, { ...preset, name });
       }
       const merged = Array.from(map.values());
       setPresets(merged);
@@ -3652,6 +3624,42 @@ function doExportPdf() {
       }
     });
   }
+
+})();
+
+// PDF export via html2pdf.js
+function doExportPdf() {
+  const preview = document.getElementById('preview');
+  if (!preview) return;
+  const mdTitle = (function () {
+    const editor = document.getElementById('editor');
+    if (!editor) return '';
+    const m = editor.value.match(/^\s*#\s+(.+)/m);
+    return m ? m[1].trim() : '';
+  })();
+  const currentFileName = document.getElementById('fileName')?.textContent?.replace(/^Datei:\s*/, '') || '';
+  const baseName = (mdTitle || currentFileName || 'Export').replace(/\.[^.]+$/, '');
+  const safeName = baseName.replace(/[^\p{L}\p{N}\-_\.\s]/gu, '').trim().replace(/\s+/g, '-');
+
+  const cs = getComputedStyle(document.body);
+  const bg = cs.getPropertyValue('--bg') || '#ffffff';
+
+  const opt = {
+    margin:       10,
+    filename:     `${safeName || 'Export'}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, backgroundColor: bg.trim() || '#ffffff' },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  if (window.html2pdf) {
+    window.html2pdf().from(preview).set(opt).save();
+  } else {
+    // Fallback to print if library not ready
+    window.print();
+  }
+}
+
 function getPref(key, defVal) { try { const v = localStorage.getItem('pref-' + key); if (v === null) return defVal; return v === '1' || v === 'true'; } catch { return defVal; } }
 function setPref(key, val) { try { localStorage.setItem('pref-' + key, val ? '1' : '0'); } catch {} }
 function getPrefStr(key, defVal) { try { const v = localStorage.getItem('pref-' + key); return v === null ? defVal : v; } catch { return defVal; } }
