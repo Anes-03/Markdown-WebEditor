@@ -46,6 +46,30 @@
   const aiGenResetBtn = document.getElementById('aiGenResetBtn');
   const aiGenInfo = document.getElementById('aiGenInfo');
 
+  const BUILT_IN_PRESETS = [
+    { name: 'Zusammenfassen', prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.' },
+    { name: 'Verbessern', prompt: 'Verbessere Stil, Klarheit und Grammatik des Textes, ohne Inhalt zu ändern. Nur Ergebnis in Markdown.' },
+    { name: 'Freundlich umformulieren', prompt: 'Formuliere den Text in einem freundlichen, respektvollen und wertschätzenden Ton neu. Erhalte die inhaltliche Aussage, entschärfe harsche Formulierungen, nutze inklusive Sprache. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
+    { name: 'Professionell umschreiben', prompt: 'Schreibe den Text in einem professionellen, sachlichen und klar strukturierten Stil um. Vermeide Umgangssprache, optimiere Präzision und Lesbarkeit, behalte den Kerninhalt bei. Nur das Ergebnis in Markdown ausgeben.' },
+    { name: 'Locker umformulieren', prompt: 'Formuliere den Text locker, natürlich und umgangssprachlich neu. Erhalte die Aussage, vereinfache komplexe Sätze und nutze alltagstaugliche Wörter. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
+    { name: 'Neutralisieren', prompt: 'Formuliere den Text neutral und wertfrei um. Entferne emotionale oder wertende Sprache und behalte den Inhalt bei. Nur das neutralisierte Ergebnis in Markdown ausgeben.' },
+    { name: 'Kürzen', prompt: 'Kürze den Text deutlich (ca. 30–50%), entferne Füllwörter und Redundanzen und erhalte die Kernaussagen. Struktur möglichst beibehalten. Nur das gekürzte Ergebnis in Markdown ausgeben.' },
+    { name: 'Verlängern', prompt: 'Erweitere den Text behutsam um erläuternde Details, Beispiele und klarere Übergänge. Erhalte Ton und Intention; keine neuen Fakten erfinden. Nur das erweiterte Ergebnis in Markdown ausgeben.' },
+    { name: 'Technisch erklären', prompt: 'Erkläre den Text technisch präzise für ein fachkundiges Publikum. Nutze korrekte Terminologie, klare Struktur (Markdown-Überschriften/Listen) und Beispiele, falls sinnvoll. Nur die Erklärung in Markdown ausgeben.' },
+    { name: 'DE → EN', prompt: 'Übersetze den Text ins Englische. Nur Übersetzung ausgeben.' },
+    { name: 'EN → DE', prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.' },
+    { name: 'Tabelle aus Text', prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.' },
+    { name: 'Stichpunkte', prompt: 'Konvertiere den Text in eine prägnante ungeordnete Liste (Markdown). Nur die Liste ausgeben.' },
+    { name: 'Nummerierte Schritte', prompt: 'Konvertiere den Text in eine nummerierte Schritt-für-Schritt Liste (Markdown). Nur die Liste ausgeben.' },
+    { name: 'Aufgabenliste', prompt: 'Konvertiere den Text in eine Aufgabenliste in Markdown mit - [ ] Einträgen. Nur die Liste ausgeben.' },
+    { name: 'Zitat', prompt: 'Wandle den Text in ein Markdown-Blockzitat (> ...) um. Nur das Zitat ausgeben.' },
+    { name: 'Codeblock', prompt: 'Wandle den Text in einen Markdown-Codeblock um. Sprache, falls erkennbar, ansonsten ohne. Nur den Codeblock ausgeben.' },
+    { name: 'Überschrift H1', prompt: 'Formatiere die erste Zeile als H1 (#) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
+    { name: 'Überschrift H2', prompt: 'Formatiere die erste Zeile als H2 (##) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
+    { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
+  ];
+  const BUILT_IN_PRESET_NAMES = new Set(BUILT_IN_PRESETS.map(p => p.name.trim()));
+
   // Chat elements
   const chatToggleBtn = document.getElementById('chatToggleBtn');
   const chatOverlay = document.getElementById('chatOverlay');
@@ -122,6 +146,9 @@
   const feedbackNameInput = document.getElementById('feedbackName');
   const feedbackEmailInput = document.getElementById('feedbackEmail');
   const feedbackMessageInput = document.getElementById('feedbackMessage');
+  const settingsConfigExportBtn = document.getElementById('settingsConfigExportBtn');
+  const settingsConfigImportBtn = document.getElementById('settingsConfigImportBtn');
+  const settingsConfigImportFile = document.getElementById('settingsConfigImportFile');
 
   const toolbar = document.querySelector('.toolbar');
 
@@ -2769,6 +2796,10 @@ try {
   chatSendBtn?.addEventListener('click', sendChat);
   chatAbortBtn?.addEventListener('click', () => { try { chatAbortController?.abort(); } catch {} });
   chatClearBtn?.addEventListener('click', () => { chatMessages.innerHTML = ''; chatHistory = []; stopChatSpeech(); });
+  if (chatStreamToggle) {
+    chatStreamToggle.checked = getPref('chat-stream', true);
+    chatStreamToggle.addEventListener('change', () => { setPref('chat-stream', !!chatStreamToggle.checked); });
+  }
   editorContextBtn?.addEventListener('click', () => { allowEditorContext = !allowEditorContext; updateEditorContextInfo(); });
   // removed applyModeSelect listener
   chatMessages?.addEventListener('click', async (e) => {
@@ -2827,6 +2858,7 @@ try {
       const dv = getPrefStr('default-view', 'split');
       prefDefaultView.value = ['edit','split','reader'].includes(dv) ? dv : 'split';
     }
+    if (chatStreamToggle) chatStreamToggle.checked = getPref('chat-stream', true);
     // Load provider settings
     try { loadOpenAiSettings(); } catch {}
     try { loadClaudeSettings(); } catch {}
@@ -2846,6 +2878,239 @@ try {
     applyPrefs();
     closeSettings();
   });
+  settingsConfigExportBtn?.addEventListener('click', () => {
+    try {
+      const payload = collectSettingsConfig();
+      exportSettingsConfig(payload);
+      setStatus('Konfiguration exportiert');
+    } catch (e) {
+      console.error(e);
+      alert('Export fehlgeschlagen. Bitte erneut versuchen.');
+      setStatus('Export fehlgeschlagen');
+    }
+  });
+  settingsConfigImportBtn?.addEventListener('click', () => { settingsConfigImportFile?.click(); });
+  settingsConfigImportFile?.addEventListener('change', async () => {
+    const file = settingsConfigImportFile?.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      applySettingsConfig(data);
+      setStatus('Konfiguration importiert');
+    } catch (e) {
+      console.error(e);
+      alert('Import fehlgeschlagen. Bitte eine gültige JSON-Konfigurationsdatei auswählen.');
+      setStatus('Import fehlgeschlagen');
+    } finally {
+      if (settingsConfigImportFile) settingsConfigImportFile.value = '';
+    }
+  });
+
+  function readStoredValue(key) {
+    try { return localStorage.getItem(key); }
+    catch { return null; }
+  }
+
+  function writeStoredValue(key, value) {
+    try {
+      if (value === undefined || value === null) {
+        localStorage.removeItem(key);
+        return;
+      }
+      const str = typeof value === 'string' ? value.trim() : String(value).trim();
+      if (!str) localStorage.removeItem(key);
+      else localStorage.setItem(key, str);
+    } catch {}
+  }
+
+  function normalizeBoolean(value, fallback = false) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'on'].includes(v)) return true;
+      if (['0', 'false', 'no', 'off'].includes(v)) return false;
+    }
+    return fallback;
+  }
+
+  function normalizePresetList(list) {
+    if (!Array.isArray(list)) return [];
+    const sanitized = [];
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const name = typeof item.name === 'string' ? item.name.trim() : '';
+      const prompt = typeof item.prompt === 'string' ? item.prompt : '';
+      if (!name) continue;
+      sanitized.push({ name, prompt });
+    }
+    return sanitized;
+  }
+
+  function readPresetList() {
+    try {
+      const raw = localStorage.getItem('ai-presets');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return normalizePresetList(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return [];
+    }
+  }
+
+  function collectSettingsConfig() {
+    const defaultView = (() => {
+      const view = getPrefStr('default-view', 'split');
+      return ['edit', 'split', 'reader'].includes(view) ? view : 'split';
+    })();
+    const presets = normalizePresetList(readPresetList());
+    const customPresets = presets.filter(p => !BUILT_IN_PRESET_NAMES.has(p.name));
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      prefs: {
+        readerInput: getPref('reader-input', true),
+        stickyTools: getPref('sticky-tools', true),
+        aiInlineOpen: getPref('ai-inline-open', false),
+        defaultView,
+      },
+      chat: {
+        stream: getPref('chat-stream', true),
+      },
+      aiProvider: getAiProvider(),
+      providers: {
+        openai: {
+          apiKey: readStoredValue('openai-api-key') || '',
+          base: readStoredValue('openai-base') || '',
+          model: readStoredValue('openai-model') || '',
+        },
+        claude: {
+          apiKey: readStoredValue('claude-api-key') || '',
+          base: readStoredValue('claude-base') || '',
+          model: readStoredValue('claude-model') || '',
+        },
+        ollama: {
+          url: readStoredValue('ollama-url') || '',
+          model: readStoredValue('ollama-model') || '',
+        },
+        gemini: {
+          apiKey: readStoredValue('gemini-api-key') || '',
+          model: readStoredValue('gemini-model') || '',
+        },
+        mistral: {
+          apiKey: readStoredValue('mistral-api-key') || '',
+          model: readStoredValue('mistral-model') || '',
+        },
+      },
+      presets: customPresets,
+    };
+  }
+
+  function exportSettingsConfig(payload) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `markdown-webeditor-settings-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 0);
+  }
+
+  function applySettingsConfig(data) {
+    if (!data || typeof data !== 'object') throw new Error('Ungültige Konfigurationsdaten');
+
+    const prefs = (data.prefs && typeof data.prefs === 'object') ? data.prefs : {};
+    if ('readerInput' in prefs) {
+      const val = normalizeBoolean(prefs.readerInput, getPref('reader-input', true));
+      setPref('reader-input', val);
+      if (prefReaderInput) prefReaderInput.checked = val;
+    }
+    if ('stickyTools' in prefs) {
+      const val = normalizeBoolean(prefs.stickyTools, getPref('sticky-tools', true));
+      setPref('sticky-tools', val);
+      if (prefStickyTools) prefStickyTools.checked = val;
+    }
+    if ('aiInlineOpen' in prefs) {
+      const val = normalizeBoolean(prefs.aiInlineOpen, getPref('ai-inline-open', false));
+      setPref('ai-inline-open', val);
+      if (prefAiInlineAutoOpen) prefAiInlineAutoOpen.checked = val;
+    }
+    if ('defaultView' in prefs) {
+      const raw = typeof prefs.defaultView === 'string' ? prefs.defaultView : getPrefStr('default-view', 'split');
+      const normalized = ['edit', 'split', 'reader'].includes(raw) ? raw : 'split';
+      setPrefStr('default-view', normalized);
+      if (prefDefaultView) prefDefaultView.value = normalized;
+    }
+
+    if (data.chat && typeof data.chat === 'object' && 'stream' in data.chat) {
+      const streamVal = normalizeBoolean(data.chat.stream, getPref('chat-stream', true));
+      setPref('chat-stream', streamVal);
+      if (chatStreamToggle) chatStreamToggle.checked = streamVal;
+    }
+
+    if (data.aiProvider) {
+      setAiProvider(data.aiProvider);
+      if (aiProviderSelect) aiProviderSelect.value = getAiProvider();
+    }
+
+    const providers = (data.providers && typeof data.providers === 'object') ? data.providers : {};
+    if (providers.openai && typeof providers.openai === 'object') {
+      const info = providers.openai;
+      if ('apiKey' in info) writeStoredValue('openai-api-key', info.apiKey);
+      if ('base' in info) writeStoredValue('openai-base', info.base);
+      if ('model' in info) writeStoredValue('openai-model', info.model);
+    }
+    if (providers.claude && typeof providers.claude === 'object') {
+      const info = providers.claude;
+      if ('apiKey' in info) writeStoredValue('claude-api-key', info.apiKey);
+      if ('base' in info) writeStoredValue('claude-base', info.base);
+      if ('model' in info) writeStoredValue('claude-model', info.model);
+    }
+    if (providers.ollama && typeof providers.ollama === 'object') {
+      const info = providers.ollama;
+      if ('url' in info) writeStoredValue('ollama-url', info.url);
+      if ('model' in info) writeStoredValue('ollama-model', info.model);
+    }
+    if (providers.gemini && typeof providers.gemini === 'object') {
+      const info = providers.gemini;
+      if ('apiKey' in info) writeStoredValue('gemini-api-key', info.apiKey);
+      if ('model' in info) writeStoredValue('gemini-model', info.model);
+    }
+    if (providers.mistral && typeof providers.mistral === 'object') {
+      const info = providers.mistral;
+      if ('apiKey' in info) writeStoredValue('mistral-api-key', info.apiKey);
+      if ('model' in info) writeStoredValue('mistral-model', info.model);
+    }
+
+    if (Array.isArray(data.presets)) {
+      const customPresets = normalizePresetList(data.presets).filter(p => !BUILT_IN_PRESET_NAMES.has(p.name));
+      const existing = readPresetList();
+      let basePresets = existing.filter(p => BUILT_IN_PRESET_NAMES.has(p.name));
+      if (!basePresets.length) basePresets = BUILT_IN_PRESETS.map(p => ({ ...p }));
+      const mergedMap = new Map();
+      for (const entry of [...basePresets, ...customPresets]) {
+        if (!entry || typeof entry.name !== 'string') continue;
+        const name = entry.name.trim();
+        if (!name) continue;
+        mergedMap.set(name, { name, prompt: typeof entry.prompt === 'string' ? entry.prompt : '' });
+      }
+      const merged = Array.from(mergedMap.values());
+      try { localStorage.setItem('ai-presets', JSON.stringify(merged)); } catch {}
+      document.dispatchEvent(new Event('presets-updated'));
+    }
+
+    applyPrefs();
+    try { loadOpenAiSettings(); } catch {}
+    try { loadClaudeSettings(); } catch {}
+    try { loadOllamaSettings(); } catch {}
+    try { loadGeminiSettings(); } catch {}
+    try { loadMistralSettings(); } catch {}
+    try { applyProviderUI(); } catch {}
+  }
   feedbackForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     const subject = 'Feedback zum Markdown WebEditor';
@@ -3046,34 +3311,24 @@ function doExportPdf() {
   // removed temperature/max controls
   if (!sel || !prompt) return;
 
-  function getPresets() { try { return JSON.parse(localStorage.getItem('ai-presets') || '[]'); } catch { return []; } }
-  function setPresets(list) { try { localStorage.setItem('ai-presets', JSON.stringify(list)); } catch {} }
+  function getPresets() {
+    try {
+      return normalizePresetList(JSON.parse(localStorage.getItem('ai-presets') || '[]'));
+    } catch {
+      return [];
+    }
+  }
+  function setPresets(list) {
+    const sanitized = normalizePresetList(list);
+    try { localStorage.setItem('ai-presets', JSON.stringify(sanitized)); } catch {}
+  }
   function ensureDefaults() {
-    const builtIns = [
-      { name: 'Zusammenfassen', prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.' },
-      { name: 'Verbessern', prompt: 'Verbessere Stil, Klarheit und Grammatik des Textes, ohne Inhalt zu ändern. Nur Ergebnis in Markdown.' },
-      { name: 'Freundlich umformulieren', prompt: 'Formuliere den Text in einem freundlichen, respektvollen und wertschätzenden Ton neu. Erhalte die inhaltliche Aussage, entschärfe harsche Formulierungen, nutze inklusive Sprache. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
-      { name: 'Professionell umschreiben', prompt: 'Schreibe den Text in einem professionellen, sachlichen und klar strukturierten Stil um. Vermeide Umgangssprache, optimiere Präzision und Lesbarkeit, behalte den Kerninhalt bei. Nur das Ergebnis in Markdown ausgeben.' },
-      { name: 'Locker umformulieren', prompt: 'Formuliere den Text locker, natürlich und umgangssprachlich neu. Erhalte die Aussage, vereinfache komplexe Sätze und nutze alltagstaugliche Wörter. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
-      { name: 'Neutralisieren', prompt: 'Formuliere den Text neutral und wertfrei um. Entferne emotionale oder wertende Sprache und behalte den Inhalt bei. Nur das neutralisierte Ergebnis in Markdown ausgeben.' },
-      { name: 'Kürzen', prompt: 'Kürze den Text deutlich (ca. 30–50%), entferne Füllwörter und Redundanzen und erhalte die Kernaussagen. Struktur möglichst beibehalten. Nur das gekürzte Ergebnis in Markdown ausgeben.' },
-      { name: 'Verlängern', prompt: 'Erweitere den Text behutsam um erläuternde Details, Beispiele und klarere Übergänge. Erhalte Ton und Intention; keine neuen Fakten erfinden. Nur das erweiterte Ergebnis in Markdown ausgeben.' },
-      { name: 'Technisch erklären', prompt: 'Erkläre den Text technisch präzise für ein fachkundiges Publikum. Nutze korrekte Terminologie, klare Struktur (Markdown-Überschriften/Listen) und Beispiele, falls sinnvoll. Nur die Erklärung in Markdown ausgeben.' },
-      { name: 'DE → EN', prompt: 'Übersetze den Text ins Englische. Nur Übersetzung ausgeben.' },
-      { name: 'EN → DE', prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.' },
-      { name: 'Tabelle aus Text', prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.' },
-      { name: 'Stichpunkte', prompt: 'Konvertiere den Text in eine prägnante ungeordnete Liste (Markdown). Nur die Liste ausgeben.' },
-      { name: 'Nummerierte Schritte', prompt: 'Konvertiere den Text in eine nummerierte Schritt-für-Schritt Liste (Markdown). Nur die Liste ausgeben.' },
-      { name: 'Aufgabenliste', prompt: 'Konvertiere den Text in eine Aufgabenliste in Markdown mit - [ ] Einträgen. Nur die Liste ausgeben.' },
-      { name: 'Zitat', prompt: 'Wandle den Text in ein Markdown-Blockzitat (> ...) um. Nur das Zitat ausgeben.' },
-      { name: 'Codeblock', prompt: 'Wandle den Text in einen Markdown-Codeblock um. Sprache, falls erkennbar, ansonsten ohne. Nur den Codeblock ausgeben.' },
-      { name: 'Überschrift H1', prompt: 'Formatiere die erste Zeile als H1 (#) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
-      { name: 'Überschrift H2', prompt: 'Formatiere die erste Zeile als H2 (##) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
-      { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
-    ];
-    let list = getPresets();
+    const list = getPresets();
     const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
-    for (const p of builtIns) { if (!map.has(p.name)) map.set(p.name, p); }
+    for (const preset of BUILT_IN_PRESETS) {
+      const name = preset.name;
+      if (!map.has(name)) map.set(name, { ...preset });
+    }
     const merged = Array.from(map.values());
     setPresets(merged);
     return merged;
@@ -3175,6 +3430,23 @@ function doExportPdf() {
     prompt.value = '';
   });
   // removed temperature/max persistence
+  document.addEventListener('presets-updated', () => {
+    populate();
+    const list = getPresets();
+    let idx = parseInt(sel.value, 10);
+    if (isNaN(idx) || !list[idx]) {
+      idx = list.length ? 0 : -1;
+      if (idx >= 0) sel.value = String(idx);
+    }
+    const active = idx >= 0 ? list[idx] : null;
+    if (active) {
+      prompt.value = active.prompt || '';
+      if (name) name.value = active.name || '';
+    } else {
+      prompt.value = '';
+      if (name) name.value = '';
+    }
+  });
   }
 
   // Preferences helpers
@@ -3196,34 +3468,24 @@ function doExportPdf() {
       presetStatus.style.color = ok ? 'var(--accent)' : 'var(--muted)';
     };
 
-    function getPresets() { try { return JSON.parse(localStorage.getItem('ai-presets') || '[]'); } catch { return []; } }
-    function setPresets(list) { try { localStorage.setItem('ai-presets', JSON.stringify(list)); } catch {} }
+    function getPresets() {
+      try {
+        return normalizePresetList(JSON.parse(localStorage.getItem('ai-presets') || '[]'));
+      } catch {
+        return [];
+      }
+    }
+    function setPresets(list) {
+      const sanitized = normalizePresetList(list);
+      try { localStorage.setItem('ai-presets', JSON.stringify(sanitized)); } catch {}
+    }
     function ensureDefaults() {
-      const builtIns = [
-        { name: 'Zusammenfassen', prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.' },
-        { name: 'Verbessern', prompt: 'Verbessere Stil, Klarheit und Grammatik des Textes, ohne Inhalt zu ändern. Nur Ergebnis in Markdown.' },
-        { name: 'Freundlich umformulieren', prompt: 'Formuliere den Text in einem freundlichen, respektvollen und wertschätzenden Ton neu. Erhalte die inhaltliche Aussage, entschärfe harsche Formulierungen, nutze inklusive Sprache. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
-        { name: 'Professionell umschreiben', prompt: 'Schreibe den Text in einem professionellen, sachlichen und klar strukturierten Stil um. Vermeide Umgangssprache, optimiere Präzision und Lesbarkeit, behalte den Kerninhalt bei. Nur das Ergebnis in Markdown ausgeben.' },
-        { name: 'Locker umformulieren', prompt: 'Formuliere den Text locker, natürlich und umgangssprachlich neu. Erhalte die Aussage, vereinfache komplexe Sätze und nutze alltagstaugliche Wörter. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
-        { name: 'Neutralisieren', prompt: 'Formuliere den Text neutral und wertfrei um. Entferne emotionale oder wertende Sprache und behalte den Inhalt bei. Nur das neutralisierte Ergebnis in Markdown ausgeben.' },
-        { name: 'Kürzen', prompt: 'Kürze den Text deutlich (ca. 30–50%), entferne Füllwörter und Redundanzen und erhalte die Kernaussagen. Struktur möglichst beibehalten. Nur das gekürzte Ergebnis in Markdown ausgeben.' },
-        { name: 'Verlängern', prompt: 'Erweitere den Text behutsam um erläuternde Details, Beispiele und klarere Übergänge. Erhalte Ton und Intention; keine neuen Fakten erfinden. Nur das erweiterte Ergebnis in Markdown ausgeben.' },
-        { name: 'Technisch erklären', prompt: 'Erkläre den Text technisch präzise für ein fachkundiges Publikum. Nutze korrekte Terminologie, klare Struktur (Markdown-Überschriften/Listen) und Beispiele, falls sinnvoll. Nur die Erklärung in Markdown ausgeben.' },
-        { name: 'DE → EN', prompt: 'Übersetze den Text ins Englische. Nur Übersetzung ausgeben.' },
-        { name: 'EN → DE', prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.' },
-        { name: 'Tabelle aus Text', prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.' },
-        { name: 'Stichpunkte', prompt: 'Konvertiere den Text in eine prägnante ungeordnete Liste (Markdown). Nur die Liste ausgeben.' },
-        { name: 'Nummerierte Schritte', prompt: 'Konvertiere den Text in eine nummerierte Schritt-für-Schritt Liste (Markdown). Nur die Liste ausgeben.' },
-        { name: 'Aufgabenliste', prompt: 'Konvertiere den Text in eine Aufgabenliste in Markdown mit - [ ] Einträgen. Nur die Liste ausgeben.' },
-        { name: 'Zitat', prompt: 'Wandle den Text in ein Markdown-Blockzitat (> ...) um. Nur das Zitat ausgeben.' },
-        { name: 'Codeblock', prompt: 'Wandle den Text in einen Markdown-Codeblock um. Sprache, falls erkennbar, ansonsten ohne. Nur den Codeblock ausgeben.' },
-        { name: 'Überschrift H1', prompt: 'Formatiere die erste Zeile als H1 (#) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
-        { name: 'Überschrift H2', prompt: 'Formatiere die erste Zeile als H2 (##) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
-        { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
-      ];
-      let list = getPresets();
+      const list = getPresets();
       const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
-      for (const p of builtIns) { if (!map.has(p.name)) map.set(p.name, p); }
+      for (const preset of BUILT_IN_PRESETS) {
+        const name = preset.name;
+        if (!map.has(name)) map.set(name, { ...preset });
+      }
       const merged = Array.from(map.values());
       setPresets(merged);
       return merged;
@@ -3366,6 +3628,27 @@ function doExportPdf() {
         alert('Import fehlgeschlagen. Bitte gültige JSON-Presets wählen.');
       } finally {
         importFile.value = '';
+      }
+    });
+
+    document.addEventListener('presets-updated', () => {
+      populate();
+      refreshInlineSelect();
+      const list = ensureDefaults();
+      let idx = parseInt(sel.value, 10);
+      if (isNaN(idx) || !list[idx]) {
+        idx = list.length ? 0 : -1;
+        if (idx >= 0) sel.value = String(idx);
+      }
+      const active = idx >= 0 ? list[idx] : null;
+      if (active) {
+        prompt.value = active.prompt || '';
+        if (name) name.value = active.name || '';
+        setPresetStatus('Presets aktualisiert', true);
+      } else {
+        prompt.value = '';
+        if (name) name.value = '';
+        setPresetStatus('Keine Presets verfügbar', false);
       }
     });
   }

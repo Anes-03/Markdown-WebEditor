@@ -238,6 +238,15 @@ Viel Spaß beim Schreiben! ✨"></textarea>
                 <option value="reader">Reader</option>
               </select>
             </label>
+            <div class="settings-group">
+              <h4>Konfiguration</h4>
+              <p class="muted">Exportiere oder importiere alle Einstellungen als JSON‑Datei.</p>
+              <div class="row">
+                <button id="settingsConfigExportBtn" class="secondary">Konfiguration exportieren</button>
+                <button id="settingsConfigImportBtn" class="secondary">Konfiguration importieren</button>
+                <input type="file" id="settingsConfigImportFile" accept="application/json" hidden />
+              </div>
+            </div>
         </section>
         <section class="chat-settings settings-tab hidden" data-tab="presets" role="tabpanel" aria-label="KI-Presets">
           <div class="settings-group">
