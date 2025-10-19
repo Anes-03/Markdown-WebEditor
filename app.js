@@ -17,6 +17,14 @@
   const importBtn = document.getElementById('importBtn');
   const importMenu = document.getElementById('importMenu');
   const hljsThemeLink = document.getElementById('hljs-theme');
+  /** @type {HTMLElement | null} */
+  const updatesPanel = document.getElementById('updatesPanel');
+  /** @type {HTMLOListElement | null} */
+  const updatesList = document.getElementById('updatesList');
+  /** @type {HTMLSpanElement | null} */
+  const updatesStatus = document.getElementById('updatesStatus');
+  /** @type {HTMLButtonElement | null} */
+  const updatesReloadBtn = document.getElementById('updatesReloadBtn');
 
   // Buttons
   const newBtn = document.getElementById('newBtn');
@@ -159,6 +167,10 @@
   let allowEditorContext = true;
   let importMenuVisible = false;
   let exportMenuVisible = false;
+  let updatesLoading = false;
+  let updatesLoadedOnce = false;
+  const GITHUB_REPO = 'anes-03/Markdown-WebEditor';
+  const MAX_COMMITS_TO_SHOW = 8;
 
   // Utilities
   const supportsFSA = () => 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
@@ -205,6 +217,119 @@
 
   function closeExportMenu() {
     setExportMenuVisible(false);
+  }
+
+  function setUpdatesStatus(message) {
+    if (updatesStatus) updatesStatus.textContent = message;
+  }
+
+  function formatCommitDate(date) {
+    try {
+      return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    } catch {
+      return date.toLocaleString('de-DE');
+    }
+  }
+
+  async function loadRepoUpdates() {
+    if (!updatesPanel || !updatesList) return;
+    if (updatesLoading) return;
+    updatesLoadedOnce = true;
+    if (typeof fetch !== 'function') {
+      setUpdatesStatus('Aktuelle Änderungen können in diesem Browser nicht geladen werden.');
+      if (updatesReloadBtn) {
+        updatesReloadBtn.disabled = true;
+        updatesReloadBtn.setAttribute('aria-disabled', 'true');
+      }
+      return;
+    }
+    updatesLoading = true;
+    try {
+      if (updatesReloadBtn) {
+        updatesReloadBtn.disabled = true;
+        updatesReloadBtn.setAttribute('aria-busy', 'true');
+        updatesReloadBtn.setAttribute('aria-disabled', 'true');
+      }
+      setUpdatesStatus('Lade Änderungen…');
+      updatesList.innerHTML = '';
+
+      const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=${MAX_COMMITS_TO_SHOW}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub API antwortete mit Status ${response.status}`);
+      }
+
+      const commits = await response.json();
+      if (!Array.isArray(commits) || commits.length === 0) {
+        setUpdatesStatus('Keine Änderungen gefunden.');
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      for (const commit of commits.slice(0, MAX_COMMITS_TO_SHOW)) {
+        const li = document.createElement('li');
+        li.className = 'updates-item';
+
+        const commitMessage = typeof commit?.commit?.message === 'string' ? commit.commit.message.trim() : '';
+        const message = document.createElement('pre');
+        message.className = 'updates-item-message';
+        message.textContent = commitMessage || 'Kein Committext';
+
+        const meta = document.createElement('div');
+        meta.className = 'updates-item-meta';
+        const author = (commit?.commit?.author?.name || commit?.author?.login || '').trim();
+        const dateStr = commit?.commit?.author?.date;
+        const metaParts = [];
+        if (author) metaParts.push(author);
+        if (dateStr) {
+          const parsed = new Date(dateStr);
+          if (!Number.isNaN(parsed.getTime())) {
+            metaParts.push(formatCommitDate(parsed));
+          }
+        }
+        meta.textContent = metaParts.length ? metaParts.join(' • ') : 'Keine zusätzlichen Details';
+
+        li.appendChild(message);
+        li.appendChild(meta);
+
+        const commitUrl = typeof commit?.html_url === 'string' ? commit.html_url : '';
+        if (commitUrl) {
+          const link = document.createElement('a');
+          link.className = 'updates-item-link';
+          link.href = commitUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Commit auf GitHub öffnen';
+          li.appendChild(link);
+        }
+
+        fragment.appendChild(li);
+      }
+
+      updatesList.appendChild(fragment);
+      setUpdatesStatus(`Stand: ${formatCommitDate(new Date())}`);
+    } catch (error) {
+      console.error('Commits konnten nicht geladen werden', error);
+      setUpdatesStatus('Konnte Änderungen nicht laden. Bitte später erneut versuchen.');
+      const fallback = document.createElement('li');
+      fallback.className = 'updates-item';
+      const message = document.createElement('pre');
+      message.className = 'updates-item-message';
+      message.textContent = 'Aktuelle Änderungen konnten nicht abgerufen werden.';
+      fallback.appendChild(message);
+      updatesList.appendChild(fallback);
+      updatesLoadedOnce = false;
+    } finally {
+      updatesLoading = false;
+      if (updatesReloadBtn) {
+        updatesReloadBtn.disabled = false;
+        updatesReloadBtn.removeAttribute('aria-busy');
+        updatesReloadBtn.removeAttribute('aria-disabled');
+      }
+    }
   }
 
   // Provider helpers
@@ -3142,6 +3267,9 @@ try {
     if (id === 'info') {
       loadInfoTab();
     }
+    if (id === 'updates' && !updatesLoadedOnce) {
+      loadRepoUpdates();
+    }
   }
   settingsTabs?.addEventListener('click', (e) => {
     const btn = e.target.closest('.nav-item');
@@ -3260,6 +3388,7 @@ try {
   updateEditorContextInfo();
   initAiInlineDefaults(BUILT_IN_PRESETS);
   initPresetSettings(BUILT_IN_PRESETS);
+  updatesReloadBtn?.addEventListener('click', () => { loadRepoUpdates(); });
   // Apply settings
   applyPrefs();
 

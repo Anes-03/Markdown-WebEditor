@@ -224,6 +224,10 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             <iconify-icon aria-hidden="true" icon="lucide:info"></iconify-icon>
             <span class="btn-label">Info</span>
           </button>
+          <button class="nav-item has-icon" data-tab="updates" role="tab" aria-selected="false">
+            <iconify-icon aria-hidden="true" icon="lucide:git-commit"></iconify-icon>
+            <span class="btn-label">Neuerungen</span>
+          </button>
         </nav>
         <div class="settings-content">
         <section class="chat-settings settings-tab" data-tab="general" role="tabpanel">
@@ -511,6 +515,19 @@ Viel Spaß beim Schreiben! ✨"></textarea>
               <button type="submit" id="feedbackSubmit" class="secondary">Feedback senden</button>
             </form>
             <div id="feedbackHint" class="muted">Beim Senden wird dein Mail‑Programm mit allen Angaben geöffnet.</div>
+          </div>
+        </section>
+        <section id="updatesPanel" class="chat-settings settings-tab hidden" data-tab="updates" role="tabpanel" aria-label="Neuerungen">
+          <div class="settings-group updates-group">
+            <div class="updates-header">
+              <h4>Aktuelle Änderungen</h4>
+              <span id="updatesStatus" class="muted" aria-live="polite">Noch nicht geladen.</span>
+            </div>
+            <ol id="updatesList" class="updates-list" aria-live="polite"></ol>
+            <button id="updatesReloadBtn" class="updates-reload has-icon" type="button">
+              <iconify-icon aria-hidden="true" icon="lucide:refresh-cw"></iconify-icon>
+              <span class="btn-label">Neu laden</span>
+            </button>
           </div>
         </section>
         </div>
