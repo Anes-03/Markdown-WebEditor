@@ -78,6 +78,37 @@
     { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
   ];
   const BUILT_IN_PRESET_NAMES = new Set(BUILT_IN_PRESETS.map(p => p.name.trim()));
+  const ONBOARDING_STORAGE_KEY = 'md-onboarding-v1';
+  const onboardingSteps = [
+    {
+      title: 'Willkommen im Markdown WebEditor',
+      description: 'In drei kurzen Schritten zeigen wir dir die wichtigsten Werkzeuge.',
+      highlights: [
+        'Nutze die Formatierungsleiste, um Überschriften, Listen oder Tabellen mit einem Klick einzufügen.',
+        'Wechsle zwischen Editor-, Split- und Reader-Ansicht für den passenden Fokus beim Schreiben.',
+      ],
+    },
+    {
+      title: 'Dateien & Inhalte organisieren',
+      description: 'Arbeite bequem mit bestehenden Dokumenten und Medien.',
+      highlights: [
+        'Öffne, speichere oder importiere Markdown-, PDF- und Word-Dateien direkt über die Toolbar.',
+        'Ziehe Markdown-Dateien oder Bilder einfach ins Fenster – sie werden automatisch eingefügt.',
+        'Autosave bewahrt den letzten Stand lokal im Browser, falls du doch einmal vergisst zu speichern.',
+      ],
+    },
+    {
+      title: 'Themes, KI-Helfer & Einstellungen',
+      description: 'Passe den Editor an deinen Workflow an.',
+      highlights: [
+        'Schalte per Sonne/Mond-Symbol durch die verfügbaren Themes für Editor und Syntax-Highlighting.',
+        'Nutze KI-Generierung oder den Chat für Ideen, Umformulierungen und Zusammenfassungen.',
+        'Öffne das Einstellungsmenü, um Standardansichten, Voreinstellungen und Anbieter zu konfigurieren.',
+      ],
+    },
+  ];
+  let onboardingIndex = 0;
+  let onboardingAcknowledged = false;
 
   // Chat elements
   const chatToggleBtn = document.getElementById('chatToggleBtn');
@@ -135,6 +166,15 @@
   const ollamaStatus = document.getElementById('ollamaStatus');
   const editorContextBtn = document.getElementById('editorContextBtn');
   const editorContextInfo = document.getElementById('editorContextInfo');
+  const onboardingOverlay = document.getElementById('onboardingOverlay');
+  const onboardingTitle = document.getElementById('onboardingTitle');
+  const onboardingDescription = document.getElementById('onboardingDescription');
+  const onboardingList = document.getElementById('onboardingStepList');
+  const onboardingDots = document.getElementById('onboardingDots');
+  const onboardingCounter = document.getElementById('onboardingStepCounter');
+  const onboardingPrevBtn = document.getElementById('onboardingPrevBtn');
+  const onboardingNextBtn = document.getElementById('onboardingNextBtn');
+  const onboardingSkipBtn = document.getElementById('onboardingSkipBtn');
 
   // Settings elements
   const settingsBtn = document.getElementById('settingsBtn');
@@ -219,6 +259,108 @@
   function closeExportMenu() {
     setExportMenuVisible(false);
   }
+
+  function hasSeenOnboarding() {
+    if (onboardingAcknowledged) return true;
+    try {
+      return localStorage.getItem(ONBOARDING_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function markOnboardingComplete() {
+    onboardingAcknowledged = true;
+    try { localStorage.setItem(ONBOARDING_STORAGE_KEY, '1'); } catch {}
+  }
+
+  function renderOnboardingStep() {
+    if (!onboardingOverlay || !Array.isArray(onboardingSteps) || !onboardingSteps.length) return;
+    const step = onboardingSteps[onboardingIndex];
+    if (!step) return;
+    if (onboardingTitle) onboardingTitle.textContent = step.title || '';
+    if (onboardingDescription) onboardingDescription.textContent = step.description || '';
+    if (onboardingList) {
+      onboardingList.innerHTML = '';
+      if (Array.isArray(step.highlights)) {
+        for (const entry of step.highlights) {
+          if (typeof entry !== 'string') continue;
+          const li = document.createElement('li');
+          li.textContent = entry;
+          onboardingList.appendChild(li);
+        }
+      }
+    }
+    if (onboardingCounter) {
+      onboardingCounter.textContent = `${onboardingIndex + 1} / ${onboardingSteps.length}`;
+    }
+    const isFirst = onboardingIndex === 0;
+    const isLast = onboardingIndex === onboardingSteps.length - 1;
+    if (onboardingPrevBtn) {
+      onboardingPrevBtn.disabled = isFirst;
+      onboardingPrevBtn.setAttribute('aria-disabled', isFirst ? 'true' : 'false');
+    }
+    if (onboardingNextBtn) {
+      onboardingNextBtn.textContent = isLast ? 'Los geht’s' : 'Weiter';
+    }
+    if (onboardingDots) {
+      onboardingDots.innerHTML = '';
+      onboardingSteps.forEach((_, idx) => {
+        const dot = document.createElement('span');
+        dot.className = 'onboarding-dot' + (idx === onboardingIndex ? ' active' : '');
+        onboardingDots.appendChild(dot);
+      });
+    }
+  }
+
+  function openOnboarding() {
+    if (!onboardingOverlay) return;
+    onboardingOverlay.classList.remove('hidden');
+    onboardingOverlay.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('onboarding-open');
+    setTimeout(() => { try { onboardingNextBtn?.focus(); } catch {} }, 0);
+  }
+
+  function closeOnboarding(markComplete = false) {
+    if (!onboardingOverlay) return;
+    onboardingOverlay.classList.add('hidden');
+    onboardingOverlay.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('onboarding-open');
+    if (markComplete) {
+      markOnboardingComplete();
+    }
+  }
+
+  function initOnboarding() {
+    if (!onboardingOverlay || !Array.isArray(onboardingSteps) || !onboardingSteps.length) return;
+    if (hasSeenOnboarding()) return;
+    onboardingIndex = 0;
+    renderOnboardingStep();
+    openOnboarding();
+  }
+
+  onboardingPrevBtn?.addEventListener('click', () => {
+    if (onboardingIndex <= 0) return;
+    onboardingIndex -= 1;
+    renderOnboardingStep();
+  });
+  onboardingNextBtn?.addEventListener('click', () => {
+    if (onboardingIndex < onboardingSteps.length - 1) {
+      onboardingIndex += 1;
+      renderOnboardingStep();
+    } else {
+      closeOnboarding(true);
+    }
+  });
+  onboardingSkipBtn?.addEventListener('click', () => { closeOnboarding(true); });
+  onboardingOverlay?.addEventListener('click', (event) => {
+    if (event.target === onboardingOverlay) closeOnboarding(true);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && onboardingOverlay && !onboardingOverlay.classList.contains('hidden')) {
+      closeOnboarding(true);
+    }
+  });
 
   function setUpdatesStatus(message) {
     if (updatesStatus) updatesStatus.textContent = message;
@@ -3393,6 +3535,7 @@ try {
   updatesReloadBtn?.addEventListener('click', () => { loadRepoUpdates(); });
   // Apply settings
   applyPrefs();
+  setTimeout(() => { try { initOnboarding(); } catch {} }, 250);
 
   function initAiInlineDefaults(builtIns) {
     const sel = document.getElementById('aiPresetSelect');
@@ -3558,6 +3701,9 @@ try {
     const renameBtn = document.getElementById('settingsPresetRenameBtn');
     const newBtn = document.getElementById('settingsPresetNewBtn');
     const dupBtn = document.getElementById('settingsPresetDuplicateBtn');
+    const exportBtn = document.getElementById('aiPresetExportBtn');
+    const importBtn = document.getElementById('aiPresetImportBtn');
+    const importFile = document.getElementById('aiPresetImportFile');
     const presetStatus = document.getElementById('settingsPresetStatus');
     if (!sel || !prompt) return;
 
