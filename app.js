@@ -208,6 +208,21 @@
   const settingsConfigImportBtn = document.getElementById('settingsConfigImportBtn');
   const settingsConfigImportFile = document.getElementById('settingsConfigImportFile');
 
+  const templatesToggleBtn = document.getElementById('templatesToggleBtn');
+  const templatesPanel = document.getElementById('templatesPanel');
+  const templatesOverlay = document.getElementById('templatesOverlay');
+  const templatesCloseBtn = document.getElementById('templatesCloseBtn');
+  const templateCategoriesNav = document.getElementById('templateCategories');
+  const templateListEl = document.getElementById('templateList');
+  const templateSearchInput = document.getElementById('templateSearch');
+  const templatePreviewEmpty = document.getElementById('templatePreviewEmpty');
+  const templatePreviewContent = document.getElementById('templatePreviewContent');
+  const templatePreviewTitle = document.getElementById('templatePreviewTitle');
+  const templatePreviewDescription = document.getElementById('templatePreviewDescription');
+  const templatePreviewSample = document.getElementById('templatePreviewSample');
+  const templateInsertBtn = document.getElementById('templateInsertBtn');
+  const templateFavoriteBtn = document.getElementById('templateFavoriteBtn');
+
   const toolbar = document.querySelector('.toolbar');
 
   // State
@@ -225,6 +240,15 @@
   let websiteLatestDocument = '';
   let websiteIsBusy = false;
   let websitePreviewBlobUrl = '';
+  let templatesVisible = false;
+  let currentTemplateCategory = 'all';
+  let currentTemplateSearch = '';
+  /** @type {string | null} */
+  let currentTemplateSelection = null;
+  const TEMPLATE_FAVORITES_KEY = 'mw-template-favorites';
+  const templateFavorites = new Set();
+  const templateData = window.MARKDOWN_TEMPLATES || { categories: [] };
+  const templateIndex = new Map();
   updateWebsiteActionButtons();
   const GITHUB_REPO = 'anes-03/Markdown-WebEditor';
   const MAX_COMMITS_TO_SHOW = 8;
@@ -408,6 +432,341 @@
       closeOnboarding(true);
     }
   });
+
+  function buildTemplateIndex() {
+    templateIndex.clear();
+    if (!templateData || !Array.isArray(templateData.categories)) return;
+    templateData.categories.forEach((category) => {
+      if (!category || !Array.isArray(category.snippets)) return;
+      const categoryId = typeof category.id === 'string' ? category.id : String(category.id ?? '');
+      const categoryLabel = category.label || categoryId || 'Allgemein';
+      const categoryIcon = category.icon || 'lucide:folder';
+      category.snippets.forEach((snippet) => {
+        if (!snippet || typeof snippet.id !== 'string') return;
+        const normalized = {
+          id: snippet.id,
+          title: snippet.title || 'Unbenannte Vorlage',
+          description: snippet.description || '',
+          content: snippet.content || '',
+          categoryId,
+          categoryLabel,
+          categoryIcon,
+        };
+        templateIndex.set(normalized.id, normalized);
+      });
+    });
+  }
+
+  function loadTemplateFavorites() {
+    templateFavorites.clear();
+    if (!window.localStorage) return;
+    try {
+      const raw = window.localStorage.getItem(TEMPLATE_FAVORITES_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((id) => {
+          if (typeof id === 'string' && templateIndex.has(id)) {
+            templateFavorites.add(id);
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Konnte Template-Favoriten nicht laden', err);
+    }
+  }
+
+  function persistTemplateFavorites() {
+    if (!window.localStorage) return;
+    try {
+      window.localStorage.setItem(TEMPLATE_FAVORITES_KEY, JSON.stringify(Array.from(templateFavorites)));
+    } catch (err) {
+      console.warn('Konnte Template-Favoriten nicht speichern', err);
+    }
+  }
+
+  function toggleTemplateFavorite(id) {
+    if (!id) return;
+    if (templateFavorites.has(id)) {
+      templateFavorites.delete(id);
+    } else {
+      templateFavorites.add(id);
+    }
+    persistTemplateFavorites();
+  }
+
+  function getAllTemplates() {
+    return Array.from(templateIndex.values());
+  }
+
+  function getFilteredTemplates() {
+    let snippets = getAllTemplates();
+    if (currentTemplateCategory === 'favorites') {
+      snippets = snippets.filter((snippet) => templateFavorites.has(snippet.id));
+    } else if (currentTemplateCategory !== 'all') {
+      snippets = snippets.filter((snippet) => snippet.categoryId === currentTemplateCategory);
+    }
+    if (currentTemplateSearch) {
+      const term = currentTemplateSearch.toLowerCase();
+      snippets = snippets.filter((snippet) => {
+        const source = `${snippet.title} ${snippet.description} ${snippet.content}`.toLowerCase();
+        return source.includes(term);
+      });
+    }
+    return snippets;
+  }
+
+  function renderTemplateCategories() {
+    if (!templateCategoriesNav) return;
+    const categories = [];
+    categories.push({ id: 'all', label: 'Alle Vorlagen', icon: 'lucide:layers' });
+    if (templateFavorites.size) {
+      categories.push({ id: 'favorites', label: 'Favoriten', icon: 'lucide:star' });
+    }
+    if (Array.isArray(templateData?.categories)) {
+      templateData.categories.forEach((category) => {
+        if (!category || typeof category.id !== 'string') return;
+        categories.push({
+          id: category.id,
+          label: category.label || category.id,
+          icon: category.icon || 'lucide:folder',
+        });
+      });
+    }
+    const availableIds = new Set(categories.map((c) => c.id));
+    if (!availableIds.has(currentTemplateCategory)) {
+      currentTemplateCategory = 'all';
+    }
+    templateCategoriesNav.textContent = '';
+    categories.forEach((category) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.category = category.id;
+      btn.innerHTML = `${category.icon ? `<iconify-icon aria-hidden="true" icon="${category.icon}"></iconify-icon>` : ''}<span>${category.label}</span>`;
+      if (currentTemplateCategory === category.id) btn.classList.add('active');
+      btn.addEventListener('click', () => {
+        currentTemplateCategory = category.id;
+        renderTemplateCategories();
+        renderTemplateList();
+      });
+      templateCategoriesNav.appendChild(btn);
+    });
+  }
+
+  function renderTemplateList() {
+    if (!templateListEl) return;
+    const snippets = getFilteredTemplates();
+    templateListEl.textContent = '';
+    if (currentTemplateSelection && !snippets.some((snippet) => snippet.id === currentTemplateSelection)) {
+      currentTemplateSelection = snippets.length ? snippets[0].id : null;
+    }
+    if (!currentTemplateSelection && snippets.length) {
+      currentTemplateSelection = snippets[0].id;
+    }
+    if (!snippets.length) {
+      const empty = document.createElement('li');
+      empty.className = 'template-item-empty';
+      empty.textContent = currentTemplateSearch ? 'Keine Vorlagen zur Suche gefunden.' : 'Keine Vorlagen verfügbar.';
+      templateListEl.appendChild(empty);
+      renderTemplatePreview(null);
+      return;
+    }
+    snippets.forEach((snippet) => {
+      templateListEl.appendChild(createTemplateListItem(snippet));
+    });
+    const selected = currentTemplateSelection ? templateIndex.get(currentTemplateSelection) || null : null;
+    if (templatesVisible) {
+      const activeItem = templateListEl.querySelector('.template-item.active');
+      activeItem?.scrollIntoView({ block: 'nearest' });
+    }
+    renderTemplatePreview(selected);
+  }
+
+  function createTemplateListItem(snippet) {
+    const item = document.createElement('li');
+    item.className = 'template-item';
+    item.dataset.templateId = snippet.id;
+    item.setAttribute('role', 'option');
+    item.tabIndex = 0;
+    if (snippet.id === currentTemplateSelection) {
+      item.classList.add('active');
+      item.setAttribute('aria-selected', 'true');
+    } else {
+      item.setAttribute('aria-selected', 'false');
+    }
+    const header = document.createElement('header');
+    const title = document.createElement('span');
+    title.className = 'template-item-title';
+    title.textContent = snippet.title;
+    header.appendChild(title);
+    const favoriteBtn = document.createElement('button');
+    favoriteBtn.type = 'button';
+    favoriteBtn.className = 'icon-only template-item-favorite';
+    const favIcon = document.createElement('iconify-icon');
+    favIcon.setAttribute('aria-hidden', 'true');
+    favIcon.setAttribute('icon', 'lucide:star');
+    favoriteBtn.appendChild(favIcon);
+    const fav = templateFavorites.has(snippet.id);
+    favoriteBtn.classList.toggle('active', fav);
+    favoriteBtn.setAttribute('aria-pressed', fav ? 'true' : 'false');
+    favoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
+    favoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
+    favoriteBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleTemplateFavorite(snippet.id);
+      renderTemplateCategories();
+      renderTemplateList();
+    });
+    header.appendChild(favoriteBtn);
+    item.appendChild(header);
+    if (snippet.description) {
+      const desc = document.createElement('p');
+      desc.className = 'template-item-desc';
+      desc.textContent = snippet.description;
+      item.appendChild(desc);
+    }
+    const meta = document.createElement('span');
+    meta.className = 'template-item-category';
+    meta.textContent = snippet.categoryLabel;
+    item.appendChild(meta);
+    const preview = document.createElement('p');
+    preview.className = 'template-item-snippet';
+    const condensed = snippet.content.replace(/\s+/g, ' ').trim();
+    preview.textContent = condensed.length > 160 ? `${condensed.slice(0, 160)}…` : condensed;
+    item.appendChild(preview);
+    item.addEventListener('click', () => selectTemplateSnippet(snippet.id));
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectTemplateSnippet(snippet.id);
+      }
+    });
+    return item;
+  }
+
+  function renderTemplatePreview(snippet) {
+    if (!templatePreviewEmpty || !templatePreviewContent || !templateInsertBtn || !templateFavoriteBtn) return;
+    if (!snippet) {
+      templatePreviewEmpty.classList.remove('hidden');
+      templatePreviewContent.classList.add('hidden');
+      templateInsertBtn.setAttribute('disabled', 'disabled');
+      templateFavoriteBtn.setAttribute('disabled', 'disabled');
+      templateFavoriteBtn.classList.remove('active');
+      templateFavoriteBtn.removeAttribute('data-template-id');
+      templateFavoriteBtn.removeAttribute('aria-pressed');
+      templateFavoriteBtn.setAttribute('title', 'Als Favorit markieren');
+      templateFavoriteBtn.setAttribute('aria-label', 'Als Favorit markieren');
+      return;
+    }
+    templatePreviewEmpty.classList.add('hidden');
+    templatePreviewContent.classList.remove('hidden');
+    templatePreviewTitle.textContent = snippet.title;
+    templatePreviewDescription.textContent = snippet.description || '';
+    templatePreviewSample.textContent = applyTemplatePlaceholders(snippet.content || '');
+    templateInsertBtn.removeAttribute('disabled');
+    templateFavoriteBtn.removeAttribute('disabled');
+    templateFavoriteBtn.setAttribute('data-template-id', snippet.id);
+    const fav = templateFavorites.has(snippet.id);
+    templateFavoriteBtn.classList.toggle('active', fav);
+    templateFavoriteBtn.setAttribute('aria-pressed', fav ? 'true' : 'false');
+    templateFavoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
+    templateFavoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
+  }
+
+  function selectTemplateSnippet(snippetId) {
+    if (!snippetId || !templateIndex.has(snippetId)) return;
+    currentTemplateSelection = snippetId;
+    renderTemplateList();
+    const snippet = templateIndex.get(snippetId);
+    if (snippet) {
+      renderTemplatePreview(snippet);
+    }
+  }
+
+  function setTemplatesVisible(visible) {
+    templatesVisible = !!visible;
+    templatesPanel?.classList.toggle('hidden', !templatesVisible);
+    templatesPanel?.setAttribute('aria-hidden', templatesVisible ? 'false' : 'true');
+    templatesOverlay?.classList.toggle('hidden', !templatesVisible);
+    templatesOverlay?.setAttribute('aria-hidden', templatesVisible ? 'false' : 'true');
+    if (document.body) {
+      document.body.classList.toggle('templates-open', templatesVisible);
+    }
+    templatesToggleBtn?.setAttribute('aria-expanded', templatesVisible ? 'true' : 'false');
+    if (templatesVisible) {
+      if (templateSearchInput) {
+        templateSearchInput.value = currentTemplateSearch || '';
+      }
+      renderTemplateCategories();
+      renderTemplateList();
+      setTimeout(() => { templateSearchInput?.focus({ preventScroll: true }); }, 60);
+    } else {
+      templateSearchInput?.blur();
+    }
+  }
+
+  function closeTemplatesPanel() {
+    setTemplatesVisible(false);
+  }
+
+  function getEditorDocumentTitle() {
+    const md = editor.value || '';
+    const heading = extractTitle(md);
+    if (heading) return heading;
+    if (currentFileName) return currentFileName.replace(/\.[^.]+$/, '');
+    const title = appTitleEl?.textContent?.trim();
+    return title || 'Unbenanntes Dokument';
+  }
+
+  function applyTemplatePlaceholders(text) {
+    if (!text) return '';
+    const now = new Date();
+    const title = getEditorDocumentTitle();
+    const date = now.toLocaleDateString('de-DE');
+    const time = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const replacements = {
+      title,
+      date,
+      datetime: `${date} ${time}`,
+      time,
+      year: String(now.getFullYear()),
+    };
+    return text.replace(/\{\{\s*(title|date|datetime|time|year)\s*\}\}/gi, (_, key) => replacements[key.toLowerCase()] ?? '');
+  }
+
+  function insertTemplateSnippet(snippet) {
+    if (!snippet) return;
+    const text = applyTemplatePlaceholders(snippet.content || '');
+    if (!text) return;
+    editor.focus();
+    const selStart = editor.selectionStart ?? editor.value.length;
+    const selEnd = editor.selectionEnd ?? editor.value.length;
+    let inserted = false;
+    try {
+      if (typeof document.queryCommandSupported === 'function' && document.queryCommandSupported('insertText')) {
+        editor.setSelectionRange(selStart, selEnd);
+        inserted = document.execCommand('insertText', false, text);
+      }
+    } catch (err) {
+      console.warn('insertText command nicht verfügbar', err);
+    }
+    if (!inserted) {
+      if (typeof editor.setRangeText === 'function') {
+        editor.setRangeText(text, selStart, selEnd, 'end');
+      } else {
+        const value = editor.value;
+        editor.value = value.slice(0, selStart) + text + value.slice(selEnd);
+        editor.selectionStart = editor.selectionEnd = selStart + text.length;
+      }
+    }
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+    updatePreview();
+    updateCursorInfo();
+    updateWordCount();
+    markDirty(true);
+    setStatus(`Vorlage „${snippet.title}“ eingefügt.`);
+  }
 
   function setWebsiteModalVisible(visible) {
     websiteModalOpen = !!visible;
@@ -2111,6 +2470,54 @@ ${trimmed}
     markDirty(false);
   });
 
+  buildTemplateIndex();
+  loadTemplateFavorites();
+  templateInsertBtn?.setAttribute('disabled', 'disabled');
+  templateFavoriteBtn?.setAttribute('disabled', 'disabled');
+  templatesPanel?.setAttribute('aria-hidden', 'true');
+  templatesOverlay?.setAttribute('aria-hidden', 'true');
+
+  templatesToggleBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    setTemplatesVisible(!templatesVisible);
+  });
+  templatesOverlay?.addEventListener('click', () => {
+    closeTemplatesPanel();
+    templatesToggleBtn?.focus({ preventScroll: true });
+  });
+  templatesCloseBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeTemplatesPanel();
+    templatesToggleBtn?.focus({ preventScroll: true });
+  });
+  templateSearchInput?.addEventListener('input', () => {
+    currentTemplateSearch = templateSearchInput.value.trim();
+    renderTemplateList();
+  });
+  templateInsertBtn?.addEventListener('click', () => {
+    if (!currentTemplateSelection) return;
+    const snippet = templateIndex.get(currentTemplateSelection);
+    if (snippet) {
+      insertTemplateSnippet(snippet);
+      closeTemplatesPanel();
+      setTimeout(() => { try { editor.focus({ preventScroll: true }); } catch {} }, 0);
+    }
+  });
+  templateFavoriteBtn?.addEventListener('click', () => {
+    const id = templateFavoriteBtn.getAttribute('data-template-id');
+    if (!id) return;
+    toggleTemplateFavorite(id);
+    renderTemplateCategories();
+    renderTemplateList();
+  });
+  templatesPanel?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeTemplatesPanel();
+      templatesToggleBtn?.focus({ preventScroll: true });
+    }
+  });
+
   if (importBtn && importMenu) {
     importBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -2394,6 +2801,10 @@ document.addEventListener('keydown', (e) => {
   } else if (mod && e.key === 'Enter') {
     // Alternative Trigger für KI‑Generierung
     e.preventDefault(); editorGenerateAI();
+  } else if (e.key === 'Escape' && templatesVisible) {
+    e.preventDefault();
+    closeTemplatesPanel();
+    templatesToggleBtn?.focus({ preventScroll: true });
   } else if (e.key === 'Escape' && inlineGenerator.isRunning()) {
     e.preventDefault();
     inlineGenerator.abort();

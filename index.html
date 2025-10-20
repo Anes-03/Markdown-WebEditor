@@ -36,6 +36,7 @@
         <span class="title" id="appTitle">Markdown WebEditor</span>
         <button id="undoBtn" class="has-icon" title="Rückgängig (Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:undo-2"></iconify-icon><span class="btn-label">Rückgängig</span></button>
         <button id="redoBtn" class="has-icon" title="Wiederholen (Shift+Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:redo-2"></iconify-icon><span class="btn-label">Wiederholen</span></button>
+        <button id="templatesToggleBtn" class="has-icon" title="Vorlagen anzeigen" aria-haspopup="true" aria-expanded="false"><iconify-icon aria-hidden="true" icon="lucide:layout-template"></iconify-icon><span class="btn-label">Vorlagen</span></button>
       </div>
       <div class="center file-actions" role="toolbar" aria-label="Datei Aktionen">
         <button id="newBtn" class="has-icon" title="Neu (Cmd/Ctrl+N)"><iconify-icon aria-hidden="true" icon="lucide:file-plus"></iconify-icon><span class="btn-label">Neu</span></button>
@@ -185,6 +186,55 @@ Viel Spaß beim Schreiben! ✨"></textarea>
         </footer>
       </section>
     </div>
+    <div id="templatesOverlay" class="templates-overlay hidden" aria-hidden="true"></div>
+    <aside
+      id="templatesPanel"
+      class="templates-panel hidden"
+      role="dialog"
+      aria-label="Vorlagen"
+      aria-modal="true"
+    >
+      <header class="templates-header">
+        <strong>Vorlagen</strong>
+        <label class="template-search">
+          <iconify-icon aria-hidden="true" icon="lucide:search"></iconify-icon>
+          <input id="templateSearch" type="search" placeholder="Vorlagen durchsuchen" aria-label="Vorlagen durchsuchen" />
+        </label>
+        <button id="templatesCloseBtn" class="icon-only templates-close" title="Vorlagen schließen" aria-label="Vorlagen schließen">
+          <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+        </button>
+      </header>
+      <div class="templates-body">
+        <nav id="templateCategories" class="template-categories" role="tablist" aria-label="Vorlagenkategorien"></nav>
+        <div class="templates-main">
+          <div class="template-list-wrapper" role="presentation">
+            <ul id="templateList" class="template-list" role="listbox" aria-label="Vorlagen"></ul>
+          </div>
+          <article id="templatePreview" class="template-preview" aria-live="polite">
+            <div class="template-preview-empty" id="templatePreviewEmpty">
+              <iconify-icon aria-hidden="true" icon="lucide:files"></iconify-icon>
+              <p>Wähle links eine Vorlage aus, um eine Vorschau zu sehen.</p>
+            </div>
+            <div class="template-preview-content hidden" id="templatePreviewContent">
+              <header>
+                <h3 id="templatePreviewTitle"></h3>
+                <div class="template-preview-actions">
+                  <button id="templateFavoriteBtn" class="icon-only" title="Als Favorit markieren" aria-label="Als Favorit markieren">
+                    <iconify-icon aria-hidden="true" icon="lucide:star"></iconify-icon>
+                  </button>
+                  <button id="templateInsertBtn" class="has-icon">
+                    <iconify-icon aria-hidden="true" icon="lucide:clipboard-plus"></iconify-icon>
+                    <span class="btn-label">In Editor einfügen</span>
+                  </button>
+                </div>
+              </header>
+              <p id="templatePreviewDescription" class="muted"></p>
+              <pre id="templatePreviewSample"></pre>
+            </div>
+          </article>
+        </div>
+      </div>
+    </aside>
 
     <!-- Chat Panel -->
     <div id="chatOverlay" class="chat-overlay hidden" aria-hidden="true"></div>
@@ -616,7 +666,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
         </div>
       </footer>
     </aside>
-
+    <script src="data/templates.js"></script>
     <script src="app.js"></script>
   </body>
-  </html>
+</html>
