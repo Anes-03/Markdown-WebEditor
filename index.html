@@ -54,6 +54,7 @@
           <div id="exportMenu" class="toolbar-menu hidden" role="menu" aria-label="Datei exportieren" aria-hidden="true">
             <button type="button" class="has-icon" data-export="html" role="menuitem"><iconify-icon aria-hidden="true" icon="lucide:file-code"></iconify-icon><span class="btn-label">Als HTML exportieren</span></button>
             <button type="button" class="has-icon" data-export="pdf" role="menuitem"><iconify-icon aria-hidden="true" icon="mdi:file-pdf-box"></iconify-icon><span class="btn-label">Als PDF exportieren</span></button>
+            <button type="button" class="has-icon" data-export="website" role="menuitem"><iconify-icon aria-hidden="true" icon="lucide:globe"></iconify-icon><span class="btn-label">Website erstellen</span></button>
           </div>
         </div>
         <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
@@ -561,6 +562,58 @@ Viel Spaß beim Schreiben! ✨"></textarea>
       <footer class="settings-footer">
         <div class="spacer"></div>
         <button id="settingsSaveBtn">Speichern</button>
+      </footer>
+    </aside>
+
+    <div id="websiteOverlay" class="website-overlay hidden" aria-hidden="true"></div>
+    <aside
+      id="websiteModal"
+      class="website-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="websiteModalTitle"
+      aria-hidden="true"
+      tabindex="-1"
+    >
+      <header class="chat-header">
+        <strong id="websiteModalTitle">Website-Vorschau</strong>
+        <div class="spacer"></div>
+        <button id="websiteCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen">
+          <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+        </button>
+      </header>
+      <div class="website-modal-body">
+        <p id="websiteStatus" class="website-status" aria-live="polite">Die KI erstellt eine Vorschau für deine Website…</p>
+        <div class="website-preview-wrapper">
+          <iframe
+            id="websitePreviewFrame"
+            title="Generierte Website-Vorschau"
+            sandbox="allow-same-origin"
+          ></iframe>
+        </div>
+      </div>
+      <footer class="website-modal-footer">
+        <div class="website-modal-footer-group">
+          <button id="websiteCopyHtmlBtn" class="secondary has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="lucide:copy"></iconify-icon>
+            <span class="btn-label">Code kopieren</span>
+          </button>
+          <button id="websiteDownloadBtn" class="secondary has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="lucide:download"></iconify-icon>
+            <span class="btn-label">Als Datei herunterladen</span>
+          </button>
+        </div>
+        <div class="spacer"></div>
+        <div class="website-modal-footer-group">
+          <button id="websiteRegenerateBtn" class="secondary has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="mdi:refresh"></iconify-icon>
+            <span class="btn-label">Neu generieren</span>
+          </button>
+          <button id="websiteCloseFooterBtn" class="has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="lucide:check"></iconify-icon>
+            <span class="btn-label">Fertig</span>
+          </button>
+        </div>
       </footer>
     </aside>
 

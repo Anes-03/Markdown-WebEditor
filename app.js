@@ -125,6 +125,15 @@
   const chatStreamToggle = document.getElementById('chatStreamToggle');
   const applyModeSelect = null;
   const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+  const websiteOverlay = document.getElementById('websiteOverlay');
+  const websiteModal = document.getElementById('websiteModal');
+  const websiteCloseBtn = document.getElementById('websiteCloseBtn');
+  const websiteCloseFooterBtn = document.getElementById('websiteCloseFooterBtn');
+  const websiteRegenerateBtn = document.getElementById('websiteRegenerateBtn');
+  const websiteCopyHtmlBtn = document.getElementById('websiteCopyHtmlBtn');
+  const websiteDownloadBtn = document.getElementById('websiteDownloadBtn');
+  const websitePreviewFrame = document.getElementById('websitePreviewFrame');
+  const websiteStatus = document.getElementById('websiteStatus');
   // Provider + Gemini/Mistral elements
   const aiProviderSelect = document.getElementById('aiProvider');
   const openaiSettingsGroup = document.getElementById('openaiSettingsGroup');
@@ -210,6 +219,13 @@
   let exportMenuVisible = false;
   let updatesLoading = false;
   let updatesLoadedOnce = false;
+  let websiteModalOpen = false;
+  let websiteAbortController = null;
+  let websiteLastFocus = null;
+  let websiteLatestDocument = '';
+  let websiteIsBusy = false;
+  let websitePreviewBlobUrl = '';
+  updateWebsiteActionButtons();
   const GITHUB_REPO = 'anes-03/Markdown-WebEditor';
   const MAX_COMMITS_TO_SHOW = 8;
 
@@ -234,6 +250,37 @@
 
   function setStatus(msg) {
     statusEl.textContent = msg;
+  }
+
+  async function readErrorResponseBody(res) {
+    if (!res || typeof res.text !== 'function') return '';
+    try {
+      const raw = await res.text();
+      if (!raw) return '';
+      const trimmed = raw.trim();
+      if (!trimmed) return '';
+      try {
+        const json = JSON.parse(trimmed);
+        if (json?.error?.message) return String(json.error.message);
+        if (json?.message && typeof json.message === 'string') return json.message;
+        if (typeof json === 'string') return json;
+        return JSON.stringify(json);
+      } catch {
+        return trimmed;
+      }
+    } catch {
+      return '';
+    }
+  }
+
+  async function createHttpError(res) {
+    if (!res) return new Error('HTTP Fehler');
+    const detail = await readErrorResponseBody(res);
+    const status = typeof res.status === 'number' ? `HTTP ${res.status}` : 'HTTP Fehler';
+    if (!detail) return new Error(status);
+    const normalized = detail.replace(/\s+/g, ' ').trim();
+    const shortened = normalized.length > 300 ? `${normalized.slice(0, 297)}…` : normalized;
+    return new Error(`${status}: ${shortened}`);
   }
 
   function setImportMenuVisible(visible) {
@@ -361,6 +408,324 @@
       closeOnboarding(true);
     }
   });
+
+  function setWebsiteModalVisible(visible) {
+    websiteModalOpen = !!visible;
+    if (websiteModal) {
+      websiteModal.classList.toggle('hidden', !visible);
+      websiteModal.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+    if (websiteOverlay) {
+      websiteOverlay.classList.toggle('hidden', !visible);
+      websiteOverlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+  }
+
+  function updateWebsiteStatus(message, isError) {
+    if (!websiteStatus) return;
+    websiteStatus.textContent = message || '';
+    websiteStatus.classList.toggle('error', !!isError);
+  }
+
+  function setWebsiteBusy(busy) {
+    websiteIsBusy = !!busy;
+    if (websiteModal) websiteModal.setAttribute('aria-busy', busy ? 'true' : 'false');
+    if (websiteRegenerateBtn) websiteRegenerateBtn.disabled = !!busy;
+    updateWebsiteActionButtons();
+  }
+
+  function setWebsiteDocument(doc) {
+    websiteLatestDocument = doc || '';
+    updateWebsiteActionButtons();
+  }
+
+  function updateWebsiteActionButtons() {
+    const disable = websiteIsBusy || !websiteLatestDocument;
+    if (websiteCopyHtmlBtn) websiteCopyHtmlBtn.disabled = disable;
+    if (websiteDownloadBtn) websiteDownloadBtn.disabled = disable;
+  }
+
+  function revokeWebsitePreviewBlob() {
+    if (!websitePreviewBlobUrl) return;
+    try { URL.revokeObjectURL(websitePreviewBlobUrl); } catch {}
+    websitePreviewBlobUrl = '';
+  }
+
+  function applyWebsitePreviewDocument(html) {
+    if (!websitePreviewFrame) return { applied: false, fallback: false };
+    revokeWebsitePreviewBlob();
+    const frame = websitePreviewFrame;
+    if (typeof frame.srcdoc === 'string') {
+      try {
+        frame.removeAttribute('src');
+        frame.srcdoc = html;
+        return { applied: true, fallback: false };
+      } catch (err) {
+        console.warn('iframe srcdoc failed, falling back to blob URL', err);
+      }
+    }
+    try {
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      websitePreviewBlobUrl = url;
+      frame.removeAttribute('srcdoc');
+      frame.src = url;
+      return { applied: true, fallback: true };
+    } catch (err) {
+      revokeWebsitePreviewBlob();
+      throw err;
+    }
+  }
+
+  function websiteLoadingTemplate() {
+    return `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Website wird erstellt…</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f7fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1f2933; }
+    .dark body { background: #0f172a; color: #e2e8f0; }
+    .card { text-align: center; padding: 2rem 2.5rem; border-radius: 18px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.15); background: rgba(255,255,255,0.9); max-width: 360px; backdrop-filter: blur(6px); }
+    h1 { margin: 0 0 0.75rem; font-size: 1.35rem; }
+    p { margin: 0; line-height: 1.5; color: rgba(15, 23, 42, 0.8); }
+    @media (prefers-color-scheme: dark) {
+      body { background: #020617; color: #e2e8f0; }
+      .card { background: rgba(15, 23, 42, 0.85); color: #e2e8f0; box-shadow: 0 20px 45px rgba(2, 6, 23, 0.55); }
+      p { color: rgba(226, 232, 240, 0.85); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Website wird erstellt…</h1>
+    <p>Die KI generiert gerade eine Vorschau. Bitte kurz warten.</p>
+  </div>
+</body>
+</html>`;
+  }
+
+  function ensureWebsiteDocument(content, fallbackTitle) {
+    const trimmed = (content || '').trim();
+    if (!trimmed) {
+      return `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>${fallbackTitle || 'Generierte Website'}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 3rem; background: #f5f6f8; color: #1f2328; }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin-bottom: 1rem; }
+    p { font-size: 1rem; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Keine Inhalte verfügbar</h1>
+    <p>Die KI hat keine Inhalte zurückgegeben. Bitte versuche es erneut.</p>
+  </main>
+</body>
+</html>`;
+    }
+    if (/<html[\s>]/i.test(trimmed)) {
+      if (/<!doctype/i.test(trimmed)) return trimmed;
+      return '<!DOCTYPE html>\n' + trimmed;
+    }
+    return `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>${fallbackTitle || 'Generierte Website'}</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; background: #f6f8fa; color: #1f2328; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 3rem; line-height: 1.6; }
+    main { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <main>
+${trimmed}
+  </main>
+</body>
+</html>`;
+  }
+
+  function openWebsiteModal() {
+    if (!websiteModal || !websiteOverlay) return;
+    websiteLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setWebsiteModalVisible(true);
+    setWebsiteBusy(false);
+    const hasExistingPreview = !!websiteLatestDocument;
+    if (hasExistingPreview) {
+      try { applyWebsitePreviewDocument(websiteLatestDocument); } catch (err) { console.error('Vorschau konnte nicht erneut geladen werden', err); }
+      updateWebsiteStatus('Die zuletzt generierte Website wird angezeigt. Nutze „Neu generieren“ für eine aktualisierte Version.', false);
+      updateWebsiteActionButtons();
+    } else {
+      setWebsiteDocument('');
+      updateWebsiteStatus('Die KI erstellt eine Vorschau für deine Website…', false);
+      applyWebsitePreviewDocument(websiteLoadingTemplate());
+      generateWebsitePreview();
+    }
+    const focusModal = () => {
+      try { websiteModal.focus({ preventScroll: true }); } catch {}
+    };
+    if (typeof queueMicrotask === 'function') queueMicrotask(focusModal);
+    else setTimeout(focusModal, 0);
+  }
+
+  function closeWebsiteModal() {
+    if (!websiteModalOpen) return;
+    if (websiteAbortController) {
+      try { websiteAbortController.abort(); } catch {}
+    websiteAbortController = null;
+    }
+    setWebsiteBusy(false);
+    setWebsiteModalVisible(false);
+    revokeWebsitePreviewBlob();
+    if (websiteLastFocus && typeof websiteLastFocus.focus === 'function') {
+      setTimeout(() => {
+        try { websiteLastFocus.focus({ preventScroll: true }); } catch {}
+      }, 50);
+    }
+  }
+
+  async function generateWebsitePreview() {
+    if (!websiteModalOpen) return;
+    const markdown = editor?.value || '';
+    const controller = new AbortController();
+    if (websiteAbortController) {
+      try { websiteAbortController.abort(); } catch {}
+    }
+    websiteAbortController = controller;
+    setWebsiteDocument('');
+    setWebsiteBusy(true);
+    updateWebsiteStatus('Die KI erstellt eine Vorschau für deine Website…', false);
+    applyWebsitePreviewDocument(websiteLoadingTemplate());
+    try {
+      const html = await requestWebsiteHtml(markdown, controller.signal);
+      if (controller.signal.aborted) return;
+      const doc = ensureWebsiteDocument(html, currentFileName || 'Generierte Website');
+      const applied = applyWebsitePreviewDocument(doc);
+      if (applied.fallback) {
+        updateWebsiteStatus('Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.', false);
+      } else {
+        updateWebsiteStatus('Fertig! Die Vorschau zeigt die von der KI generierte Website.', false);
+      }
+      setWebsiteDocument(doc);
+    } catch (err) {
+      if (controller.signal.aborted) {
+        updateWebsiteStatus('Die Generierung wurde abgebrochen.', true);
+      } else {
+        console.error('Website-Generierung fehlgeschlagen', err);
+        updateWebsiteStatus(`Fehler bei der KI-Generierung: ${err?.message || err}`, true);
+        const fallbackDoc = ensureWebsiteDocument('', currentFileName || 'Generierte Website');
+        applyWebsitePreviewDocument(fallbackDoc);
+        setWebsiteDocument(fallbackDoc);
+      }
+    } finally {
+      if (websiteAbortController === controller) {
+        websiteAbortController = null;
+      }
+      setWebsiteBusy(false);
+    }
+  }
+
+  async function copyWebsiteHtmlToClipboard() {
+    if (!websiteLatestDocument) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(websiteLatestDocument);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = websiteLatestDocument;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        let ok = false;
+        try {
+          ok = document.execCommand('copy');
+        } finally {
+          textarea.remove();
+        }
+        if (!ok) throw new Error('Kopieren wird nicht unterstützt');
+      }
+      updateWebsiteStatus('HTML wurde in die Zwischenablage kopiert.', false);
+    } catch (err) {
+      console.error('Website-HTML konnte nicht kopiert werden', err);
+      updateWebsiteStatus(`HTML konnte nicht kopiert werden: ${err?.message || err}`, true);
+    }
+  }
+
+  function downloadWebsiteHtmlFile() {
+    if (!websiteLatestDocument) return;
+    try {
+      const base = currentFileName ? currentFileName.replace(/\.[^.]+$/, '') : 'Generierte Website';
+      const safeBase = toSafeFileName(base) || 'Generierte-Website';
+      const blob = new Blob([websiteLatestDocument], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeBase}.html`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 0);
+      updateWebsiteStatus('Download gestartet.', false);
+    } catch (err) {
+      console.error('Website-HTML konnte nicht heruntergeladen werden', err);
+      updateWebsiteStatus(`Download fehlgeschlagen: ${err?.message || err}`, true);
+    }
+  }
+
+  async function requestWebsiteHtml(markdown, signal) {
+    const provider = getAiProvider();
+    const info = resolveCurrentProviderInfo();
+    const trimmed = (markdown || '').trim();
+    const hasContent = !!trimmed;
+    const baseInstruction = 'Du bist ein erfahrener UX- und Webdesigner. Erstelle eine vollständige, responsive HTML5-Einzelseite mit eingebettetem <style>-Block. Verwende semantische Elemente, ein hero-Layout, klare Abschnitte und einen deutlichen Call-to-Action. Vermeide Navigationsleisten oder Footer vollständig und setze keinerlei Links (weder intern noch extern). Platziere keine Buttons oder interaktiven Elemente ohne echte Funktion; verwende nur Elemente, die zur Lesbarkeit beitragen. Achte darauf, dass der Inhalt sehr gut leserlich ist und den gelieferten Editor-Text sorgfältig wiedergibt. Nutze nur relative Ressourcen (keine externen Skripte) und liefere ausschließlich validen HTML-Code.';
+    const userInstruction = hasContent
+      ? `Verwandele den folgenden Markdown-Inhalt in eine hochwertige Marketing-Landingpage. Ergänze sinnvolle Zwischenüberschriften, Icons (z. B. als Emoji) und Feature-Abschnitte. Vermeide Navigationsleisten oder Footer vollständig, setze keinerlei Links und verwende keine Buttons ohne echte Aktion. Stelle sicher, dass alles sehr gut leserlich ist und der Editor-Inhalt präzise und ansprechend dargestellt wird. Gib nur HTML aus.\n\n[MARKDOWN]\n${trimmed}`
+      : 'Erstelle eine moderne, kreative Landingpage (Deutsch) mit Beispieltexten, die beschreibt, dass hier bald Inhalte stehen werden. Vermeide Navigationsleisten oder Footer vollständig, setze keinerlei Links und verwende keine Buttons ohne echte Aktion. Achte auf hervorragende Lesbarkeit und einen klaren Aufbau. Antworte ausschließlich mit HTML.';
+    const messages = [
+      { role: 'system', content: baseInstruction },
+      { role: 'user', content: userInstruction },
+    ];
+
+    switch (provider) {
+      case 'openai': {
+        const apiKey = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+        if (!apiKey) throw new Error('OpenAI API‑Key fehlt');
+        return await openAiCompatibleChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: false, signal });
+      }
+      case 'claude': {
+        const apiKey = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+        if (!apiKey) throw new Error('Claude API‑Key fehlt');
+        return await anthropicChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: false, signal });
+      }
+      case 'ollama':
+        return await ollamaChat({ base: info.base, model: info.model, messages, stream: false, signal });
+      case 'gemini': {
+        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+        return await geminiChat({ apiKey, model: info.model, messages, stream: false, signal });
+      }
+      case 'mistral':
+      default: {
+        const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+        if (!apiKey) throw new Error('Mistral API‑Key fehlt');
+        return await mistralChat({ apiKey, model: info.model, messages, stream: false, signal });
+      }
+    }
+  }
+
 
   function setUpdatesStatus(message) {
     if (updatesStatus) updatesStatus.textContent = message;
@@ -1825,6 +2190,7 @@
   const EXPORT_ACTIONS = {
     html: () => doExportHtml(),
     pdf: () => doExportPdf(),
+    website: () => openWebsiteModal(),
   };
 
   exportMenu?.addEventListener('click', (e) => {
@@ -1855,6 +2221,42 @@
     if (!next) return;
     if (exportMenu.contains(next) || exportBtn?.contains(next)) return;
     closeExportMenu();
+  });
+
+  websiteOverlay?.addEventListener('click', (e) => {
+    if (e.target === websiteOverlay) closeWebsiteModal();
+  });
+
+  websiteCloseBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeWebsiteModal();
+  });
+
+  websiteCloseFooterBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeWebsiteModal();
+  });
+
+  websiteCopyHtmlBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await copyWebsiteHtmlToClipboard();
+  });
+
+  websiteDownloadBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    downloadWebsiteHtmlFile();
+  });
+
+  websiteRegenerateBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    generateWebsitePreview();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && websiteModalOpen) {
+      e.preventDefault();
+      closeWebsiteModal();
+    }
   });
 
   hiddenPdf?.addEventListener('change', async () => {
@@ -2697,7 +3099,7 @@ try {
     const url = (base || 'http://localhost:11434').replace(/\/$/, '') + '/api/chat';
     const body = { model: model || 'llama3.1:8b', messages, stream: !!stream, options: {} };
     const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw await createHttpError(res);
     if (!stream) {
       const data = await res.json();
       const content = data?.message?.content || '';
@@ -2759,7 +3161,7 @@ try {
     if (!stream) {
       const url = `${base}${encodeURIComponent(mdl)}:generateContent?key=${encodeURIComponent(key)}`;
       const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) throw await createHttpError(res);
       const data = await res.json();
       const txt = ((data?.candidates?.[0]?.content?.parts || []).map(p => p?.text || '').join('')) || '';
       if (onDelta) onDelta(txt);
@@ -2767,7 +3169,7 @@ try {
     }
     const url = `${base}${encodeURIComponent(mdl)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
     const res = await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' }, body: JSON.stringify(body), signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw await createHttpError(res);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
@@ -2814,14 +3216,14 @@ try {
     const body = { model: mdl, stream: !!stream, ...toMistralPayload(messages) };
     if (!stream) {
       const res = await fetch(base, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body), signal });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) throw await createHttpError(res);
       const data = await res.json();
       const txt = (data?.choices?.[0]?.message?.content) || '';
       if (onDelta) onDelta(txt);
       return txt;
     }
     const res = await fetch(base, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body), signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw await createHttpError(res);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
@@ -2894,7 +3296,7 @@ try {
     const hdrs = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}`, ...headers };
     if (stream) hdrs['Accept'] = 'text/event-stream';
     const res = await fetch(url, { method: 'POST', mode: 'cors', headers: hdrs, body: JSON.stringify(body), signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw await createHttpError(res);
     if (!stream) {
       const data = await res.json();
       const choice = Array.isArray(data?.choices) ? data.choices[0] : null;
@@ -2977,7 +3379,7 @@ try {
     };
     if (stream) headers['Accept'] = 'text/event-stream';
     const res = await fetch(url, { method: 'POST', mode: 'cors', headers, body: JSON.stringify(body), signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw await createHttpError(res);
     if (!stream) {
       const data = await res.json();
       const content = Array.isArray(data?.content) ? data.content : [];
