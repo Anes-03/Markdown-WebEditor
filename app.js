@@ -53,6 +53,7 @@
   const aiGenAbortBtn = document.getElementById('aiGenAbortBtn');
   const aiGenResetBtn = document.getElementById('aiGenResetBtn');
   const aiGenInfo = document.getElementById('aiGenInfo');
+  const aiPresetSettingsBtn = document.getElementById('aiPresetSettingsBtn');
 
   const BUILT_IN_PRESETS = [
     { name: 'Zusammenfassen', prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.' },
@@ -464,10 +465,10 @@
         const iconEl = btn.querySelector('iconify-icon');
         const labelEl = btn.querySelector('.btn-label');
         if (iconEl) iconEl.setAttribute('icon', running ? 'mdi:stop-circle-outline' : 'mdi:robot-outline');
-        if (labelEl) labelEl.textContent = running ? 'Abbrechen' : 'Generieren';
-        else btn.textContent = running ? 'Abbrechen' : 'Generieren';
+        if (labelEl) labelEl.textContent = running ? 'Abbrechen' : 'Text Generieren';
+        else btn.textContent = running ? 'Abbrechen' : 'Text Generieren';
       } catch {
-        btn.textContent = running ? 'Abbrechen' : 'Generieren';
+        btn.textContent = running ? 'Abbrechen' : 'Text Generieren';
       }
       btn.disabled = false;
     };
@@ -2971,11 +2972,10 @@ try {
   ollamaSaveBtn?.addEventListener('click', saveOllamaSettings);
   ollamaTestBtn?.addEventListener('click', testOllama);
   // Settings handlers
-  settingsBtn?.addEventListener('click', () => {
+  function openSettings(initialTab = 'general') {
     settingsPanel?.classList.remove('hidden');
     settingsOverlay?.classList.remove('hidden');
-    // default to General tab
-    try { showSettingsTab('general'); } catch {}
+    try { showSettingsTab(initialTab); } catch {}
     prefReaderInput && (prefReaderInput.checked = getPref('reader-input', true));
     prefStickyTools && (prefStickyTools.checked = getPref('sticky-tools', true));
     prefAiInlineAutoOpen && (prefAiInlineAutoOpen.checked = getPref('ai-inline-open', false));
@@ -2991,7 +2991,9 @@ try {
     try { loadGeminiSettings(); } catch {}
     try { loadMistralSettings(); } catch {}
     try { applyProviderUI(); } catch {}
-  });
+  }
+  settingsBtn?.addEventListener('click', () => { openSettings('general'); });
+  aiPresetSettingsBtn?.addEventListener('click', () => { openSettings('presets'); });
   function closeSettings() { settingsPanel?.classList.add('hidden'); settingsOverlay?.classList.add('hidden'); }
   settingsOverlay?.addEventListener('click', closeSettings);
   settingsCloseBtn?.addEventListener('click', closeSettings);

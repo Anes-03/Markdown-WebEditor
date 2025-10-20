@@ -107,7 +107,7 @@
       <button data-action="table" class="has-icon" title="Tabelle"><iconify-icon aria-hidden="true" icon="mdi:table"></iconify-icon><span class="btn-label">Tabelle</span></button>
       <button data-action="hr" class="has-icon" title="Trennlinie"><iconify-icon aria-hidden="true" icon="lucide:minus"></iconify-icon><span class="btn-label">Linie</span></button>
       <span class="sep"></span>
-      <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Generieren</span></button>
+      <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Text Generieren</span></button>
       <button id="chatToggleBtn" class="has-icon" title="Chat ein-/ausblenden"><iconify-icon aria-hidden="true" icon="lucide:message-circle"></iconify-icon><span class="btn-label">Chat</span></button>
     </div>
 
@@ -124,6 +124,10 @@
         <label>Preset
           <select id="aiPresetSelect"></select>
         </label>
+        <button id="aiPresetSettingsBtn" class="secondary has-icon" type="button" title="KI-Presets verwalten">
+          <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
+          <span class="btn-label">KI-Presets</span>
+        </button>
         <span id="aiGenInfo" class="muted"></span>
       </div>
     </div>
@@ -253,6 +257,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             </div>
         </section>
         <section class="chat-settings settings-tab hidden" data-tab="presets" role="tabpanel" aria-label="KI-Presets">
+          <p class="muted">Presets sind gespeicherte Aufforderungen für die KI-Generieren-Funktion. Damit kannst du wiederkehrende Aufgaben mit einem Klick auslösen.</p>
           <div class="settings-group">
             <h4>Preset</h4>
             <label>
