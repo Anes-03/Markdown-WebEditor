@@ -27,6 +27,7 @@
     <script src="vendor/pdfjs/pdf.js"></script>
     <script src="vendor/mammoth/mammoth.browser.min.js"></script>
     <script src="vendor/turndown/turndown.js"></script>
+    <script src="vendor/diff-match-patch/diff-match-patch.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
   </head>
   <body>
@@ -85,6 +86,16 @@
           </button>
           <div id="themeMenu" class="theme-menu hidden" role="menu" aria-label="Theme auswählen"></div>
         </div>
+        <button
+          id="versionsToggleBtn"
+          class="icon-only"
+          title="Versionen anzeigen"
+          aria-label="Versionen anzeigen"
+          aria-pressed="false"
+          type="button"
+        >
+          <iconify-icon aria-hidden="true" icon="lucide:history"></iconify-icon>
+        </button>
         <button
           id="fullscreenToggleBtn"
           class="icon-only"
@@ -246,6 +257,51 @@ Viel Spaß beim Schreiben! ✨"></textarea>
       </div>
     </aside>
 
+    <div id="versionsOverlay" class="versions-overlay hidden" aria-hidden="true"></div>
+    <aside
+      id="versionsPanel"
+      class="versions-panel hidden"
+      role="complementary"
+      aria-label="Versionen"
+      aria-hidden="true"
+    >
+      <header class="versions-header">
+        <div>
+          <strong>Versionen</strong>
+          <span id="versionsStatus" class="muted" aria-live="polite"></span>
+        </div>
+        <button id="versionsCloseBtn" class="icon-only" title="Schließen" aria-label="Versionspanel schließen" type="button">
+          <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+        </button>
+      </header>
+      <section class="versions-actions" aria-label="Snapshot erstellen">
+        <label class="versions-note">
+          <span>Notiz</span>
+          <input id="versionsNoteInput" type="text" placeholder="z. B. Statusmeldung" />
+        </label>
+        <button id="versionsSnapshotBtn" class="has-icon" type="button">
+          <iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon>
+          <span class="btn-label">Snapshot speichern</span>
+        </button>
+      </section>
+      <section class="versions-body">
+        <ol id="versionsList" class="versions-list" aria-label="Gespeicherte Versionen"></ol>
+        <div class="versions-empty" id="versionsEmptyHint" hidden>Es wurden noch keine Snapshots gespeichert.</div>
+      </section>
+      <section class="versions-diff" aria-label="Diff-Vorschau">
+        <header class="versions-diff-header">
+          <strong>Diff</strong>
+          <span id="versionsDiffMeta" class="muted"></span>
+        </header>
+        <pre id="versionsDiff" class="versions-diff-content" aria-live="polite"></pre>
+        <div class="versions-diff-actions">
+          <button id="versionsRestoreBtn" class="has-icon" type="button" disabled>
+            <iconify-icon aria-hidden="true" icon="lucide:undo-2"></iconify-icon>
+            <span class="btn-label">Version wiederherstellen</span>
+          </button>
+        </div>
+      </section>
+    </aside>
     <!-- Chat Panel -->
     <div id="chatOverlay" class="chat-overlay hidden" aria-hidden="true"></div>
     <aside id="chatPanel" class="chat-panel hidden" role="dialog" aria-label="Chat" aria-modal="true">
@@ -332,6 +388,19 @@ Viel Spaß beim Schreiben! ✨"></textarea>
                 <option value="split">Split</option>
                 <option value="reader">Reader</option>
               </select>
+            </label>
+            <label>
+              Auto-Snapshot-Intervall (Minuten)
+              <input
+                id="prefAutoSnapshotInterval"
+                type="number"
+                min="1"
+                max="60"
+                step="1"
+                inputmode="numeric"
+                value="5"
+              />
+              <div class="muted">Legt fest, wie oft automatisch eine Version gesichert wird (Standard: 5).</div>
             </label>
             <div class="settings-group">
               <h4>Konfiguration</h4>

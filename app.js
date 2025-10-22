@@ -25,6 +25,18 @@
   const updatesStatus = document.getElementById('updatesStatus');
   /** @type {HTMLButtonElement | null} */
   const updatesReloadBtn = document.getElementById('updatesReloadBtn');
+  const versionsOverlay = document.getElementById('versionsOverlay');
+  const versionsPanel = document.getElementById('versionsPanel');
+  const versionsToggleBtn = document.getElementById('versionsToggleBtn');
+  const versionsCloseBtn = document.getElementById('versionsCloseBtn');
+  const versionsList = document.getElementById('versionsList');
+  const versionsEmptyHint = document.getElementById('versionsEmptyHint');
+  const versionsDiff = document.getElementById('versionsDiff');
+  const versionsDiffMeta = document.getElementById('versionsDiffMeta');
+  const versionsSnapshotBtn = document.getElementById('versionsSnapshotBtn');
+  const versionsRestoreBtn = document.getElementById('versionsRestoreBtn');
+  const versionsNoteInput = document.getElementById('versionsNoteInput');
+  const versionsStatusEl = document.getElementById('versionsStatus');
 
   // Buttons
   const newBtn = document.getElementById('newBtn');
@@ -203,6 +215,7 @@
   const prefStickyTools = document.getElementById('prefStickyTools');
   const prefAiInlineAutoOpen = document.getElementById('prefAiInlineAutoOpen');
   const prefDefaultView = document.getElementById('prefDefaultView');
+  const prefAutoSnapshotInterval = document.getElementById('prefAutoSnapshotInterval');
   const prefUserContextEnabled = document.getElementById('prefUserContextEnabled');
   const prefUserContextProfile = document.getElementById('prefUserContextProfile');
   const prefUserContextStyle = document.getElementById('prefUserContextStyle');
@@ -1739,6 +1752,14 @@ ${trimmed}
       document.documentElement.style.setProperty('--chat-w', '0px');
       document.body.classList.remove('chat-open');
     }
+    if (versionsPanel && !versionsPanel.classList.contains('hidden')) {
+      const vw = versionsPanel.offsetWidth || 0;
+      document.documentElement.style.setProperty('--versions-w', vw + 'px');
+      document.body.classList.add('versions-open');
+    } else {
+      document.documentElement.style.setProperty('--versions-w', '0px');
+      document.body.classList.remove('versions-open');
+    }
   }
   window.addEventListener('resize', adjustLayout);
 
@@ -1775,6 +1796,392 @@ ${trimmed}
         markDirty(false);
       }
     } catch {}
+  }
+
+  // Version history (IndexedDB)
+  const VERSION_DB_NAME = 'md-webeditor-versions';
+  const VERSION_STORE_NAME = 'snapshots';
+  const AUTO_SNAPSHOT_DEFAULT_INTERVAL = 300_000;
+  const AUTO_SNAPSHOT_MIN_INTERVAL = 60_000;
+  const AUTO_SNAPSHOT_MAX_INTERVAL = 3_600_000;
+  const MAX_SNAPSHOTS = 200;
+  const versionState = {
+    dbPromise: null,
+    snapshots: [],
+    selectedId: null,
+    autoTimer: null,
+    lastContentHash: '',
+    dmp: typeof diff_match_patch !== 'undefined' ? new diff_match_patch() : null,
+    autoIntervalMs: AUTO_SNAPSHOT_DEFAULT_INTERVAL,
+  };
+  let versionsStatusTimer = null;
+
+  function normalizeAutoSnapshotIntervalMs(value, fallback = AUTO_SNAPSHOT_DEFAULT_INTERVAL) {
+    const numeric = Number.parseInt(typeof value === 'string' ? value.trim() : value, 10);
+    if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+    return Math.min(Math.max(numeric, AUTO_SNAPSHOT_MIN_INTERVAL), AUTO_SNAPSHOT_MAX_INTERVAL);
+  }
+
+  function getStoredAutoSnapshotInterval() {
+    const raw = getPrefStr('auto-snapshot-interval', String(AUTO_SNAPSHOT_DEFAULT_INTERVAL));
+    return normalizeAutoSnapshotIntervalMs(raw, AUTO_SNAPSHOT_DEFAULT_INTERVAL);
+  }
+
+  function msFromMinutes(minutesValue) {
+    const numeric = Number(minutesValue);
+    if (!Number.isFinite(numeric) || numeric <= 0) return AUTO_SNAPSHOT_DEFAULT_INTERVAL;
+    return numeric * 60_000;
+  }
+
+  function getAutoSnapshotInterval() {
+    const current = Number(versionState.autoIntervalMs);
+    if (Number.isFinite(current) && current >= AUTO_SNAPSHOT_MIN_INTERVAL) return current;
+    const stored = getStoredAutoSnapshotInterval();
+    versionState.autoIntervalMs = stored;
+    return stored;
+  }
+
+  function formatAutoSnapshotInterval(ms) {
+    const minutes = Math.round(ms / 60_000);
+    return minutes === 1 ? '1 Minute' : `${minutes} Minuten`;
+  }
+
+  function isVersioningSupported() {
+    return typeof indexedDB !== 'undefined';
+  }
+
+  function computeContentHash(text) {
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash) + text.charCodeAt(i);
+      hash |= 0;
+    }
+    return `${text.length}:${hash >>> 0}`;
+  }
+
+  function escapeHtml(text) {
+    return text.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch));
+  }
+
+  function formatSnapshotTimestamp(ts) {
+    try {
+      return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ts));
+    } catch {
+      return new Date(ts).toLocaleString();
+    }
+  }
+
+  function setVersionsStatus(message, options = {}) {
+    if (!versionsStatusEl) return;
+    const { sticky = false } = options;
+    versionsStatusEl.textContent = message || '';
+    if (versionsStatusTimer) {
+      clearTimeout(versionsStatusTimer);
+      versionsStatusTimer = null;
+    }
+    if (!sticky && message) {
+      versionsStatusTimer = window.setTimeout(() => {
+        versionsStatusTimer = null;
+        updateVersionStatusSummary();
+      }, 4000);
+    }
+  }
+
+  function updateVersionStatusSummary() {
+    if (!versionsStatusEl) return;
+    if (!versionState.snapshots.length) {
+      versionsStatusEl.textContent = 'Keine Snapshots';
+      return;
+    }
+    const latest = versionState.snapshots[0];
+    const total = versionState.snapshots.length;
+    const label = total === 1 ? 'Version' : 'Versionen';
+    versionsStatusEl.textContent = `${total} ${label} • letzter: ${formatSnapshotTimestamp(latest.createdAt)}`;
+  }
+
+  async function openVersionDb() {
+    if (!isVersioningSupported()) return null;
+    if (versionState.dbPromise) return versionState.dbPromise;
+    versionState.dbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(VERSION_DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(VERSION_STORE_NAME)) {
+          const store = db.createObjectStore(VERSION_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+          store.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => {
+          db.close();
+          versionState.dbPromise = null;
+        };
+        resolve(db);
+      };
+      request.onerror = () => {
+        reject(request.error || new Error('IndexedDB Fehler'));
+      };
+    }).catch(err => {
+      console.error('Versionen: Datenbank konnte nicht geöffnet werden', err);
+      versionState.dbPromise = null;
+      setVersionsStatus('Versionsspeicher nicht verfügbar', { sticky: true });
+      return null;
+    });
+    return versionState.dbPromise;
+  }
+
+  async function fetchSnapshots() {
+    const db = await openVersionDb();
+    if (!db) return [];
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(VERSION_STORE_NAME, 'readonly');
+      const store = tx.objectStore(VERSION_STORE_NAME);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const rows = Array.isArray(request.result) ? request.result.slice() : [];
+        rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        resolve(rows);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function trimSnapshotOverflow(overflowList) {
+    const overflow = Array.isArray(overflowList) ? overflowList.filter(Boolean) : [];
+    if (!overflow.length) return;
+    const ids = overflow.map(s => s.id).filter(id => typeof id === 'number');
+    if (!ids.length) return;
+    const db = await openVersionDb();
+    if (!db) return;
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(VERSION_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(VERSION_STORE_NAME);
+      ids.forEach(id => { try { store.delete(id); } catch {} });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    }).catch(err => console.error('Versionen: Bereinigung fehlgeschlagen', err));
+  }
+
+  async function refreshVersionList(preselectId) {
+    if (!versionsList || !isVersioningSupported()) return;
+    try {
+      const snapshots = await fetchSnapshots();
+      const mapped = snapshots.map(s => ({
+        id: s.id,
+        createdAt: s.createdAt || Date.now(),
+        content: typeof s.content === 'string' ? s.content : '',
+        note: typeof s.note === 'string' ? s.note : '',
+        auto: !!s.auto,
+        hash: s.hash || computeContentHash(typeof s.content === 'string' ? s.content : ''),
+      }));
+      let overflow = [];
+      if (mapped.length > MAX_SNAPSHOTS) {
+        overflow = mapped.slice(MAX_SNAPSHOTS);
+        mapped.length = MAX_SNAPSHOTS;
+      }
+      versionState.snapshots = mapped;
+      versionState.lastContentHash = versionState.snapshots[0]?.hash || '';
+      if (typeof preselectId === 'number') {
+        versionState.selectedId = preselectId;
+      } else if (!versionState.snapshots.some(s => s.id === versionState.selectedId)) {
+        versionState.selectedId = versionState.snapshots[0]?.id ?? null;
+      }
+      renderVersionList();
+      updateDiffPreview();
+      updateVersionStatusSummary();
+      await trimSnapshotOverflow(overflow);
+    } catch (err) {
+      console.error('Versionen konnten nicht geladen werden', err);
+      setVersionsStatus('Versionen konnten nicht geladen werden', { sticky: true });
+    }
+  }
+
+  function renderVersionList() {
+    if (!versionsList) return;
+    versionsList.innerHTML = '';
+    if (versionsEmptyHint) versionsEmptyHint.hidden = versionState.snapshots.length > 0;
+    const fragment = document.createDocumentFragment();
+    for (const snapshot of versionState.snapshots) {
+      const li = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'versions-entry';
+      if (snapshot.id === versionState.selectedId) button.classList.add('active');
+      button.dataset.id = String(snapshot.id);
+      if (snapshot.auto) button.dataset.auto = 'true';
+      const meta = document.createElement('div');
+      meta.className = 'version-meta';
+      const time = document.createElement('span');
+      time.textContent = formatSnapshotTimestamp(snapshot.createdAt);
+      meta.appendChild(time);
+      if (snapshot.auto) {
+        const tag = document.createElement('span');
+        tag.className = 'version-tag';
+        tag.textContent = 'Auto';
+        meta.appendChild(tag);
+      }
+      button.appendChild(meta);
+      const note = document.createElement('div');
+      note.className = 'version-note';
+      note.textContent = snapshot.note || (snapshot.auto ? 'Automatischer Snapshot' : 'Ohne Notiz');
+      button.appendChild(note);
+      button.addEventListener('click', () => {
+        selectSnapshot(snapshot.id);
+      });
+      li.appendChild(button);
+      fragment.appendChild(li);
+    }
+    versionsList.appendChild(fragment);
+    if (versionsRestoreBtn) versionsRestoreBtn.disabled = !versionState.selectedId;
+  }
+
+  function selectSnapshot(id) {
+    versionState.selectedId = id;
+    renderVersionList();
+    updateDiffPreview();
+  }
+
+  function diffToHtml(original, current) {
+    if (!versionState.dmp) {
+      return '<span class="diff-eq">Diff-Vorschau nicht verfügbar.</span>';
+    }
+    const diffs = versionState.dmp.diff_main(original, current);
+    try {
+      versionState.dmp.diff_cleanupSemantic(diffs);
+    } catch {}
+    const parts = diffs.map(([op, text]) => {
+      const cls = op === 1 ? 'diff-ins' : (op === -1 ? 'diff-del' : 'diff-eq');
+      const safe = escapeHtml(text).replace(/\n/g, '\n');
+      return `<span class="diff-line ${cls}">${safe}</span>`;
+    });
+    return parts.join('').replace(/\n/g, '<br>');
+  }
+
+  function updateDiffPreview() {
+    if (!versionsDiff || !versionsDiffMeta) return;
+    const snapshot = versionState.snapshots.find(s => s.id === versionState.selectedId);
+    if (!snapshot) {
+      versionsDiff.textContent = 'Keine Version ausgewählt.';
+      versionsDiffMeta.textContent = '';
+      if (versionsRestoreBtn) versionsRestoreBtn.disabled = true;
+      return;
+    }
+    versionsDiff.innerHTML = diffToHtml(snapshot.content, editor.value || '');
+    const delta = (editor.value || '').length - snapshot.content.length;
+    const deltaLabel = `${delta >= 0 ? '+' : ''}${delta} Zeichen`;
+    versionsDiffMeta.textContent = `${formatSnapshotTimestamp(snapshot.createdAt)}${snapshot.note ? ` • ${snapshot.note}` : ''} • Δ ${deltaLabel}`;
+    if (versionsRestoreBtn) versionsRestoreBtn.disabled = false;
+  }
+
+  async function createSnapshot(note = '', options = {}) {
+    if (!isVersioningSupported() || !editor) return;
+    const { auto = false, silent = false } = options;
+    const content = editor.value || '';
+    if (auto && !dirty && !versionState.snapshots.length) return;
+    if (!content.trim() && auto) return;
+    const hash = computeContentHash(content);
+    if (versionState.snapshots.length && versionState.lastContentHash === hash) {
+      if (!silent) setVersionsStatus('Keine Änderungen seit dem letzten Snapshot');
+      return;
+    }
+    try {
+      const db = await openVersionDb();
+      if (!db) return;
+      const payload = {
+        createdAt: Date.now(),
+        content,
+        note: note.trim(),
+        auto: !!auto,
+        hash,
+      };
+      const id = await new Promise((resolve, reject) => {
+        const tx = db.transaction(VERSION_STORE_NAME, 'readwrite');
+        const store = tx.objectStore(VERSION_STORE_NAME);
+        const req = store.add(payload);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      versionState.lastContentHash = hash;
+      await refreshVersionList(typeof id === 'number' ? id : undefined);
+      if (!silent) {
+        const label = auto ? 'Automatischer Snapshot gespeichert' : 'Snapshot gespeichert';
+        setVersionsStatus(label);
+        setStatus(`${label} (${formatSnapshotTimestamp(Date.now())})`);
+      }
+      if (!auto && versionsNoteInput) versionsNoteInput.value = '';
+    } catch (err) {
+      console.error('Snapshot konnte nicht gespeichert werden', err);
+      if (!silent) {
+        setVersionsStatus('Snapshot speichern fehlgeschlagen', { sticky: true });
+        setStatus('Snapshot speichern fehlgeschlagen');
+      }
+    }
+  }
+
+  async function restoreSelectedSnapshot() {
+    if (!editor) return;
+    const snapshot = versionState.snapshots.find(s => s.id === versionState.selectedId);
+    if (!snapshot) return;
+    editor.value = snapshot.content;
+    updatePreview();
+    updateWordCount();
+    updateCursorInfo();
+    markDirty(true);
+    setStatus('Snapshot wiederhergestellt – Änderungen nicht gespeichert');
+    setVersionsStatus('Version wiederhergestellt');
+    updateDiffPreview();
+  }
+
+  function ensureAutoSnapshots() {
+    if (!isVersioningSupported()) return;
+    if (versionState.autoTimer) {
+      window.clearInterval(versionState.autoTimer);
+      versionState.autoTimer = null;
+    }
+    const interval = getAutoSnapshotInterval();
+    if (!Number.isFinite(interval) || interval < AUTO_SNAPSHOT_MIN_INTERVAL) return;
+    versionState.autoTimer = window.setInterval(() => {
+      createSnapshot('', { auto: true, silent: true });
+    }, interval);
+  }
+
+  function stopAutoSnapshots() {
+    if (versionState.autoTimer) {
+      window.clearInterval(versionState.autoTimer);
+      versionState.autoTimer = null;
+    }
+  }
+
+  function toggleVersionsPanel(show) {
+    if (!versionsPanel || !versionsToggleBtn) return;
+    const shouldShow = typeof show === 'boolean' ? show : versionsPanel.classList.contains('hidden');
+    if (shouldShow) {
+      versionsPanel.classList.remove('hidden');
+      if (versionsOverlay) {
+        versionsOverlay.classList.remove('hidden');
+        versionsOverlay.setAttribute('aria-hidden', 'false');
+      }
+      versionsPanel.setAttribute('aria-hidden', 'false');
+      versionsToggleBtn.setAttribute('aria-pressed', 'true');
+      versionsToggleBtn.setAttribute('aria-label', 'Versionen verbergen');
+      versionsToggleBtn.title = 'Versionen verbergen';
+      document.body.classList.add('versions-open');
+      window.setTimeout(() => adjustLayout(), 0);
+      refreshVersionList();
+    } else {
+      versionsPanel.classList.add('hidden');
+      if (versionsOverlay) {
+        versionsOverlay.classList.add('hidden');
+        versionsOverlay.setAttribute('aria-hidden', 'true');
+      }
+      versionsPanel.setAttribute('aria-hidden', 'true');
+      versionsToggleBtn.setAttribute('aria-pressed', 'false');
+      versionsToggleBtn.setAttribute('aria-label', 'Versionen anzeigen');
+      versionsToggleBtn.title = 'Versionen anzeigen';
+      document.body.classList.remove('versions-open');
+      window.setTimeout(() => adjustLayout(), 0);
+    }
   }
 
   // Editor context helpers
@@ -2379,6 +2786,32 @@ ${trimmed}
     if (exportMenuVisible && exportMenu && exportBtn) {
       const withinExport = exportMenu.contains(e.target) || exportBtn.contains(e.target);
       if (!withinExport) closeExportMenu();
+    }
+  });
+
+  versionsToggleBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleVersionsPanel();
+  });
+  versionsCloseBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleVersionsPanel(false);
+  });
+  versionsOverlay?.addEventListener('click', () => toggleVersionsPanel(false));
+  versionsSnapshotBtn?.addEventListener('click', () => {
+    const note = versionsNoteInput?.value || '';
+    createSnapshot(note);
+  });
+  versionsNoteInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      createSnapshot(versionsNoteInput.value || '');
+    }
+  });
+  versionsRestoreBtn?.addEventListener('click', () => restoreSelectedSnapshot());
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && versionsPanel && !versionsPanel.classList.contains('hidden')) {
+      toggleVersionsPanel(false);
     }
   });
 
@@ -4244,6 +4677,10 @@ try {
       const dv = getPrefStr('default-view', 'split');
       prefDefaultView.value = ['edit','split','reader'].includes(dv) ? dv : 'split';
     }
+    if (prefAutoSnapshotInterval) {
+      const minutes = Math.round(getAutoSnapshotInterval() / 60_000);
+      prefAutoSnapshotInterval.value = String(minutes);
+    }
     syncUserContextEnabledControl();
     populateUserContextFields();
     if (chatStreamToggle) chatStreamToggle.checked = getPref('chat-stream', true);
@@ -4269,6 +4706,17 @@ try {
     setPref('ai-inline-open', !!prefAiInlineAutoOpen?.checked);
     setPref(USER_CONTEXT_ENABLED_PREF_KEY, !!prefUserContextEnabled?.checked);
     if (prefDefaultView && prefDefaultView.value) setPrefStr('default-view', prefDefaultView.value);
+    if (prefAutoSnapshotInterval) {
+      const rawMinutes = Number.parseInt(prefAutoSnapshotInterval.value, 10);
+      const ms = normalizeAutoSnapshotIntervalMs(msFromMinutes(rawMinutes), versionState.autoIntervalMs || AUTO_SNAPSHOT_DEFAULT_INTERVAL);
+      setPrefStr('auto-snapshot-interval', ms);
+      versionState.autoIntervalMs = ms;
+      prefAutoSnapshotInterval.value = String(Math.round(ms / 60_000));
+      if (isVersioningSupported()) {
+        ensureAutoSnapshots();
+        setVersionsStatus(`Auto-Snapshot alle ${formatAutoSnapshotInterval(ms)}`);
+      }
+    }
     const ctxResult = writeUserContextParts(readUserContextPartsFromFields());
     setUserContextFieldValues(ctxResult.parts);
     updateUserContextInputsState();
@@ -4379,6 +4827,7 @@ try {
         stickyTools: getPref('sticky-tools', true),
         aiInlineOpen: getPref('ai-inline-open', false),
         defaultView,
+        autoSnapshotIntervalMinutes: Math.round(getAutoSnapshotInterval() / 60_000),
         userContextEnabled,
         userContext: {
           profile: userContextParts.profile,
@@ -4459,6 +4908,26 @@ try {
       const normalized = ['edit', 'split', 'reader'].includes(raw) ? raw : 'split';
       setPrefStr('default-view', normalized);
       if (prefDefaultView) prefDefaultView.value = normalized;
+    }
+    if ('autoSnapshotIntervalMinutes' in prefs || 'autoSnapshotIntervalMs' in prefs) {
+      const msSource = prefs.autoSnapshotIntervalMs;
+      const minutesSource = prefs.autoSnapshotIntervalMinutes;
+      let target = AUTO_SNAPSHOT_DEFAULT_INTERVAL;
+      if (msSource !== undefined && msSource !== null) {
+        const candidate = Number(msSource);
+        if (Number.isFinite(candidate)) {
+          target = normalizeAutoSnapshotIntervalMs(candidate, target);
+        }
+      } else if (minutesSource !== undefined && minutesSource !== null) {
+        const candidate = Number(minutesSource);
+        if (Number.isFinite(candidate)) {
+          target = normalizeAutoSnapshotIntervalMs(msFromMinutes(candidate), target);
+        }
+      }
+      setPrefStr('auto-snapshot-interval', target);
+      versionState.autoIntervalMs = target;
+      if (prefAutoSnapshotInterval) prefAutoSnapshotInterval.value = String(Math.round(target / 60_000));
+      if (isVersioningSupported()) ensureAutoSnapshots();
     }
     if ('userContextEnabled' in prefs) {
       const enabledVal = normalizeBoolean(prefs.userContextEnabled, isUserContextEnabled());
@@ -4583,6 +5052,7 @@ try {
       'pref-sticky-tools',
       'pref-ai-inline-open',
       'pref-default-view',
+      'pref-auto-snapshot-interval',
       'pref-chat-stream',
     ];
     for (const key of storageKeys) {
@@ -4602,6 +5072,11 @@ try {
     setPrefStr('default-view', 'split');
     if (prefDefaultView) prefDefaultView.value = 'split';
     try { setView('split'); } catch {}
+
+    setPrefStr('auto-snapshot-interval', AUTO_SNAPSHOT_DEFAULT_INTERVAL);
+    versionState.autoIntervalMs = AUTO_SNAPSHOT_DEFAULT_INTERVAL;
+    if (prefAutoSnapshotInterval) prefAutoSnapshotInterval.value = String(Math.round(AUTO_SNAPSHOT_DEFAULT_INTERVAL / 60_000));
+    if (isVersioningSupported()) ensureAutoSnapshots();
 
     setPref('chat-stream', true);
     if (chatStreamToggle) chatStreamToggle.checked = true;
@@ -4725,7 +5200,7 @@ try {
   });
 
   // Editor events
-  editor.addEventListener('input', () => { updatePreview(); updateWordCount(); autosave(); markDirty(true); updateEditorContextInfo(); });
+  editor.addEventListener('input', () => { updatePreview(); updateWordCount(); autosave(); markDirty(true); updateEditorContextInfo(); updateDiffPreview(); });
   editor.addEventListener('click', updateCursorInfo);
   editor.addEventListener('keyup', () => { updateCursorInfo(); updateEditorContextInfo(); });
   // In reader mode, clicking preview focuses the hidden editor for typing
@@ -4773,7 +5248,21 @@ try {
   updateCursorInfo();
   loadAutosaveIfAny();
   markDirty(false);
+  versionState.autoIntervalMs = getStoredAutoSnapshotInterval();
   adjustLayout();
+  if (isVersioningSupported()) {
+    versionsToggleBtn?.removeAttribute('disabled');
+    versionsToggleBtn?.setAttribute('aria-label', 'Versionen anzeigen');
+    versionsToggleBtn?.setAttribute('title', 'Versionen anzeigen');
+    refreshVersionList();
+    updateVersionStatusSummary();
+    ensureAutoSnapshots();
+  } else {
+    versionsToggleBtn?.setAttribute('disabled', 'true');
+    versionsToggleBtn?.setAttribute('title', 'Versionsspeicher nicht verfügbar');
+    versionsToggleBtn?.setAttribute('aria-label', 'Versionsspeicher nicht verfügbar');
+    if (versionsStatusEl) versionsStatusEl.textContent = 'Versionsspeicher nicht verfügbar';
+  }
   // Focus editor for immediate typing
   try { editor.focus(); } catch {}
   updateEditorContextInfo();
