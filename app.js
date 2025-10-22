@@ -216,6 +216,7 @@
   const settingsConfigExportBtn = document.getElementById('settingsConfigExportBtn');
   const settingsConfigImportBtn = document.getElementById('settingsConfigImportBtn');
   const settingsConfigImportFile = document.getElementById('settingsConfigImportFile');
+  const settingsConfigResetBtn = document.getElementById('settingsConfigResetBtn');
 
   const templatesToggleBtn = document.getElementById('templatesToggleBtn');
   const templatesPanel = document.getElementById('templatesPanel');
@@ -4303,6 +4304,12 @@ try {
     }
   });
 
+  settingsConfigResetBtn?.addEventListener('click', () => {
+    const confirmed = window.confirm('Alle Einstellungen wirklich auf die Standardwerte zurücksetzen?');
+    if (!confirmed) return;
+    resetSettingsConfigToDefaults();
+  });
+
   function readStoredValue(key) {
     try { return localStorage.getItem(key); }
     catch { return null; }
@@ -4554,6 +4561,70 @@ try {
     try { loadGeminiSettings(); } catch {}
     try { loadMistralSettings(); } catch {}
     try { applyProviderUI(); } catch {}
+  }
+
+  function resetSettingsConfigToDefaults() {
+    const storageKeys = [
+      'ai-provider',
+      'ai-presets',
+      'openai-api-key',
+      'openai-base',
+      'openai-model',
+      'claude-api-key',
+      'claude-base',
+      'claude-model',
+      'ollama-url',
+      'ollama-model',
+      'gemini-api-key',
+      'gemini-model',
+      'mistral-api-key',
+      'mistral-model',
+      'pref-reader-input',
+      'pref-sticky-tools',
+      'pref-ai-inline-open',
+      'pref-default-view',
+      'pref-chat-stream',
+    ];
+    for (const key of storageKeys) {
+      try { localStorage.removeItem(key); }
+      catch {}
+    }
+
+    setPref('reader-input', true);
+    if (prefReaderInput) prefReaderInput.checked = true;
+
+    setPref('sticky-tools', true);
+    if (prefStickyTools) prefStickyTools.checked = true;
+
+    setPref('ai-inline-open', false);
+    if (prefAiInlineAutoOpen) prefAiInlineAutoOpen.checked = false;
+
+    setPrefStr('default-view', 'split');
+    if (prefDefaultView) prefDefaultView.value = 'split';
+    try { setView('split'); } catch {}
+
+    setPref('chat-stream', true);
+    if (chatStreamToggle) chatStreamToggle.checked = true;
+
+    setAiProvider('openai');
+    if (aiProviderSelect) aiProviderSelect.value = getAiProvider();
+
+    try { loadOllamaSettings(); } catch {}
+    try { loadOpenAiSettings(); } catch {}
+    try { loadClaudeSettings(); } catch {}
+    try { loadGeminiSettings(); } catch {}
+    try { loadMistralSettings(); } catch {}
+
+    setOllamaStatus('', false);
+    setOpenAiStatus('', false);
+    setClaudeStatus('', false);
+    setGeminiStatus('', false);
+    setMistralStatus('', false);
+
+    applyPrefs();
+    try { applyProviderUI(); } catch {}
+    document.dispatchEvent(new Event('presets-updated'));
+    setStatus('Alle Einstellungen wurden auf Standardwerte zurückgesetzt.');
   }
   feedbackForm?.addEventListener('submit', (event) => {
     event.preventDefault();
