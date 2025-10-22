@@ -200,6 +200,12 @@
   const prefStickyTools = document.getElementById('prefStickyTools');
   const prefAiInlineAutoOpen = document.getElementById('prefAiInlineAutoOpen');
   const prefDefaultView = document.getElementById('prefDefaultView');
+  const prefUserContextEnabled = document.getElementById('prefUserContextEnabled');
+  const prefUserContextProfile = document.getElementById('prefUserContextProfile');
+  const prefUserContextStyle = document.getElementById('prefUserContextStyle');
+  const prefUserContextAudience = document.getElementById('prefUserContextAudience');
+  const prefUserContextInstructions = document.getElementById('prefUserContextInstructions');
+  const userContextFieldsWrapper = document.getElementById('userContextFields');
   const feedbackForm = document.getElementById('feedbackForm');
   const feedbackNameInput = document.getElementById('feedbackName');
   const feedbackEmailInput = document.getElementById('feedbackEmail');
@@ -1433,6 +1439,10 @@ ${trimmed}
       if (selection) {
         messages.push({ role: 'system', content: 'Kontext (ausgewählter Editor-Text, nur als Referenz, nicht erneut ausgeben):\n\n' + selection });
       }
+      const userContext = getUserContext();
+      if (userContext) {
+        messages.push({ role: 'system', content: 'Beachte folgende Nutzer-Präferenzen für Stil, Ton oder Hintergrund:\n\n' + userContext });
+      }
       messages.push({ role: 'user', content: prompt });
 
       const info = resolveCurrentProviderInfo();
@@ -1617,6 +1627,143 @@ ${trimmed}
 
   // Editor context helpers
   const MAX_CONTEXT_CHARS = 20000;
+  const MAX_USER_CONTEXT_CHARS = 4000;
+  const MAX_USER_CONTEXT_FIELD_CHARS = 1500;
+  const USER_CONTEXT_ENABLED_PREF_KEY = 'user-context-enabled';
+  const USER_CONTEXT_STORAGE_KEYS = {
+    profile: 'user-context-profile',
+    style: 'user-context-style',
+    audience: 'user-context-audience',
+    instructions: 'user-context-instructions',
+  };
+
+  function sanitizeUserContext(value, max = MAX_USER_CONTEXT_CHARS) {
+    if (value == null) return '';
+    let text = String(value);
+    text = text.replace(/\r\n?/g, '\n');
+    text = text.replace(/[\t ]+/g, ' ');
+    text = text.split('\n').map(line => line.trim()).join('\n');
+    text = text.replace(/\n{3,}/g, '\n\n');
+    text = text.trim();
+    if (text.length > max) {
+      text = text.slice(0, max);
+    }
+    return text;
+  }
+
+  function sanitizeUserContextField(value) {
+    return sanitizeUserContext(value, MAX_USER_CONTEXT_FIELD_CHARS);
+  }
+
+  function sanitizeUserContextParts(parts) {
+    return {
+      profile: sanitizeUserContextField(parts?.profile || ''),
+      style: sanitizeUserContextField(parts?.style || ''),
+      audience: sanitizeUserContextField(parts?.audience || ''),
+      instructions: sanitizeUserContextField(parts?.instructions || ''),
+    };
+  }
+
+  function isUserContextEnabled() {
+    return getPref(USER_CONTEXT_ENABLED_PREF_KEY, true);
+  }
+
+  function readUserContextParts() {
+    const parts = sanitizeUserContextParts({
+      profile: getPrefStr(USER_CONTEXT_STORAGE_KEYS.profile, ''),
+      style: getPrefStr(USER_CONTEXT_STORAGE_KEYS.style, ''),
+      audience: getPrefStr(USER_CONTEXT_STORAGE_KEYS.audience, ''),
+      instructions: getPrefStr(USER_CONTEXT_STORAGE_KEYS.instructions, ''),
+    });
+    const hasAny = parts.profile || parts.style || parts.audience || parts.instructions;
+    const legacy = sanitizeUserContext(getPrefStr('user-context', ''));
+    if (!hasAny && legacy) {
+      parts.style = legacy;
+      writeUserContextParts(parts);
+    }
+    return parts;
+  }
+
+  function writeUserContextParts(parts) {
+    const sanitized = sanitizeUserContextParts(parts || {});
+    setPrefStr(USER_CONTEXT_STORAGE_KEYS.profile, sanitized.profile);
+    setPrefStr(USER_CONTEXT_STORAGE_KEYS.style, sanitized.style);
+    setPrefStr(USER_CONTEXT_STORAGE_KEYS.audience, sanitized.audience);
+    setPrefStr(USER_CONTEXT_STORAGE_KEYS.instructions, sanitized.instructions);
+    const combined = buildUserContextMessage(sanitized);
+    setPrefStr('user-context', combined || '');
+    return { combined, parts: sanitized };
+  }
+
+  function setUserContextFieldValues(parts) {
+    const safe = parts || {};
+    if (prefUserContextProfile) prefUserContextProfile.value = safe.profile || '';
+    if (prefUserContextStyle) prefUserContextStyle.value = safe.style || '';
+    if (prefUserContextAudience) prefUserContextAudience.value = safe.audience || '';
+    if (prefUserContextInstructions) prefUserContextInstructions.value = safe.instructions || '';
+  }
+
+  function buildUserContextMessage(parts) {
+    if (!parts || typeof parts !== 'object') return '';
+    const sections = [];
+    if (parts.profile) sections.push(`Über mich & Rolle:\n${parts.profile}`);
+    if (parts.style) sections.push(`Schreibstil & Ton:\n${parts.style}`);
+    if (parts.audience) sections.push(`Zielgruppe oder Empfänger:\n${parts.audience}`);
+    if (parts.instructions) sections.push(`Besondere Hinweise:\n${parts.instructions}`);
+    const combined = sections.join('\n\n').trim();
+    return combined ? sanitizeUserContext(combined, MAX_USER_CONTEXT_CHARS) : '';
+  }
+
+  function getUserContext() {
+    if (!isUserContextEnabled()) return '';
+    const parts = readUserContextParts();
+    return buildUserContextMessage(parts);
+  }
+
+  function populateUserContextFields() {
+    const parts = readUserContextParts();
+    setUserContextFieldValues(parts);
+  }
+
+  function updateUserContextInputsState() {
+    const enabled = !!prefUserContextEnabled?.checked;
+    const fields = [
+      prefUserContextProfile,
+      prefUserContextStyle,
+      prefUserContextAudience,
+      prefUserContextInstructions,
+    ];
+    for (const field of fields) {
+      if (!field) continue;
+      field.disabled = !enabled;
+      field.setAttribute('aria-disabled', String(!enabled));
+    }
+    if (userContextFieldsWrapper) {
+      userContextFieldsWrapper.classList.toggle('is-disabled', !enabled);
+      if (!enabled) {
+        userContextFieldsWrapper.setAttribute('aria-disabled', 'true');
+      } else {
+        userContextFieldsWrapper.removeAttribute('aria-disabled');
+      }
+    }
+  }
+
+  function syncUserContextEnabledControl() {
+    if (prefUserContextEnabled) {
+      prefUserContextEnabled.checked = isUserContextEnabled();
+    }
+    updateUserContextInputsState();
+  }
+
+  function readUserContextPartsFromFields() {
+    return {
+      profile: prefUserContextProfile?.value || '',
+      style: prefUserContextStyle?.value || '',
+      audience: prefUserContextAudience?.value || '',
+      instructions: prefUserContextInstructions?.value || '',
+    };
+  }
+
   function getEditorContext() {
     if (!editor) return { text: '', type: 'none', truncated: false };
     const start = editor.selectionStart ?? 0;
@@ -3419,6 +3566,10 @@ try {
         msgs.push({ role: 'system', content: `Du befindest dich in einem Markdown‑Editor. Nutze den folgenden Editor‑Kontext (Typ: ${ctx.type}${ctx.truncated ? ', gekürzt' : ''}) für deine Antwort. Antworte in Markdown und sei präzise.\n\n[Editor‑Kontext BEGIN]\n${ctx.text}\n[Editor‑Kontext ENDE]` });
       }
     }
+    const userContext = getUserContext();
+    if (userContext) {
+      msgs.push({ role: 'system', content: `Berücksichtige diese Nutzer-Präferenzen für Ton, Stil oder Hintergrundinformationen:\n\n${userContext}` });
+    }
     msgs.push(...chatHistory);
     const currentUserMsg = { role: 'user', content: text };
     msgs.push(currentUserMsg);
@@ -3938,6 +4089,8 @@ try {
       const dv = getPrefStr('default-view', 'split');
       prefDefaultView.value = ['edit','split','reader'].includes(dv) ? dv : 'split';
     }
+    syncUserContextEnabledControl();
+    populateUserContextFields();
     if (chatStreamToggle) chatStreamToggle.checked = getPref('chat-stream', true);
     // Load provider settings
     try { loadOpenAiSettings(); } catch {}
@@ -3952,11 +4105,18 @@ try {
   function closeSettings() { settingsPanel?.classList.add('hidden'); settingsOverlay?.classList.add('hidden'); }
   settingsOverlay?.addEventListener('click', closeSettings);
   settingsCloseBtn?.addEventListener('click', closeSettings);
+  prefUserContextEnabled?.addEventListener('change', () => {
+    updateUserContextInputsState();
+  });
   settingsSaveBtn?.addEventListener('click', () => {
     setPref('reader-input', !!prefReaderInput?.checked);
     setPref('sticky-tools', !!prefStickyTools?.checked);
     setPref('ai-inline-open', !!prefAiInlineAutoOpen?.checked);
+    setPref(USER_CONTEXT_ENABLED_PREF_KEY, !!prefUserContextEnabled?.checked);
     if (prefDefaultView && prefDefaultView.value) setPrefStr('default-view', prefDefaultView.value);
+    const ctxResult = writeUserContextParts(readUserContextPartsFromFields());
+    setUserContextFieldValues(ctxResult.parts);
+    updateUserContextInputsState();
     applyPrefs();
     closeSettings();
   });
@@ -4047,6 +4207,9 @@ try {
     })();
     const presets = normalizePresetList(readPresetList());
     const customPresets = presets.filter(p => !BUILT_IN_PRESET_NAMES.has(p.name));
+    const userContextParts = readUserContextParts();
+    const combinedUserContext = buildUserContextMessage(userContextParts);
+    const userContextEnabled = isUserContextEnabled();
     return {
       version: 1,
       exportedAt: new Date().toISOString(),
@@ -4055,6 +4218,15 @@ try {
         stickyTools: getPref('sticky-tools', true),
         aiInlineOpen: getPref('ai-inline-open', false),
         defaultView,
+        userContextEnabled,
+        userContext: {
+          profile: userContextParts.profile,
+          style: userContextParts.style,
+          audience: userContextParts.audience,
+          instructions: userContextParts.instructions,
+          combined: combinedUserContext,
+          enabled: userContextEnabled,
+        },
       },
       chat: {
         stream: getPref('chat-stream', true),
@@ -4126,6 +4298,42 @@ try {
       const normalized = ['edit', 'split', 'reader'].includes(raw) ? raw : 'split';
       setPrefStr('default-view', normalized);
       if (prefDefaultView) prefDefaultView.value = normalized;
+    }
+    if ('userContextEnabled' in prefs) {
+      const enabledVal = normalizeBoolean(prefs.userContextEnabled, isUserContextEnabled());
+      setPref(USER_CONTEXT_ENABLED_PREF_KEY, enabledVal);
+      if (prefUserContextEnabled) prefUserContextEnabled.checked = enabledVal;
+      updateUserContextInputsState();
+    }
+    if ('userContext' in prefs) {
+      const rawCtx = prefs.userContext;
+      let partsToWrite = null;
+      if (typeof rawCtx === 'string') {
+        const sanitized = sanitizeUserContext(rawCtx);
+        partsToWrite = { profile: '', style: sanitized, audience: '', instructions: '' };
+      } else if (rawCtx && typeof rawCtx === 'object') {
+        partsToWrite = {
+          profile: rawCtx.profile ?? '',
+          style: rawCtx.style ?? rawCtx.tone ?? '',
+          audience: rawCtx.audience ?? rawCtx.target ?? '',
+          instructions: rawCtx.instructions ?? rawCtx.notes ?? '',
+        };
+        if (!partsToWrite.profile && !partsToWrite.style && !partsToWrite.audience && !partsToWrite.instructions && typeof rawCtx.combined === 'string') {
+          partsToWrite.style = sanitizeUserContext(rawCtx.combined);
+        }
+        if ('enabled' in rawCtx) {
+          const enabledVal = normalizeBoolean(rawCtx.enabled, isUserContextEnabled());
+          setPref(USER_CONTEXT_ENABLED_PREF_KEY, enabledVal);
+          if (prefUserContextEnabled) prefUserContextEnabled.checked = enabledVal;
+        }
+      }
+      if (partsToWrite) {
+        const result = writeUserContextParts(partsToWrite);
+        setUserContextFieldValues(result.parts);
+      } else {
+        populateUserContextFields();
+      }
+      syncUserContextEnabledControl();
     }
 
     if (data.chat && typeof data.chat === 'object' && 'stream' in data.chat) {
@@ -4347,6 +4555,7 @@ try {
   initPresetSettings(BUILT_IN_PRESETS);
   updatesReloadBtn?.addEventListener('click', () => { loadRepoUpdates(); });
   // Apply settings
+  syncUserContextEnabledControl();
   applyPrefs();
   setTimeout(() => { try { initOnboarding(); } catch {} }, 250);
 

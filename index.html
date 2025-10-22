@@ -288,6 +288,10 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             <iconify-icon aria-hidden="true" icon="lucide:sliders-horizontal"></iconify-icon>
             <span class="btn-label">Allgemein</span>
           </button>
+          <button class="nav-item has-icon" data-tab="user-context" role="tab" aria-selected="false">
+            <iconify-icon aria-hidden="true" icon="lucide:user-circle"></iconify-icon>
+            <span class="btn-label">Mein Kontext</span>
+          </button>
           <button class="nav-item has-icon" data-tab="presets" role="tab" aria-selected="false">
             <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
             <span class="btn-label">KI‑Presets</span>
@@ -327,6 +331,41 @@ Viel Spaß beim Schreiben! ✨"></textarea>
                 <input type="file" id="settingsConfigImportFile" accept="application/json" hidden />
               </div>
             </div>
+        </section>
+        <section class="chat-settings settings-tab hidden" data-tab="user-context" role="tabpanel" aria-label="Persönlicher Kontext">
+          <p id="userContextIntro" class="muted">Formuliere hier Hintergrundinfos, damit KI-Antworten besser zu dir, deinem Stil und deiner Zielgruppe passen.</p>
+          <label class="chk">
+            <input
+              type="checkbox"
+              id="prefUserContextEnabled"
+              checked
+              aria-describedby="userContextIntro"
+              aria-controls="userContextFields"
+            />
+            Nutzerkontext für KI-Anfragen verwenden
+          </label>
+          <div id="userContextFields" class="user-context-fields">
+            <div class="settings-group">
+              <h4>Über mich &amp; Rolle</h4>
+              <p class="muted">Beschreibe deine Position, Hintergründe oder Aufgaben, damit die KI dich richtig einordnen kann.</p>
+              <textarea id="prefUserContextProfile" rows="3" placeholder="z. B. Produktmanagerin in einem SaaS-Startup, Schwerpunkt Kundenerfolg…"></textarea>
+            </div>
+            <div class="settings-group">
+              <h4>Schreibstil &amp; Ton</h4>
+              <p class="muted">Wie sollen Antworten klingen? Teile gewünschte Tonalität, Formalitätsgrad oder Sprachbesonderheiten.</p>
+              <textarea id="prefUserContextStyle" rows="4" placeholder="z. B. freundlich, motivierend, gendergerechte Sprache, kurze Sätze…"></textarea>
+            </div>
+            <div class="settings-group">
+              <h4>Zielgruppe oder Empfänger</h4>
+              <p class="muted">Für wen sind die Texte gedacht? Erwähne Branche, Erfahrungslevel oder besondere Erwartungen.</p>
+              <textarea id="prefUserContextAudience" rows="3" placeholder="z. B. neue Kund:innen ohne technisches Vorwissen, deutschsprachig…"></textarea>
+            </div>
+            <div class="settings-group">
+              <h4>Besondere Hinweise</h4>
+              <p class="muted">Halte Do’s &amp; Don’ts, bevorzugte Quellen oder andere Vorgaben fest.</p>
+              <textarea id="prefUserContextInstructions" rows="4" placeholder="z. B. keine Emojis, immer Quellen angeben, Markdown-Listen bevorzugen…"></textarea>
+            </div>
+          </div>
         </section>
         <section class="chat-settings settings-tab hidden" data-tab="presets" role="tabpanel" aria-label="KI-Presets">
           <p class="muted">Presets sind gespeicherte Aufforderungen für die KI-Generieren-Funktion. Damit kannst du wiederkehrende Aufgaben mit einem Klick auslösen.</p>
