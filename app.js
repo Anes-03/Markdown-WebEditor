@@ -39,6 +39,9 @@
   const editViewBtn = document.getElementById('editViewBtn');
   const splitViewBtn = document.getElementById('splitViewBtn');
   const readerViewBtn = document.getElementById('readerViewBtn');
+  const readAloudBtn = document.getElementById('readAloudBtn');
+  const readAloudIcon = readAloudBtn?.querySelector('iconify-icon') || null;
+  const readAloudLabel = readAloudBtn?.querySelector('.btn-label') || null;
   const workspace = document.getElementById('workspace');
 
   const themeSelect = null; // removed select dropdown
@@ -267,6 +270,153 @@
   }
 
   let turndownService = null;
+
+  const readAloudBaseTitle = readAloudBtn?.getAttribute('title') || 'Reader-Inhalt vorlesen';
+  const speechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+  let speechUtterance = null;
+  let speechActive = false;
+  let speechVoices = [];
+
+  function refreshSpeechVoices() {
+    if (!speechSupported) return;
+    try {
+      speechVoices = window.speechSynthesis.getVoices();
+    } catch {
+      speechVoices = [];
+    }
+  }
+
+  function getPreferredSpeechLang() {
+    const docLang = (document.documentElement?.lang || '').trim();
+    if (docLang) return docLang;
+    const navLang = (navigator.language || navigator.userLanguage || '').trim?.() || '';
+    return navLang || 'de-DE';
+  }
+
+  function findVoiceForLang(lang) {
+    if (!speechVoices.length) return null;
+    if (lang) {
+      const normalized = lang.toLowerCase();
+      const exact = speechVoices.find(v => (v.lang || '').toLowerCase() === normalized);
+      if (exact) return exact;
+      const base = normalized.split('-')[0];
+      if (base) {
+        const partial = speechVoices.find(v => (v.lang || '').toLowerCase().startsWith(base));
+        if (partial) return partial;
+      }
+    }
+    return speechVoices[0] || null;
+  }
+
+  function setReadAloudActive(active) {
+    if (!readAloudBtn) return;
+    const isActive = !!active;
+    readAloudBtn.classList.toggle('active', isActive);
+    readAloudBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    const title = isActive ? 'Vorlesen stoppen' : readAloudBaseTitle;
+    readAloudBtn.title = title;
+    readAloudBtn.setAttribute('aria-label', title);
+    if (readAloudLabel) readAloudLabel.textContent = isActive ? 'Stopp' : 'Vorlesen';
+    if (readAloudIcon) readAloudIcon.setAttribute('icon', isActive ? 'lucide:square' : 'lucide:volume-2');
+  }
+
+  function finishSpeech(message) {
+    speechActive = false;
+    speechUtterance = null;
+    setReadAloudActive(false);
+    if (message) setStatus(message);
+  }
+
+  function stopSpeech(message) {
+    if (!speechSupported) return;
+    const hadSpeech = speechActive || !!speechUtterance || window.speechSynthesis.speaking || window.speechSynthesis.pending;
+    if (!hadSpeech) return;
+    const current = speechUtterance;
+    speechUtterance = null;
+    speechActive = false;
+    try {
+      if (current) {
+        current.onend = null;
+        current.onerror = null;
+      }
+    } catch {}
+    setReadAloudActive(false);
+    try { window.speechSynthesis.cancel(); } catch {}
+    if (message) setStatus(message);
+  }
+
+  function speakPreview() {
+    if (!speechSupported) return;
+    const text = (preview?.innerText || '').replace(/\s+/g, ' ').trim();
+    if (!text) {
+      setStatus('Kein Inhalt zum Vorlesen');
+      return;
+    }
+    refreshSpeechVoices();
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    const lang = getPreferredSpeechLang();
+    if (lang) utterance.lang = lang;
+    const voice = findVoiceForLang(lang);
+    if (voice) utterance.voice = voice;
+    utterance.onend = () => {
+      if (speechUtterance !== utterance) return;
+      finishSpeech('Vorlesen beendet');
+    };
+    utterance.onerror = () => {
+      if (speechUtterance !== utterance) return;
+      finishSpeech('Vorlesen fehlgeschlagen');
+    };
+    try { window.speechSynthesis.cancel(); } catch {}
+    try {
+      speechUtterance = utterance;
+      speechActive = true;
+      setReadAloudActive(true);
+      setStatus('Vorlesen läuft…');
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      finishSpeech('Vorlesen fehlgeschlagen');
+    }
+  }
+
+  function updateReadAloudAvailability() {
+    if (!readAloudBtn) return;
+    if (!speechSupported) {
+      readAloudBtn.disabled = true;
+      readAloudBtn.setAttribute('aria-disabled', 'true');
+      return;
+    }
+    const hasText = (preview?.innerText || '').trim().length > 0;
+    readAloudBtn.disabled = !hasText;
+    readAloudBtn.setAttribute('aria-disabled', hasText ? 'false' : 'true');
+  }
+
+  if (speechSupported) {
+    refreshSpeechVoices();
+    const synth = window.speechSynthesis;
+    if (synth) {
+      if (typeof synth.addEventListener === 'function') {
+        synth.addEventListener('voiceschanged', refreshSpeechVoices);
+      } else if ('onvoiceschanged' in synth) {
+        synth.onvoiceschanged = refreshSpeechVoices;
+      }
+    }
+  } else if (readAloudBtn) {
+    readAloudBtn.disabled = true;
+    readAloudBtn.setAttribute('aria-disabled', 'true');
+    readAloudBtn.title = 'Vorlesen wird von diesem Browser nicht unterstützt';
+    readAloudBtn.setAttribute('aria-label', 'Vorlesen wird von diesem Browser nicht unterstützt');
+  }
+
+  readAloudBtn?.addEventListener('click', () => {
+    if (!speechSupported) return;
+    if (speechActive || window.speechSynthesis.speaking) {
+      stopSpeech('Vorlesen gestoppt');
+    } else {
+      speakPreview();
+    }
+  });
+
+  updateReadAloudAvailability();
 
   function getTurndownService() {
     if (!turndownService && window.TurndownService) {
@@ -1561,6 +1711,7 @@ ${trimmed}
     preview.innerHTML = safe;
     // re-highlight just in case
     preview.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
+    updateReadAloudAvailability();
   }
 
   // Adjust dynamic layout vars (header/toolbar/status/chat width)
@@ -2061,6 +2212,9 @@ ${trimmed}
     if (mode === 'reader') workspace.classList.add('layout-reader');
     try { localStorage.setItem('md-view', mode); } catch {}
     document.body.classList.toggle('reader-mode', mode === 'reader');
+    if (mode !== 'reader') {
+      stopSpeech();
+    }
     // Toolbar height may change; readjust
     adjustLayout();
     updatePreview();
@@ -4513,6 +4667,7 @@ try {
   // Before unload guard
   window.addEventListener('beforeunload', (e) => {
     if (dirty) { e.preventDefault(); e.returnValue = ''; }
+    stopSpeech();
   });
 
   // Init theme
