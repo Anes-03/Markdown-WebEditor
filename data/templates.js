@@ -289,21 +289,21 @@ _Veröffentlicht am {{date}}_
 - Authentifizierung
 
 ## Endpunkte
-### `{{endpoint}}`
+### \`{{endpoint}}\`
 - Methode: GET/POST
 - Beschreibung: Zweck des Endpunkts
 - Parameter:
-  - `name` (Typ) – Bedeutung
-  - `limit` (optional) – Standardwert
+  - \`name\` (Typ) – Bedeutung
+  - \`limit\` (optional) – Standardwert
 - Antwort:
   - Status 200 – Schema oder Beispiel
   - Fehlercodes – Hinweise
 
 ## Beispiele
-```bash
+\`\`\`bash
 curl -X GET "https://api.example.com/{{endpoint}}" \
   -H "Authorization: Bearer <token>"
-```
+\`\`\`
 
 ## Hinweise
 - Rate Limits
