@@ -155,28 +155,38 @@
   const onboardingSteps = [
     {
       title: 'Willkommen im Markdown WebEditor',
-      description: 'In drei kurzen Schritten zeigen wir dir die wichtigsten Werkzeuge.',
+      description: 'Dein schneller Arbeitsbereich für Markdown, Notizen und Dokumentation.',
       highlights: [
-        'Nutze die Formatierungsleiste, um Überschriften, Listen oder Tabellen mit einem Klick einzufügen.',
-        'Wechsle zwischen Editor-, Split- und Reader-Ansicht für den passenden Fokus beim Schreiben.',
+        'Nutze die Formatierungsleiste für Überschriften, Tabellen, Aufgabenlisten und mehr.',
+        'Schalte per Ansichtsschalter zwischen Editor, Split und Reader oder aktiviere „Vorlesen“ für den Reader.',
+        'Wechsle Themes über die Sonne/Mond-Schaltfläche und passe Details im Einstellungsmenü an.',
       ],
     },
     {
-      title: 'Dateien & Inhalte organisieren',
-      description: 'Arbeite bequem mit bestehenden Dokumenten und Medien.',
+      title: 'Dateien, Vorlagen & Versionen',
+      description: 'Organisiere Dokumente und halte zentrale Ressourcen griffbereit.',
       highlights: [
-        'Öffne, speichere oder importiere Markdown-, PDF- und Word-Dateien direkt über die Toolbar.',
-        'Ziehe Markdown-Dateien oder Bilder einfach ins Fenster – sie werden automatisch eingefügt.',
-        'Autosave bewahrt den letzten Stand lokal im Browser, falls du doch einmal vergisst zu speichern.',
+        'Öffne, speichere oder importiere Markdown-, PDF- und Word-Dateien – Autosave sichert deinen Stand lokal.',
+        'Starte mit dem Vorlagen-Button in der Toolbar schneller durch, inklusive Suche, Kategorien und Favoriten.',
+        'Lege Snapshots im Versionspanel an, vergleiche Diffs und stelle ältere Stände bei Bedarf wieder her.',
       ],
     },
     {
-      title: 'Themes, KI-Helfer & Einstellungen',
-      description: 'Passe den Editor an deinen Workflow an.',
+      title: 'KI-Werkzeuge & Chat',
+      description: 'Hol dir Unterstützung beim Schreiben, Kürzen oder Strukturieren.',
       highlights: [
-        'Schalte per Sonne/Mond-Symbol durch die verfügbaren Themes für Editor und Syntax-Highlighting.',
-        'Nutze KI-Generierung oder den Chat für Ideen, Umformulierungen und Zusammenfassungen.',
-        'Öffne das Einstellungsmenü, um Standardansichten, Voreinstellungen und Anbieter zu konfigurieren.',
+        'Der Button „Text Generieren“ öffnet den Inline-Generator mit Presets und optionaler Auswahl-Ersetzung.',
+        'Blende den Chat ein, nutze Vorschlagsprompts und teile bei Bedarf den Editor-Kontext für bessere Antworten.',
+        'Verwalte KI-Anbieter, Modelle und API-Keys zentral im Einstellungsbereich.',
+      ],
+    },
+    {
+      title: 'Website & Lernmodus',
+      description: 'Teile Ergebnisse direkt als Website oder Lernmaterial.',
+      highlights: [
+        'Wähle Export → Website, um eine responsive HTML-Seite zu generieren und direkt zu kopieren oder herunterzuladen.',
+        'Öffne das Lernen-Menü für automatisch erzeugte Karteikarten sowie Quizze mit Multiple Choice oder Freitext.',
+        'Nutze die Vorschau-Modalfenster, um Ergebnisse erneut zu generieren, zu kopieren oder abzuspeichern.',
       ],
     },
   ];
@@ -300,6 +310,7 @@
   const settingsConfigImportBtn = document.getElementById('settingsConfigImportBtn');
   const settingsConfigImportFile = document.getElementById('settingsConfigImportFile');
   const settingsConfigResetBtn = document.getElementById('settingsConfigResetBtn');
+  const settingsOnboardingRestartBtn = document.getElementById('settingsOnboardingRestartBtn');
 
   const templatesToggleBtn = document.getElementById('templatesToggleBtn');
   const templatesPanel = document.getElementById('templatesPanel');
@@ -5284,6 +5295,16 @@ try {
     const confirmed = window.confirm('Alle Einstellungen wirklich auf die Standardwerte zurücksetzen?');
     if (!confirmed) return;
     resetSettingsConfigToDefaults();
+  });
+
+  settingsOnboardingRestartBtn?.addEventListener('click', () => {
+    if (!onboardingOverlay) return;
+    closeSettings();
+    try { localStorage.removeItem(ONBOARDING_STORAGE_KEY); } catch {}
+    onboardingAcknowledged = false;
+    onboardingIndex = 0;
+    renderOnboardingStep();
+    openOnboarding();
   });
 
   function readStoredValue(key) {
