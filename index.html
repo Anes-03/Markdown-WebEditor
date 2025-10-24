@@ -59,6 +59,39 @@
             <button type="button" class="has-icon" data-export="website" role="menuitem"><iconify-icon aria-hidden="true" icon="lucide:globe"></iconify-icon><span class="btn-label">Website erstellen</span></button>
           </div>
         </div>
+        <div class="menu-group">
+          <button
+            id="learningBtn"
+            type="button"
+            class="has-icon"
+            title="Lerninhalte generieren"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            <iconify-icon aria-hidden="true" icon="mdi:school-outline"></iconify-icon>
+            <span class="btn-label">Lernen</span>
+          </button>
+          <div
+            id="learningMenu"
+            class="toolbar-menu hidden"
+            role="menu"
+            aria-label="Lerninhalte generieren"
+            aria-hidden="true"
+          >
+            <button type="button" class="has-icon" data-learning="flashcards" role="menuitem">
+              <iconify-icon aria-hidden="true" icon="mdi:cards-outline"></iconify-icon>
+              <span class="btn-label">Karteikarten</span>
+            </button>
+            <button type="button" class="has-icon" data-learning="quiz-mc" role="menuitem">
+              <iconify-icon aria-hidden="true" icon="mdi:format-list-bulleted"></iconify-icon>
+              <span class="btn-label">Quiz (Multiple Choice)</span>
+            </button>
+            <button type="button" class="has-icon" data-learning="quiz-free" role="menuitem">
+              <iconify-icon aria-hidden="true" icon="mdi:pencil-outline"></iconify-icon>
+              <span class="btn-label">Quiz (Freitext)</span>
+            </button>
+          </div>
+        </div>
         <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
         <input type="file" id="hiddenImage" accept="image/*" hidden />
         <input type="file" id="hiddenPdf" accept="application/pdf" hidden />
@@ -736,6 +769,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
     </aside>
 
     <div id="websiteOverlay" class="website-overlay hidden" aria-hidden="true"></div>
+    <div id="learningOverlay" class="website-overlay hidden" aria-hidden="true"></div>
     <aside
       id="websiteModal"
       class="website-modal hidden"
@@ -780,6 +814,66 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             <span class="btn-label">Neu generieren</span>
           </button>
           <button id="websiteCloseFooterBtn" class="has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="lucide:check"></iconify-icon>
+            <span class="btn-label">Fertig</span>
+          </button>
+        </div>
+      </footer>
+    </aside>
+    <aside
+      id="learningModal"
+      class="website-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="learningModalTitle"
+      aria-hidden="true"
+      tabindex="-1"
+    >
+      <header class="chat-header">
+        <strong id="learningModalTitle">Lernmodus-Vorschau</strong>
+        <span id="learningModeLabel" class="chat-model-badge" hidden></span>
+        <div class="spacer"></div>
+        <button
+          id="learningFullscreenBtn"
+          class="icon-only"
+          title="Vorschau maximieren"
+          aria-label="Vorschau maximieren"
+          aria-pressed="false"
+        >
+          <iconify-icon aria-hidden="true" icon="lucide:maximize-2"></iconify-icon>
+        </button>
+        <button id="learningCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen">
+          <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+        </button>
+      </header>
+      <div class="website-modal-body">
+        <p id="learningStatus" class="website-status" aria-live="polite">Die KI baut eine interaktive Lernansicht…</p>
+        <div class="website-preview-wrapper">
+          <iframe
+            id="learningPreviewFrame"
+            title="Vorschau der Lerninhalte"
+            sandbox="allow-same-origin allow-scripts"
+          ></iframe>
+        </div>
+      </div>
+      <footer class="website-modal-footer">
+        <div class="website-modal-footer-group">
+          <button id="learningCopyHtmlBtn" class="secondary has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="lucide:copy"></iconify-icon>
+            <span class="btn-label">Code kopieren</span>
+          </button>
+          <button id="learningDownloadBtn" class="secondary has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="lucide:download"></iconify-icon>
+            <span class="btn-label">Als Datei herunterladen</span>
+          </button>
+        </div>
+        <div class="spacer"></div>
+        <div class="website-modal-footer-group">
+          <button id="learningRegenerateBtn" class="secondary has-icon" type="button">
+            <iconify-icon aria-hidden="true" icon="mdi:refresh"></iconify-icon>
+            <span class="btn-label">Neu generieren</span>
+          </button>
+          <button id="learningCloseFooterBtn" class="has-icon" type="button">
             <iconify-icon aria-hidden="true" icon="lucide:check"></iconify-icon>
             <span class="btn-label">Fertig</span>
           </button>

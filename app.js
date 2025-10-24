@@ -16,6 +16,8 @@
   const hiddenDocx = document.getElementById('hiddenDocx');
   const importBtn = document.getElementById('importBtn');
   const importMenu = document.getElementById('importMenu');
+  const learningBtn = document.getElementById('learningBtn');
+  const learningMenu = document.getElementById('learningMenu');
   const hljsThemeLink = document.getElementById('hljs-theme');
   /** @type {HTMLElement | null} */
   const updatesPanel = document.getElementById('updatesPanel');
@@ -93,6 +95,62 @@
     { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
   ];
   const BUILT_IN_PRESET_NAMES = new Set(BUILT_IN_PRESETS.map(p => p.name.trim()));
+  const LEARNING_MODES = {
+    'flashcards': {
+      key: 'flashcards',
+      label: 'Karteikarten',
+      modalTitle: 'Interaktive Karteikarten',
+      badge: 'Karteikarten',
+      statusGenerating: 'Die KI erstellt interaktive Karteikarten…',
+      statusReady: 'Fertig! Die Vorschau zeigt eine interaktive Karteikarten-Übung.',
+      statusReadyFallback: 'Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.',
+      fallbackTitle: 'Interaktive Karteikarten',
+      loadingMessage: 'Die KI generiert gerade interaktive Karteikarten. Bitte kurz warten.',
+      downloadBase: 'Interaktive Karteikarten',
+      buildUserInstruction(hasContent, markdown) {
+        const base = hasContent
+          ? `Analysiere den folgenden Markdown-Inhalt und extrahiere die wichtigsten Fakten, Definitionen oder Konzepte. Forme daraus 8–12 prägnante Karteikarten.\n\n[MARKDOWN]\n${markdown}`
+          : 'Erstelle eine kleine Sammlung von 8–12 deutschsprachigen Karteikarten zu einem frei wählbaren Lernthema.';
+        return `${base}\n\nAnforderungen:\n- Gestalte eine bildschirmfüllende Lernoberfläche mit einer festen Kopfzeile, Fortschrittsanzeige und einem zentralen Bereich für die aktuelle Karte.\n- Zeige immer nur eine Karte gleichzeitig. Biete Buttons zum Umdrehen sowie Schaltflächen „Gewusst“ und „Nochmal“, die den Lernfortschritt steuern.\n- Hinterlege alle Karten als Array von Objekten in einem Vanilla-JavaScript-Block, mische die Reihenfolge beim Start und nach einem Reset, und aktualisiere Fortschritt/Zähler dynamisch.\n- Animierte Flip-Effekte dürfen per CSS umgesetzt werden, müssen aber zugänglich bleiben (Focus-States, aria-Attribute, verständliche Texte).\n- Sorge dafür, dass Text auf Vorder- und Rückseite beim Flippen lesbar bleibt (z. B. durch backface-visibility: hidden und transform-style: preserve-3d). Vermeide Animationen, die Text spiegeln oder auf den Kopf stellen; nutze stattdessen seitliches Ein- und Ausblenden oder dezente 3D-Bewegungen mit unveränderter Leserichtung.\n- Blende die Rückseite standardmäßig aus und zeige sie erst nach Interaktion. Auf der Rückseite dürfen Definition, Beispiele und Merkhilfen stehen.\n- Baue einen sichtbaren Fortschrittsbalken sowie einen Score (z. B. „3 von 10 gelernt“) ein. Ergänze einen Reset-Button, der alles zurücksetzt.\n- Speichere für jede Karte, ob sie als „Gewusst“ oder „Nochmal“ markiert wurde, und organisiere mehrere Durchgänge: Nach einer Runde sollen automatisch nur die „Nochmal“-Karten in einer neuen Runde auftauchen, bis alle Karten als „Gewusst“ markiert sind. Zeige nach jeder Runde eine Zusammenfassung und ermögliche den direkten Start der nächsten Wiederholungsrunde.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne externe Ressourcen.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
+      },
+    },
+    'quiz-mc': {
+      key: 'quiz-mc',
+      label: 'Quiz (Multiple Choice)',
+      modalTitle: 'Interaktives Quiz (Multiple Choice)',
+      badge: 'Multiple Choice',
+      statusGenerating: 'Die KI komponiert ein interaktives Multiple-Choice-Quiz…',
+      statusReady: 'Fertig! Die Vorschau zeigt ein interaktives Multiple-Choice-Quiz.',
+      statusReadyFallback: 'Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.',
+      fallbackTitle: 'Interaktives Multiple-Choice-Quiz',
+      loadingMessage: 'Die KI generiert gerade ein interaktives Multiple-Choice-Quiz. Bitte kurz warten.',
+      downloadBase: 'Interaktives Multiple-Choice-Quiz',
+      buildUserInstruction(hasContent, markdown) {
+        const base = hasContent
+          ? `Analysiere den folgenden Markdown-Inhalt und entwickle daraus 5–8 anspruchsvolle Multiple-Choice-Fragen. Jede Frage soll das Verständnis zentraler Inhalte überprüfen.\n\n[MARKDOWN]\n${markdown}`
+          : 'Erstelle ein deutschsprachiges Multiple-Choice-Quiz mit 5–8 Fragen zu einem allgemeinbildenden Lernthema deiner Wahl.';
+        return `${base}\n\nAnforderungen:\n- Präsentiere das Quiz als kleine App mit Starttext, Fortschrittsbalken und einer Ergebnisbox. Jede Frage soll in einem eigenen <article class="quiz-question"> stehen.\n- Platziere die Antwortoptionen in einem <form> mit <fieldset> und Radio-Buttons (<input type="radio">) samt klar beschrifteten <label>-Elementen.\n- Implementiere mit Vanilla-JavaScript eine Auswertelogik: Nach Klick auf „Antwort prüfen“ erscheint Feedback zur gewählten Option, falsche Antworten werden markiert und die richtige Lösung erklärt.\n- Aktualisiere nach jeder Frage den Fortschritt (z. B. „Frage 3 von 6“) und zähle die richtigen Antworten live mit.\n- Biete einen Button „Weiter“ zur nächsten Frage sowie einen Abschlussbildschirm mit Gesamtpunktzahl, Auswertungstext und Restart-Möglichkeit.\n- Sorge für zugängliche Tastatursteuerung und lesbare Fokuszustände. Vermeide externe Ressourcen.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne Abhängigkeiten.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
+      },
+    },
+    'quiz-free': {
+      key: 'quiz-free',
+      label: 'Quiz (Freitext)',
+      modalTitle: 'Interaktives Quiz (Freitext)',
+      badge: 'Freitext-Quiz',
+      statusGenerating: 'Die KI entwickelt ein interaktives Freitext-Quiz…',
+      statusReady: 'Fertig! Die Vorschau zeigt ein interaktives Freitext-Quiz.',
+      statusReadyFallback: 'Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.',
+      fallbackTitle: 'Interaktives Freitext-Quiz',
+      loadingMessage: 'Die KI generiert gerade ein interaktives Freitext-Quiz. Bitte kurz warten.',
+      downloadBase: 'Interaktives Freitext-Quiz',
+      buildUserInstruction(hasContent, markdown) {
+        const base = hasContent
+          ? `Analysiere den folgenden Markdown-Inhalt und formuliere daraus 5–7 offene Fragen, bei denen Lernende freie Antworten geben. Jede Frage soll Verständnis, Transfer oder Reflexion fördern.\n\n[MARKDOWN]\n${markdown}`
+          : 'Erstelle ein deutschsprachiges Quiz mit 5–7 offenen Fragen zu einem Lerngebiet deiner Wahl, das zu reflektierenden Antworten anregt.';
+        return `${base}\n\nAnforderungen:\n- Gestalte die Oberfläche als geführte Lernsession mit Einleitung, Frage-Navigation und Abschlussreflexion. Jede Frage gehört in ein eigenes <article class="quiz-question">.\n- Platziere pro Frage ein großzügiges <textarea> mit Zeichenzähler sowie Kontroll-Buttons „Notiz speichern“ und „Lösung ansehen“.\n- Nutze Vanilla-JavaScript, um Nutzereingaben temporär zu speichern, den Zeichenzähler live zu aktualisieren und pro Frage ein Selbst-Check-Rating (z. B. 1–5 Sterne) zu ermöglichen.\n- Verstecke Musterlösungen standardmäßig und blende sie erst nach Klick auf „Lösung ansehen“ ein. Ergänze Hinweise, Bewertungskriterien und markierte Schlüsselbegriffe.\n- Führe einen Fortschrittsstatus über alle Fragen hinweg und zeige am Ende eine Zusammenfassung mit den eigenen Notizen und Selbstbewertungen (ohne Server, rein clientseitig).\n- Achte auf zugängliche Labels, Tastaturbedienbarkeit und klare Fokuszustände. Verzichte auf externe Ressourcen.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne Abhängigkeiten.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
+      },
+    },
+  };
   const ONBOARDING_STORAGE_KEY = 'md-onboarding-v1';
   const onboardingSteps = [
     {
@@ -149,6 +207,18 @@
   const websiteDownloadBtn = document.getElementById('websiteDownloadBtn');
   const websitePreviewFrame = document.getElementById('websitePreviewFrame');
   const websiteStatus = document.getElementById('websiteStatus');
+  const learningOverlay = document.getElementById('learningOverlay');
+  const learningModal = document.getElementById('learningModal');
+  const learningCloseBtn = document.getElementById('learningCloseBtn');
+  const learningCloseFooterBtn = document.getElementById('learningCloseFooterBtn');
+  const learningRegenerateBtn = document.getElementById('learningRegenerateBtn');
+  const learningCopyHtmlBtn = document.getElementById('learningCopyHtmlBtn');
+  const learningDownloadBtn = document.getElementById('learningDownloadBtn');
+  const learningPreviewFrame = document.getElementById('learningPreviewFrame');
+  const learningStatus = document.getElementById('learningStatus');
+  const learningModalTitle = document.getElementById('learningModalTitle');
+  const learningModeLabel = document.getElementById('learningModeLabel');
+  const learningFullscreenBtn = document.getElementById('learningFullscreenBtn');
   // Provider + Gemini/Mistral elements
   const aiProviderSelect = document.getElementById('aiProvider');
   const openaiSettingsGroup = document.getElementById('openaiSettingsGroup');
@@ -255,6 +325,7 @@
   let allowEditorContext = true;
   let importMenuVisible = false;
   let exportMenuVisible = false;
+  let learningMenuVisible = false;
   let updatesLoading = false;
   let updatesLoadedOnce = false;
   let websiteModalOpen = false;
@@ -263,6 +334,16 @@
   let websiteLatestDocument = '';
   let websiteIsBusy = false;
   let websitePreviewBlobUrl = '';
+  let learningModalOpen = false;
+  let learningModalFullscreen = false;
+  let learningAbortController = null;
+  let learningLastFocus = null;
+  let learningPreviewBlobUrl = '';
+  let learningIsBusy = false;
+  /** @type {Map<string, string>} */
+  const learningDocuments = new Map();
+  /** @type {string | null} */
+  let learningMode = null;
   let templatesVisible = false;
   let currentTemplateCategory = 'all';
   let currentTemplateSearch = '';
@@ -499,6 +580,18 @@
 
   function closeExportMenu() {
     setExportMenuVisible(false);
+  }
+
+  function setLearningMenuVisible(visible) {
+    learningMenuVisible = !!visible;
+    if (!learningMenu || !learningBtn) return;
+    learningMenu.classList.toggle('hidden', !learningMenuVisible);
+    learningBtn.setAttribute('aria-expanded', learningMenuVisible ? 'true' : 'false');
+    learningMenu.setAttribute('aria-hidden', learningMenuVisible ? 'false' : 'true');
+  }
+
+  function closeLearningMenu() {
+    setLearningMenuVisible(false);
   }
 
   function hasSeenOnboarding() {
@@ -1006,17 +1099,19 @@
     }
   }
 
-  function websiteLoadingTemplate() {
+  function buildLoadingCardDocument({ pageTitle, headline, message }) {
+    const title = escapeHtml(pageTitle || headline || 'Inhalte werden erstellt…');
+    const heading = escapeHtml(headline || 'Inhalte werden erstellt…');
+    const body = escapeHtml(message || 'Bitte kurz warten.');
     return `<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Website wird erstellt…</title>
+  <title>${title}</title>
   <style>
     :root { color-scheme: light dark; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f7fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1f2933; }
-    .dark body { background: #0f172a; color: #e2e8f0; }
     .card { text-align: center; padding: 2rem 2.5rem; border-radius: 18px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.15); background: rgba(255,255,255,0.9); max-width: 360px; backdrop-filter: blur(6px); }
     h1 { margin: 0 0 0.75rem; font-size: 1.35rem; }
     p { margin: 0; line-height: 1.5; color: rgba(15, 23, 42, 0.8); }
@@ -1029,11 +1124,19 @@
 </head>
 <body>
   <div class="card">
-    <h1>Website wird erstellt…</h1>
-    <p>Die KI generiert gerade eine Vorschau. Bitte kurz warten.</p>
+    <h1>${heading}</h1>
+    <p>${body}</p>
   </div>
 </body>
 </html>`;
+  }
+
+  function websiteLoadingTemplate() {
+    return buildLoadingCardDocument({
+      pageTitle: 'Website wird erstellt…',
+      headline: 'Website wird erstellt…',
+      message: 'Die KI generiert gerade eine Vorschau. Bitte kurz warten.',
+    });
   }
 
   function ensureWebsiteDocument(content, fallbackTitle) {
@@ -1212,6 +1315,317 @@ ${trimmed}
     } catch (err) {
       console.error('Website-HTML konnte nicht heruntergeladen werden', err);
       updateWebsiteStatus(`Download fehlgeschlagen: ${err?.message || err}`, true);
+    }
+  }
+
+  function getLearningModeConfig(mode) {
+    if (!mode) return null;
+    return LEARNING_MODES?.[mode] || null;
+  }
+
+  function getLearningDocument() {
+    if (!learningMode) return '';
+    return learningDocuments.get(learningMode) || '';
+  }
+
+  function setLearningDocument(doc) {
+    if (!learningMode) return;
+    const content = typeof doc === 'string' ? doc : '';
+    if (content) {
+      learningDocuments.set(learningMode, content);
+    } else {
+      learningDocuments.delete(learningMode);
+    }
+    updateLearningActionButtons();
+  }
+
+  function updateLearningActionButtons() {
+    const doc = getLearningDocument();
+    const disable = learningIsBusy || !doc;
+    if (learningCopyHtmlBtn) learningCopyHtmlBtn.disabled = disable;
+    if (learningDownloadBtn) learningDownloadBtn.disabled = disable;
+  }
+
+  function updateLearningStatus(message, isError) {
+    if (!learningStatus) return;
+    learningStatus.textContent = message || '';
+    learningStatus.classList.toggle('error', !!isError);
+  }
+
+  function setLearningBusy(busy) {
+    learningIsBusy = !!busy;
+    if (learningModal) learningModal.setAttribute('aria-busy', busy ? 'true' : 'false');
+    if (learningRegenerateBtn) learningRegenerateBtn.disabled = !!busy;
+    updateLearningActionButtons();
+  }
+
+  function setLearningModalVisible(visible) {
+    learningModalOpen = !!visible;
+    if (learningModal) {
+      learningModal.classList.toggle('hidden', !visible);
+      learningModal.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+    if (learningOverlay) {
+      learningOverlay.classList.toggle('hidden', !visible);
+      learningOverlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+  }
+
+  function setLearningFullscreen(fullscreen) {
+    const active = !!fullscreen;
+    learningModalFullscreen = active;
+    if (learningModal) {
+      learningModal.classList.toggle('is-fullscreen', active);
+    }
+    if (learningOverlay) {
+      learningOverlay.classList.toggle('is-light', active);
+    }
+    if (learningFullscreenBtn) {
+      learningFullscreenBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      const label = active ? 'Vorschau verkleinern' : 'Vorschau maximieren';
+      learningFullscreenBtn.setAttribute('title', label);
+      learningFullscreenBtn.setAttribute('aria-label', label);
+      const icon = learningFullscreenBtn.querySelector('iconify-icon');
+      if (icon) {
+        icon.setAttribute('icon', active ? 'lucide:minimize-2' : 'lucide:maximize-2');
+      }
+    }
+  }
+
+  function revokeLearningPreviewBlob() {
+    if (!learningPreviewBlobUrl) return;
+    try { URL.revokeObjectURL(learningPreviewBlobUrl); } catch {}
+    learningPreviewBlobUrl = '';
+  }
+
+  function applyLearningPreviewDocument(doc) {
+    if (!learningPreviewFrame) return { applied: false, fallback: false };
+    revokeLearningPreviewBlob();
+    try {
+      learningPreviewFrame.srcdoc = doc || '<!DOCTYPE html><html><body></body></html>';
+      learningPreviewFrame.removeAttribute('src');
+      return { applied: true, fallback: false };
+    } catch (err) {
+      console.warn('iframe.srcdoc wird nicht unterstützt, weiche auf Blob-URL aus.', err);
+    }
+    try {
+      const blob = new Blob([doc || ''], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      learningPreviewFrame.removeAttribute('srcdoc');
+      learningPreviewFrame.src = url;
+      learningPreviewBlobUrl = url;
+      return { applied: true, fallback: true };
+    } catch (err) {
+      console.error('Lernvorschau konnte nicht geladen werden', err);
+      learningPreviewFrame.removeAttribute('srcdoc');
+      learningPreviewFrame.setAttribute('src', 'about:blank');
+      return { applied: false, fallback: false };
+    }
+  }
+
+  function learningLoadingTemplate(config) {
+    const label = config?.label || 'Lerninhalte';
+    const message = config?.loadingMessage || 'Die KI bereitet interaktive Lerninhalte vor. Bitte kurz warten.';
+    const headline = `${label} werden erstellt…`;
+    return buildLoadingCardDocument({
+      pageTitle: headline,
+      headline,
+      message,
+    });
+  }
+
+  function openLearningModal(mode) {
+    const config = getLearningModeConfig(mode);
+    if (!config || !learningModal || !learningOverlay) return;
+    learningMode = mode;
+    learningLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (learningModalTitle) learningModalTitle.textContent = config.modalTitle || 'Lernmodus-Vorschau';
+    if (learningModeLabel) {
+      const badge = config.badge || config.label || '';
+      learningModeLabel.textContent = badge;
+      if (badge) learningModeLabel.removeAttribute('hidden');
+      else learningModeLabel.setAttribute('hidden', '');
+    }
+    setLearningFullscreen(false);
+    setLearningModalVisible(true);
+    setLearningBusy(false);
+    const cached = getLearningDocument();
+    if (cached) {
+      try { applyLearningPreviewDocument(cached); } catch (err) { console.error('Lerninhalte konnten nicht erneut geladen werden', err); }
+      updateLearningStatus(config.statusCached || 'Die zuletzt generierte Version wird angezeigt. Nutze „Neu generieren“, um eine aktualisierte Version zu erhalten.', false);
+      updateLearningActionButtons();
+    } else {
+      setLearningDocument('');
+      updateLearningStatus(config.statusGenerating || 'Die KI baut eine interaktive Lernansicht…', false);
+      applyLearningPreviewDocument(learningLoadingTemplate(config));
+      generateLearningPreview();
+    }
+    const focusModal = () => {
+      try { learningModal.focus({ preventScroll: true }); } catch {}
+    };
+    if (typeof queueMicrotask === 'function') queueMicrotask(focusModal);
+    else setTimeout(focusModal, 0);
+  }
+
+  function closeLearningModal() {
+    if (!learningModalOpen) return;
+    if (learningAbortController) {
+      try { learningAbortController.abort(); } catch {}
+      learningAbortController = null;
+    }
+    setLearningBusy(false);
+    setLearningFullscreen(false);
+    setLearningModalVisible(false);
+    revokeLearningPreviewBlob();
+    const lastFocus = learningLastFocus;
+    learningLastFocus = null;
+    if (lastFocus && typeof lastFocus.focus === 'function') {
+      setTimeout(() => {
+        try { lastFocus.focus({ preventScroll: true }); } catch {}
+      }, 50);
+    }
+  }
+
+  async function generateLearningPreview() {
+    if (!learningModalOpen || !learningMode) return;
+    const config = getLearningModeConfig(learningMode);
+    if (!config) return;
+    const markdown = editor?.value || '';
+    const controller = new AbortController();
+    if (learningAbortController) {
+      try { learningAbortController.abort(); } catch {}
+    }
+    learningAbortController = controller;
+    setLearningDocument('');
+    setLearningBusy(true);
+    updateLearningStatus(config.statusGenerating || 'Die KI baut eine interaktive Lernansicht…', false);
+    applyLearningPreviewDocument(learningLoadingTemplate(config));
+    try {
+      const html = await requestLearningHtml(learningMode, markdown, controller.signal);
+      if (controller.signal.aborted) return;
+      const fallbackTitle = config.fallbackTitle || `${config.label || 'Lerninhalte'}`;
+      const doc = ensureWebsiteDocument(html, fallbackTitle);
+      const applied = applyLearningPreviewDocument(doc);
+      if (applied.fallback) {
+        updateLearningStatus(config.statusReadyFallback || 'Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.', false);
+      } else {
+        updateLearningStatus(config.statusReady || 'Fertig! Die Vorschau zeigt die generierten Lerninhalte.', false);
+      }
+      setLearningDocument(doc);
+    } catch (err) {
+      if (controller.signal.aborted) {
+        updateLearningStatus('Die Generierung wurde abgebrochen.', true);
+      } else {
+        console.error('Lerninhalte konnten nicht generiert werden', err);
+        updateLearningStatus(`Fehler bei der KI-Generierung: ${err?.message || err}`, true);
+        const fallbackDoc = ensureWebsiteDocument('', config.fallbackTitle || `${config.label || 'Lerninhalte'}`);
+        applyLearningPreviewDocument(fallbackDoc);
+        setLearningDocument(fallbackDoc);
+      }
+    } finally {
+      if (learningAbortController === controller) {
+        learningAbortController = null;
+      }
+      setLearningBusy(false);
+    }
+  }
+
+  async function copyLearningHtmlToClipboard() {
+    const doc = getLearningDocument();
+    if (!doc) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(doc);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = doc;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        let ok = false;
+        try {
+          ok = document.execCommand('copy');
+        } finally {
+          textarea.remove();
+        }
+        if (!ok) throw new Error('Kopieren wird nicht unterstützt');
+      }
+      updateLearningStatus('HTML wurde in die Zwischenablage kopiert.', false);
+    } catch (err) {
+      console.error('Lern-HTML konnte nicht kopiert werden', err);
+      updateLearningStatus(`HTML konnte nicht kopiert werden: ${err?.message || err}`, true);
+    }
+  }
+
+  function downloadLearningHtmlFile() {
+    const doc = getLearningDocument();
+    if (!doc) return;
+    const config = getLearningModeConfig(learningMode);
+    try {
+      const baseName = currentFileName ? currentFileName.replace(/\.[^.]+$/, '') : (config?.downloadBase || config?.label || 'Lerninhalte');
+      const suffix = config?.badge || config?.label || learningMode || 'Lerninhalte';
+      const safeBase = toSafeFileName(`${baseName} ${suffix}`.trim()) || 'Lerninhalte';
+      const blob = new Blob([doc], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeBase}.html`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 0);
+      updateLearningStatus('Download gestartet.', false);
+    } catch (err) {
+      console.error('Lern-HTML konnte nicht heruntergeladen werden', err);
+      updateLearningStatus(`Download fehlgeschlagen: ${err?.message || err}`, true);
+    }
+  }
+
+  async function requestLearningHtml(mode, markdown, signal) {
+    const config = getLearningModeConfig(mode);
+    if (!config) throw new Error('Unbekannter Lernmodus');
+    const provider = getAiProvider();
+    const info = resolveCurrentProviderInfo();
+    const trimmed = (markdown || '').trim();
+    const hasContent = !!trimmed;
+    const baseInstruction = `Du bist eine erfahrene Lehrkraft und Frontend-Designerin. Erstelle eine vollständige, responsive HTML5-Einzelseite für den Lernmodus "${config.label}". Verwende semantische HTML-Strukturen, ein klares Layout, eingebettete <style>-Blöcke und bei Bedarf einen einzelnen <script>-Block mit Vanilla-JavaScript für Interaktivität. Verzichte auf externe Bibliotheken, entferne Platzhalter- oder tote Links und gib ausschließlich den fertigen HTML-Code zurück.`;
+    const userInstruction = typeof config.buildUserInstruction === 'function'
+      ? config.buildUserInstruction(hasContent, trimmed)
+      : '';
+    if (!userInstruction) throw new Error('Keine gültige Anweisung für den Lernmodus verfügbar');
+    const messages = [
+      { role: 'system', content: baseInstruction },
+      { role: 'user', content: userInstruction },
+    ];
+
+    switch (provider) {
+      case 'openai': {
+        const apiKey = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+        if (!apiKey) throw new Error('OpenAI API‑Key fehlt');
+        return await openAiCompatibleChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: false, signal });
+      }
+      case 'claude': {
+        const apiKey = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+        if (!apiKey) throw new Error('Claude API‑Key fehlt');
+        return await anthropicChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: false, signal });
+      }
+      case 'ollama':
+        return await ollamaChat({ base: info.base, model: info.model, messages, stream: false, signal });
+      case 'gemini': {
+        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+        return await geminiChat({ apiKey, model: info.model, messages, stream: false, signal });
+      }
+      case 'mistral':
+      default: {
+        const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+        if (!apiKey) throw new Error('Mistral API‑Key fehlt');
+        return await mistralChat({ apiKey, model: info.model, messages, stream: false, signal });
+      }
     }
   }
 
@@ -2787,6 +3201,10 @@ ${trimmed}
       const withinExport = exportMenu.contains(e.target) || exportBtn.contains(e.target);
       if (!withinExport) closeExportMenu();
     }
+    if (learningMenuVisible && learningMenu && learningBtn) {
+      const withinLearning = learningMenu.contains(e.target) || learningBtn.contains(e.target);
+      if (!withinLearning) closeLearningMenu();
+    }
   });
 
   versionsToggleBtn?.addEventListener('click', (e) => {
@@ -3365,8 +3783,73 @@ ${trimmed}
     closeExportMenu();
   });
 
+  if (learningBtn && learningMenu) {
+    learningBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (learningMenuVisible) {
+        closeLearningMenu();
+      } else {
+        closeImportMenu();
+        closeExportMenu();
+        setLearningMenuVisible(true);
+      }
+    });
+
+    learningBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        closeImportMenu();
+        closeExportMenu();
+        setLearningMenuVisible(true);
+        const firstItem = learningMenu.querySelector('button[data-learning]');
+        firstItem?.focus({ preventScroll: true });
+      } else if (e.key === 'Escape' && learningMenuVisible) {
+        e.preventDefault();
+        closeLearningMenu();
+      }
+    });
+  }
+
+  learningMenu?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-learning]');
+    if (!btn) return;
+    e.preventDefault();
+    closeLearningMenu();
+    try {
+      openLearningModal(btn.dataset.learning || '');
+    } catch (err) {
+      console.error('Lernmodus konnte nicht geöffnet werden', err);
+    }
+  });
+
+  learningMenu?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeLearningMenu();
+      learningBtn?.focus();
+    }
+  });
+
+  learningMenu?.addEventListener('focusout', (e) => {
+    if (!learningMenuVisible) return;
+    const next = e.relatedTarget;
+    if (!next) return;
+    if (learningMenu.contains(next) || learningBtn?.contains(next)) return;
+    closeLearningMenu();
+  });
+
   websiteOverlay?.addEventListener('click', (e) => {
     if (e.target === websiteOverlay) closeWebsiteModal();
+  });
+
+  learningOverlay?.addEventListener('click', (e) => {
+    if (e.target !== learningOverlay) return;
+    if (learningModalFullscreen) {
+      setLearningFullscreen(false);
+    } else {
+      closeLearningModal();
+    }
   });
 
   websiteCloseBtn?.addEventListener('click', (e) => {
@@ -3374,9 +3857,28 @@ ${trimmed}
     closeWebsiteModal();
   });
 
+  learningCloseBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeLearningModal();
+  });
+
+  learningFullscreenBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const next = !learningModalFullscreen;
+    setLearningFullscreen(next);
+    if (next) {
+      try { learningModal?.focus({ preventScroll: true }); } catch {}
+    }
+  });
+
   websiteCloseFooterBtn?.addEventListener('click', (e) => {
     e.preventDefault();
     closeWebsiteModal();
+  });
+
+  learningCloseFooterBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeLearningModal();
   });
 
   websiteCopyHtmlBtn?.addEventListener('click', async (e) => {
@@ -3384,9 +3886,19 @@ ${trimmed}
     await copyWebsiteHtmlToClipboard();
   });
 
+  learningCopyHtmlBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await copyLearningHtmlToClipboard();
+  });
+
   websiteDownloadBtn?.addEventListener('click', (e) => {
     e.preventDefault();
     downloadWebsiteHtmlFile();
+  });
+
+  learningDownloadBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    downloadLearningHtmlFile();
   });
 
   websiteRegenerateBtn?.addEventListener('click', (e) => {
@@ -3394,10 +3906,26 @@ ${trimmed}
     generateWebsitePreview();
   });
 
+  learningRegenerateBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    generateLearningPreview();
+  });
+
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && websiteModalOpen) {
-      e.preventDefault();
-      closeWebsiteModal();
+    if (e.key === 'Escape') {
+      if (learningModalOpen) {
+        e.preventDefault();
+        if (learningModalFullscreen) {
+          setLearningFullscreen(false);
+        } else {
+          closeLearningModal();
+        }
+        return;
+      }
+      if (websiteModalOpen) {
+        e.preventDefault();
+        closeWebsiteModal();
+      }
     }
   });
 
