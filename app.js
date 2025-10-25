@@ -18,6 +18,8 @@
   const importMenu = document.getElementById('importMenu');
   const learningBtn = document.getElementById('learningBtn');
   const learningMenu = document.getElementById('learningMenu');
+  const headingMoreBtn = document.getElementById('headingMoreBtn');
+  const headingMenu = document.getElementById('headingMenu');
   const hljsThemeLink = document.getElementById('hljs-theme');
   /** @type {HTMLElement | null} */
   const updatesPanel = document.getElementById('updatesPanel');
@@ -337,6 +339,7 @@
   let importMenuVisible = false;
   let exportMenuVisible = false;
   let learningMenuVisible = false;
+  let headingMenuVisible = false;
   let updatesLoading = false;
   let updatesLoadedOnce = false;
   let websiteModalOpen = false;
@@ -1794,6 +1797,54 @@ ${trimmed}
     }
   }
 
+  function setHeadingMenuVisible(visible) {
+    headingMenuVisible = !!visible;
+    if (!headingMenu || !headingMoreBtn) return;
+    headingMenu.classList.toggle('hidden', !headingMenuVisible);
+    headingMoreBtn.setAttribute('aria-expanded', headingMenuVisible ? 'true' : 'false');
+    headingMenu.setAttribute('aria-hidden', headingMenuVisible ? 'false' : 'true');
+  }
+
+  function closeHeadingMenu() {
+    setHeadingMenuVisible(false);
+  }
+
+  if (headingMoreBtn && headingMenu) {
+    headingMoreBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setHeadingMenuVisible(!headingMenuVisible);
+    });
+
+    headingMoreBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHeadingMenuVisible(true);
+        const firstItem = headingMenu.querySelector('button[data-action]');
+        firstItem?.focus({ preventScroll: true });
+      } else if (e.key === 'Escape' && headingMenuVisible) {
+        e.preventDefault();
+        closeHeadingMenu();
+      }
+    });
+  }
+
+  headingMenu?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeHeadingMenu();
+      headingMoreBtn?.focus();
+    }
+  });
+
+  headingMenu?.addEventListener('focusout', (e) => {
+    if (!headingMenuVisible) return;
+    const next = e.relatedTarget;
+    if (!next) return;
+    if (headingMenu.contains(next) || headingMoreBtn?.contains(next)) return;
+    closeHeadingMenu();
+  });
+
   // Provider helpers
   const SUPPORTED_PROVIDERS = ['openai', 'claude', 'ollama', 'gemini', 'mistral'];
   function getAiProvider() {
@@ -3012,7 +3063,10 @@ ${trimmed}
       case 'redo': try { editor.focus(); document.execCommand('redo'); } catch {} break;
       case 'h1': heading(1); break;
       case 'h2': heading(2); break;
-      case 'h3': heading(3); break;
+      case 'h3': heading(3); closeHeadingMenu(); break;
+      case 'h4': heading(4); closeHeadingMenu(); break;
+      case 'h5': heading(5); closeHeadingMenu(); break;
+      case 'h6': heading(6); closeHeadingMenu(); break;
       case 'bold': toggleWrapSelection(editor, ['**', '**']); break;
       case 'italic': toggleWrapSelection(editor, ['*', '*']); break;
       case 'strike': toggleWrapSelection(editor, ['~~', '~~']); break;
@@ -3215,6 +3269,10 @@ ${trimmed}
     if (learningMenuVisible && learningMenu && learningBtn) {
       const withinLearning = learningMenu.contains(e.target) || learningBtn.contains(e.target);
       if (!withinLearning) closeLearningMenu();
+    }
+    if (headingMenuVisible && headingMenu && headingMoreBtn) {
+      const withinHeading = headingMenu.contains(e.target) || headingMoreBtn.contains(e.target);
+      if (!withinHeading) closeHeadingMenu();
     }
   });
 

@@ -146,6 +146,17 @@
       <button data-action="h1" class="has-icon" title="# Überschrift 1"><iconify-icon aria-hidden="true" icon="lucide:heading-1"></iconify-icon><span class="btn-label">H1</span></button>
       <button data-action="h2" class="has-icon" title="## Überschrift 2"><iconify-icon aria-hidden="true" icon="lucide:heading-2"></iconify-icon><span class="btn-label">H2</span></button>
       <button data-action="h3" class="has-icon" title="### Überschrift 3"><iconify-icon aria-hidden="true" icon="lucide:heading-3"></iconify-icon><span class="btn-label">H3</span></button>
+      <div class="heading-menu-group">
+        <button id="headingMoreBtn" type="button" class="has-icon" title="Weitere Überschriften" aria-haspopup="true" aria-expanded="false">
+          <iconify-icon aria-hidden="true" icon="lucide:chevron-down"></iconify-icon>
+          <span class="btn-label">Mehr</span>
+        </button>
+        <div id="headingMenu" class="toolbar-menu hidden" role="menu" aria-label="Weitere Überschriften" aria-hidden="true">
+          <button type="button" class="has-icon" data-action="h4" role="menuitem"><iconify-icon aria-hidden="true" icon="lucide:heading-4"></iconify-icon><span class="btn-label">H4</span></button>
+          <button type="button" class="has-icon" data-action="h5" role="menuitem"><iconify-icon aria-hidden="true" icon="lucide:heading-5"></iconify-icon><span class="btn-label">H5</span></button>
+          <button type="button" class="has-icon" data-action="h6" role="menuitem"><iconify-icon aria-hidden="true" icon="lucide:heading-6"></iconify-icon><span class="btn-label">H6</span></button>
+        </div>
+      </div>
       <span class="sep"></span>
       <button data-action="bold" class="has-icon" title="Fett (Cmd/Ctrl+B)"><iconify-icon aria-hidden="true" icon="lucide:bold"></iconify-icon><span class="btn-label">Fett</span></button>
       <button data-action="italic" class="has-icon" title="Kursiv (Cmd/Ctrl+I)"><iconify-icon aria-hidden="true" icon="lucide:italic"></iconify-icon><span class="btn-label">Kursiv</span></button>
