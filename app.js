@@ -326,8 +326,22 @@
   const templatePreviewTitle = document.getElementById('templatePreviewTitle');
   const templatePreviewDescription = document.getElementById('templatePreviewDescription');
   const templatePreviewSample = document.getElementById('templatePreviewSample');
+  const templatePreviewExpandBtn = document.getElementById('templatePreviewExpandBtn');
+  const templatePreviewModal = document.getElementById('templatePreviewModal');
+  const templatePreviewModalTitle = document.getElementById('templatePreviewModalTitle');
+  const templatePreviewModalDescription = document.getElementById('templatePreviewModalDescription');
+  const templatePreviewModalBody = document.getElementById('templatePreviewModalBody');
+  const templatePreviewModalClose = document.getElementById('templatePreviewModalClose');
   const templateInsertBtn = document.getElementById('templateInsertBtn');
   const templateFavoriteBtn = document.getElementById('templateFavoriteBtn');
+  const templateAiGenerateBtn = document.getElementById('templateAiGenerateBtn');
+  const templateAiStatusEl = document.getElementById('templateAiStatus');
+  const templateAiComposer = document.getElementById('templateAiComposer');
+  const templateAiPromptInput = document.getElementById('templateAiPromptInput');
+  const templateAiPromptSubmit = document.getElementById('templateAiPromptSubmit');
+  const templateAiPromptClose = document.getElementById('templateAiPromptClose');
+  const templateAiPromptCancel = document.getElementById('templateAiPromptCancel');
+  const templateAiPromptMessage = document.getElementById('templateAiPromptMessage');
 
   const toolbar = document.querySelector('.toolbar');
   const tableDialogOverlay = document.getElementById('tableDialogOverlay');
@@ -391,10 +405,19 @@
   let currentTemplateSearch = '';
   /** @type {string | null} */
   let currentTemplateSelection = null;
+  /** @type {AbortController | null} */
+  let templateAiAbortController = null;
+  /** @type {{ id: string, title: string, description: string, content: string, aiGenerated?: boolean, aiStatusMessage?: string, aiStatusError?: boolean } | null} */
+  let templateAiDraft = null;
+  let templateActivePreview = null;
+  let templateAiComposerOpen = false;
   const TEMPLATE_FAVORITES_KEY = 'mw-template-favorites';
   const templateFavorites = new Set();
   const templateData = window.MARKDOWN_TEMPLATES || { categories: [] };
   const templateIndex = new Map();
+  const templateAiIndex = new Map();
+  const templateAiOrder = [];
+  const MAX_AI_SNIPPETS = 20;
   updateWebsiteActionButtons();
   let skipToolbarPostAction = false;
   let tableInsertSelection = null;
@@ -790,6 +813,14 @@
         templateIndex.set(normalized.id, normalized);
       });
     });
+    if (templateAiOrder.length) {
+      templateAiOrder.forEach((id) => {
+        const aiSnippet = templateAiIndex.get(id);
+        if (aiSnippet) {
+          templateIndex.set(id, aiSnippet);
+        }
+      });
+    }
   }
 
   function loadTemplateFavorites() {
@@ -838,6 +869,8 @@
     let snippets = getAllTemplates();
     if (currentTemplateCategory === 'favorites') {
       snippets = snippets.filter((snippet) => templateFavorites.has(snippet.id));
+    } else if (currentTemplateCategory === 'ai') {
+      snippets = templateAiOrder.map((id) => templateIndex.get(id)).filter(Boolean);
     } else if (currentTemplateCategory !== 'all') {
       snippets = snippets.filter((snippet) => snippet.categoryId === currentTemplateCategory);
     }
@@ -851,12 +884,94 @@
     return snippets;
   }
 
+  function setTemplateAiStatus(message, options = {}) {
+    if (!templateAiStatusEl) return;
+    const { error = false } = options;
+    if (!message) {
+      templateAiStatusEl.textContent = '';
+      templateAiStatusEl.classList.add('hidden');
+      templateAiStatusEl.classList.remove('error');
+      return;
+    }
+    templateAiStatusEl.textContent = message;
+    templateAiStatusEl.classList.remove('hidden');
+    templateAiStatusEl.classList.toggle('error', !!error);
+  }
+
+  function setTemplateAiPromptMessage(message, options = {}) {
+    if (!templateAiPromptMessage) return;
+    const { error = false } = options;
+    if (!message) {
+      templateAiPromptMessage.textContent = '';
+      templateAiPromptMessage.classList.add('hidden');
+      templateAiPromptMessage.classList.remove('error');
+      return;
+    }
+    templateAiPromptMessage.textContent = message;
+    templateAiPromptMessage.classList.remove('hidden');
+    templateAiPromptMessage.classList.toggle('error', !!error);
+  }
+
+  function openTemplateAiComposer() {
+    if (!templateAiComposer) return;
+    templateAiComposerOpen = true;
+    templateAiComposer.classList.remove('hidden');
+    templateAiComposer.setAttribute('aria-hidden', 'false');
+    setTimeout(() => {
+      try { templateAiPromptInput?.focus({ preventScroll: true }); } catch {}
+    }, 40);
+  }
+
+  function closeTemplateAiComposer(options = {}) {
+    if (!templateAiComposer) return;
+    const { resetPrompt = false } = options;
+    templateAiComposerOpen = false;
+    templateAiComposer.classList.add('hidden');
+    templateAiComposer.setAttribute('aria-hidden', 'true');
+    if (resetPrompt && templateAiPromptInput) {
+      templateAiPromptInput.value = '';
+    }
+    if (!templateAiAbortController) {
+      setTemplateAiPromptMessage('');
+    }
+  }
+
+  function setTemplateAiComposerBusy(busy) {
+    if (!templateAiComposer) return;
+    const disabled = !!busy;
+    templateAiComposer.classList.toggle('is-busy', disabled);
+    if (templateAiPromptInput) templateAiPromptInput.readOnly = disabled;
+    if (templateAiPromptSubmit) templateAiPromptSubmit.disabled = disabled;
+  }
+
+  function updateTemplateAiButton(busy) {
+    if (!templateAiGenerateBtn) return;
+    const isBusy = !!busy;
+    const icon = templateAiGenerateBtn.querySelector('iconify-icon');
+    const label = templateAiGenerateBtn.querySelector('.btn-label');
+    templateAiGenerateBtn.classList.toggle('is-busy', isBusy);
+    templateAiGenerateBtn.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+    templateAiGenerateBtn.setAttribute('aria-pressed', isBusy ? 'true' : 'false');
+    templateAiGenerateBtn.setAttribute('title', isBusy ? 'KI-Generierung abbrechen' : 'KI-Prompt öffnen');
+    if (icon) {
+      try {
+        icon.setAttribute('icon', isBusy ? 'lucide:loader-2' : 'lucide:sparkles');
+      } catch {}
+    }
+    if (label) {
+      label.textContent = isBusy ? 'Abbrechen' : 'KI-Vorlage';
+    }
+  }
+
   function renderTemplateCategories() {
     if (!templateCategoriesNav) return;
     const categories = [];
     categories.push({ id: 'all', label: 'Alle Vorlagen', icon: 'lucide:layers' });
     if (templateFavorites.size) {
       categories.push({ id: 'favorites', label: 'Favoriten', icon: 'lucide:star' });
+    }
+    if (templateAiOrder.length) {
+      categories.push({ id: 'ai', label: 'KI-Vorlagen', icon: 'lucide:sparkles' });
     }
     if (Array.isArray(templateData?.categories)) {
       templateData.categories.forEach((category) => {
@@ -920,6 +1035,8 @@
   function createTemplateListItem(snippet) {
     const item = document.createElement('li');
     item.className = 'template-item';
+    const isAiSnippet = !!snippet.aiGenerated;
+    if (isAiSnippet) item.classList.add('is-ai');
     item.dataset.templateId = snippet.id;
     item.setAttribute('role', 'option');
     item.tabIndex = 0;
@@ -941,18 +1058,33 @@
     favIcon.setAttribute('aria-hidden', 'true');
     favIcon.setAttribute('icon', 'lucide:star');
     favoriteBtn.appendChild(favIcon);
-    const fav = templateFavorites.has(snippet.id);
+    const fav = !isAiSnippet && templateFavorites.has(snippet.id);
     favoriteBtn.classList.toggle('active', fav);
     favoriteBtn.setAttribute('aria-pressed', fav ? 'true' : 'false');
-    favoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
-    favoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
-    favoriteBtn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleTemplateFavorite(snippet.id);
-      renderTemplateCategories();
-      renderTemplateList();
-    });
+    if (isAiSnippet) {
+      favoriteBtn.classList.add('is-disabled');
+      favoriteBtn.setAttribute('disabled', 'disabled');
+      favoriteBtn.setAttribute('aria-hidden', 'true');
+      favoriteBtn.setAttribute('tabindex', '-1');
+      favoriteBtn.setAttribute('title', 'Favoriten nicht verfügbar');
+      favoriteBtn.setAttribute('aria-label', 'Favoriten nicht verfügbar');
+    } else {
+      favoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
+      favoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
+      favoriteBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleTemplateFavorite(snippet.id);
+        renderTemplateCategories();
+        renderTemplateList();
+      });
+    }
+    if (isAiSnippet) {
+      const badge = document.createElement('span');
+      badge.className = 'template-item-badge';
+      badge.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon> KI';
+      header.appendChild(badge);
+    }
     header.appendChild(favoriteBtn);
     item.appendChild(header);
     if (snippet.description) {
@@ -963,7 +1095,7 @@
     }
     const meta = document.createElement('span');
     meta.className = 'template-item-category';
-    meta.textContent = snippet.categoryLabel;
+    meta.textContent = isAiSnippet ? 'KI-Vorlage' : snippet.categoryLabel;
     item.appendChild(meta);
     const preview = document.createElement('p');
     preview.className = 'template-item-snippet';
@@ -983,30 +1115,62 @@
   function renderTemplatePreview(snippet) {
     if (!templatePreviewEmpty || !templatePreviewContent || !templateInsertBtn || !templateFavoriteBtn) return;
     if (!snippet) {
+      setTemplateAiStatus('');
+      templateActivePreview = null;
       templatePreviewEmpty.classList.remove('hidden');
       templatePreviewContent.classList.add('hidden');
       templateInsertBtn.setAttribute('disabled', 'disabled');
+      templateInsertBtn.removeAttribute('data-template-id');
+      templateInsertBtn.removeAttribute('data-template-ai');
       templateFavoriteBtn.setAttribute('disabled', 'disabled');
       templateFavoriteBtn.classList.remove('active');
       templateFavoriteBtn.removeAttribute('data-template-id');
       templateFavoriteBtn.removeAttribute('aria-pressed');
       templateFavoriteBtn.setAttribute('title', 'Als Favorit markieren');
       templateFavoriteBtn.setAttribute('aria-label', 'Als Favorit markieren');
+      templatePreviewExpandBtn?.setAttribute('disabled', 'disabled');
+      updateTemplatePreviewModalContent(null);
       return;
     }
+    const isAiSnippet = !!snippet.aiGenerated;
+    const hasContent = typeof snippet.content === 'string' && snippet.content.trim().length > 0;
+    templateActivePreview = snippet;
     templatePreviewEmpty.classList.add('hidden');
     templatePreviewContent.classList.remove('hidden');
     templatePreviewTitle.textContent = snippet.title;
     templatePreviewDescription.textContent = snippet.description || '';
     templatePreviewSample.textContent = applyTemplatePlaceholders(snippet.content || '');
-    templateInsertBtn.removeAttribute('disabled');
-    templateFavoriteBtn.removeAttribute('disabled');
-    templateFavoriteBtn.setAttribute('data-template-id', snippet.id);
-    const fav = templateFavorites.has(snippet.id);
-    templateFavoriteBtn.classList.toggle('active', fav);
-    templateFavoriteBtn.setAttribute('aria-pressed', fav ? 'true' : 'false');
-    templateFavoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
-    templateFavoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
+    if (hasContent) {
+      templateInsertBtn.removeAttribute('disabled');
+      templatePreviewExpandBtn?.removeAttribute('disabled');
+    } else {
+      templateInsertBtn.setAttribute('disabled', 'disabled');
+      templatePreviewExpandBtn?.setAttribute('disabled', 'disabled');
+    }
+    if (isAiSnippet) {
+      templateAiDraft = snippet;
+      templateInsertBtn.setAttribute('data-template-ai', 'true');
+      templateInsertBtn.setAttribute('data-template-id', snippet.id || 'ai-generated');
+      setTemplateAiStatus(snippet.aiStatusMessage || '', { error: !!snippet.aiStatusError });
+      templateFavoriteBtn.setAttribute('disabled', 'disabled');
+      templateFavoriteBtn.classList.remove('active');
+      templateFavoriteBtn.removeAttribute('data-template-id');
+      templateFavoriteBtn.removeAttribute('aria-pressed');
+      templateFavoriteBtn.setAttribute('title', 'Favoriten nicht verfügbar');
+      templateFavoriteBtn.setAttribute('aria-label', 'Favoriten nicht verfügbar');
+    } else {
+      templateInsertBtn.removeAttribute('data-template-ai');
+      templateInsertBtn.setAttribute('data-template-id', snippet.id);
+      setTemplateAiStatus('');
+      templateFavoriteBtn.removeAttribute('disabled');
+      templateFavoriteBtn.setAttribute('data-template-id', snippet.id);
+      const fav = templateFavorites.has(snippet.id);
+      templateFavoriteBtn.classList.toggle('active', fav);
+      templateFavoriteBtn.setAttribute('aria-pressed', fav ? 'true' : 'false');
+      templateFavoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
+      templateFavoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
+    }
+    updateTemplatePreviewModalContent(snippet);
   }
 
   function selectTemplateSnippet(snippetId) {
@@ -1042,6 +1206,14 @@
   }
 
   function closeTemplatesPanel() {
+    if (templateAiAbortController) {
+      try { templateAiAbortController.abort(); } catch {}
+      templateAiAbortController = null;
+    }
+    updateTemplateAiButton(false);
+    setTemplateAiStatus('');
+    closeTemplateAiComposer();
+    closeTemplatePreviewModal();
     setTemplatesVisible(false);
   }
 
@@ -1101,6 +1273,282 @@
     updateWordCount();
     markDirty(true);
     setStatus(`Vorlage „${snippet.title}“ eingefügt.`);
+  }
+
+  function normalizeTemplateMarkdown(text) {
+    if (!text) return '';
+    let trimmed = String(text).trim();
+    const fenced = trimmed.match(/```(?:markdown|md)?\s*([\s\S]+?)```/i);
+    if (fenced && fenced[1]) {
+      trimmed = fenced[1].trim();
+    }
+    if (trimmed.startsWith('```') && trimmed.endsWith('```')) {
+      trimmed = trimmed.replace(/^```(?:markdown|md)?/i, '').replace(/```$/i, '').trim();
+    }
+    return trimmed;
+  }
+
+  function extractFirstMarkdownParagraph(md) {
+    if (!md) return '';
+    const withoutCode = md.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ');
+    const lines = withoutCode.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (/^#{1,6}\s/.test(trimmed)) continue;
+      if (/^[-*+]\s/.test(trimmed)) continue;
+      if (/^>/.test(trimmed)) continue;
+      const cleaned = trimmed
+        .replace(/\[(.+?)\]\((.*?)\)/g, '$1')
+        .replace(/[*_`~]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleaned) return cleaned;
+    }
+    return '';
+  }
+
+  function deriveTemplateDescription(markdown, topic) {
+    const paragraph = extractFirstMarkdownParagraph(markdown);
+    if (paragraph) {
+      return paragraph.length > 160 ? `${paragraph.slice(0, 157)}…` : paragraph;
+    }
+    const fallback = topic ? `Automatisch generierte Vorlage für ${topic}.` : 'Automatisch generierte Vorlage.';
+    return fallback;
+  }
+
+  function sanitizeTopicForTitle(topic) {
+    if (!topic) return '';
+    return topic
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/^(ich\s+)?(brauche|benötige|möchte|suche|will|hätte\s+gern(?:e)?|hätte\s+gerne)\s+(bitte\s+)?/i, '')
+      .replace(/^(erstelle|erzeuge|generiere|bau|baue|mach|mache|entwickle)\s+(mir|uns|eine[nr]?|ein)?\s*/i, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[:.!?]+$/g, '')
+      .trim();
+  }
+
+  function isLetterLike(char) {
+    if (!char) return false;
+    const upper = char.toLocaleUpperCase('de-DE');
+    const lower = char.toLocaleLowerCase('de-DE');
+    return upper !== lower;
+  }
+
+  function toTitleCase(str) {
+    if (!str) return '';
+    const lower = str.toLocaleLowerCase('de-DE');
+    let capitalizeNext = true;
+    let result = '';
+    for (const char of lower) {
+      if (capitalizeNext && isLetterLike(char)) {
+        result += char.toLocaleUpperCase('de-DE');
+        capitalizeNext = false;
+      } else {
+        result += char;
+      }
+      if (!char.trim() || char === '-' || char === '/') {
+        capitalizeNext = true;
+      }
+    }
+    return result.replace(/\b([A-ZÄÖÜ])([A-ZÄÖÜ]+)\b/g, (_, first, rest) => `${first}${rest.toLowerCase('de-DE')}`);
+  }
+
+  function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i += 1) {
+      hash = (hash * 31 + str.charCodeAt(i)) | 0;
+    }
+    return hash;
+  }
+
+  function createSmartTemplateTitle(topic) {
+    const cleaned = sanitizeTopicForTitle(topic);
+    const base = cleaned ? toTitleCase(cleaned) : 'Individuelle KI-Vorlage';
+    if (!cleaned) return base;
+    const suffixes = ['Kompass', 'Fahrplan', 'Blueprint', 'Navigator', 'Playbook', 'Toolkit', 'Baukasten', 'Masterplan'];
+    const hash = Math.abs(hashString(base));
+    const suffix = suffixes[hash % suffixes.length];
+    const lowered = base.toLowerCase();
+    if (!suffix || lowered.includes(suffix.toLowerCase())) {
+      return base;
+    }
+    if (base.endsWith('–') || base.endsWith('-')) {
+      return `${base} ${suffix}`;
+    }
+    return `${base} – ${suffix}`;
+  }
+
+  function buildTemplateAiSnippet(markdown, topic) {
+    const clean = normalizeTemplateMarkdown(markdown);
+    if (!clean) throw new Error('Die KI hat keinen Markdown-Inhalt zurückgegeben.');
+    const fallbackTitle = createSmartTemplateTitle(topic);
+    const derivedTitle = extractTitle(clean);
+    const title = derivedTitle || fallbackTitle;
+    const description = deriveTemplateDescription(clean, topic);
+    return {
+      id: '',
+      title,
+      description,
+      content: clean,
+      aiGenerated: true,
+      aiStatusMessage: '',
+      sourcePrompt: topic || '',
+    };
+  }
+
+  function generateAiSnippetId() {
+    return `ai-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  function registerTemplateAiSnippet(snippet) {
+    if (!snippet) return null;
+    const id = generateAiSnippetId();
+    const normalized = {
+      ...snippet,
+      id,
+      categoryId: 'ai',
+      categoryLabel: 'KI-Vorlagen',
+      categoryIcon: 'lucide:sparkles',
+      aiGenerated: true,
+      generatedAt: Date.now(),
+    };
+    templateAiIndex.set(id, normalized);
+    templateIndex.set(id, normalized);
+    const existingIdx = templateAiOrder.indexOf(id);
+    if (existingIdx !== -1) {
+      templateAiOrder.splice(existingIdx, 1);
+    }
+    templateAiOrder.unshift(id);
+    if (templateAiOrder.length > MAX_AI_SNIPPETS) {
+      const removedIds = templateAiOrder.splice(MAX_AI_SNIPPETS);
+      let favoritesChanged = false;
+      removedIds.forEach((removedId) => {
+        templateAiIndex.delete(removedId);
+        templateIndex.delete(removedId);
+        if (templateFavorites.delete(removedId)) favoritesChanged = true;
+        if (currentTemplateSelection === removedId) {
+          currentTemplateSelection = null;
+        }
+      });
+      if (favoritesChanged) persistTemplateFavorites();
+    }
+    return normalized;
+  }
+
+  function formatAiTopic(topic) {
+    const clean = (topic || '').replace(/[\r\n]+/g, ' ').trim();
+    if (!clean) return '';
+    return clean.length > 60 ? `${clean.slice(0, 57)}…` : clean;
+  }
+
+  function updateTemplatePreviewModalContent(snippet) {
+    if (!templatePreviewModal) return;
+    if (!snippet) {
+      if (!templatePreviewModal.classList.contains('hidden')) {
+        closeTemplatePreviewModal();
+      }
+      return;
+    }
+    templatePreviewModalTitle.textContent = snippet.title || '';
+    templatePreviewModalDescription.textContent = snippet.description || '';
+    templatePreviewModalBody.textContent = applyTemplatePlaceholders(snippet.content || '');
+  }
+
+  function openTemplatePreviewModal(snippet) {
+    if (!templatePreviewModal) return;
+    const target = snippet || templateActivePreview;
+    if (!target) return;
+    updateTemplatePreviewModalContent(target);
+    templatePreviewModal.classList.remove('hidden');
+    templatePreviewModal.setAttribute('aria-hidden', 'false');
+    document.body?.classList.add('template-preview-open');
+    setTimeout(() => {
+      try { templatePreviewModalClose?.focus({ preventScroll: true }); } catch {}
+    }, 40);
+  }
+
+  function closeTemplatePreviewModal() {
+    if (!templatePreviewModal) return;
+    templatePreviewModal.classList.add('hidden');
+    templatePreviewModal.setAttribute('aria-hidden', 'true');
+    document.body?.classList.remove('template-preview-open');
+  }
+
+  async function handleTemplateAiGenerate() {
+    if (!templateAiGenerateBtn) return;
+    if (templateAiAbortController) {
+      try { templateAiAbortController.abort(); } catch {}
+      setTemplateAiStatus('Generierung wird abgebrochen…');
+      setStatus('KI-Vorlage wird abgebrochen…');
+      setTemplateAiPromptMessage('Die Generierung wird abgebrochen…');
+      return;
+    }
+    const prompt = templateAiPromptInput?.value ?? '';
+    const topic = prompt.replace(/[\s\u00A0]+/g, ' ').trim();
+    if (!topic) {
+      setTemplateAiPromptMessage('Bitte beschreibe kurz, wofür die Vorlage gedacht ist.', { error: true });
+      try { templateAiPromptInput?.focus({ preventScroll: true }); } catch {}
+      return;
+    }
+    const controller = new AbortController();
+    templateAiAbortController = controller;
+    updateTemplateAiButton(true);
+    setTemplateAiComposerBusy(true);
+    const shortTopic = formatAiTopic(topic);
+    if (shortTopic) {
+      setTemplateAiPromptMessage(`Die KI arbeitet an „${shortTopic}“…`);
+      setStatus(`KI erstellt Vorlage zu „${shortTopic}“…`);
+      setTemplateAiStatus(`Die KI erstellt gerade eine Vorlage zu „${shortTopic}“…`);
+    } else {
+      setTemplateAiPromptMessage('Die KI erstellt eine neue Vorlage…');
+      setStatus('KI erstellt eine neue Vorlage…');
+      setTemplateAiStatus('Die KI erstellt eine neue Vorlage…');
+    }
+    try {
+      const markdown = await requestTemplateAiSnippet(topic, editor?.value || '', controller.signal);
+      if (controller.signal.aborted) {
+        setTemplateAiStatus('Die Generierung wurde abgebrochen.', { error: false });
+        setTemplateAiPromptMessage('Die Generierung wurde abgebrochen.');
+        setStatus('KI-Vorlage abgebrochen.');
+        return;
+      }
+      const snippet = buildTemplateAiSnippet(markdown, topic);
+      snippet.aiStatusMessage = 'Mit KI erstellt – überprüfe den Inhalt vor der Verwendung.';
+      const registered = registerTemplateAiSnippet(snippet);
+      templateAiDraft = registered;
+      setTemplateAiPromptMessage('Fertig! Die KI-Vorlage wurde generiert.');
+      currentTemplateCategory = 'ai';
+      renderTemplateCategories();
+      currentTemplateSelection = registered?.id || null;
+      renderTemplateList();
+      if (registered) {
+        renderTemplatePreview(registered);
+        setTemplateAiStatus(registered.aiStatusMessage || '', { error: false });
+        setStatus(`KI-Vorlage „${registered.title}“ bereit.`);
+      } else {
+        setStatus('KI-Vorlage erstellt.');
+      }
+      try { templateInsertBtn?.focus({ preventScroll: true }); } catch {}
+    } catch (err) {
+      if (controller.signal.aborted) {
+        setTemplateAiStatus('Die Generierung wurde abgebrochen.', { error: false });
+        setTemplateAiPromptMessage('Die Generierung wurde abgebrochen.');
+        setStatus('KI-Vorlage abgebrochen.');
+      } else {
+        console.error('KI-Vorlage konnte nicht generiert werden', err);
+        const message = `Fehler bei der KI-Generierung: ${err?.message || err}`;
+        setTemplateAiStatus(message, { error: true });
+        setTemplateAiPromptMessage(message, { error: true });
+        setStatus('KI-Vorlage konnte nicht erstellt werden.');
+      }
+    } finally {
+      if (templateAiAbortController === controller) {
+        templateAiAbortController = null;
+      }
+      setTemplateAiComposerBusy(false);
+      updateTemplateAiButton(false);
+    }
   }
 
   function setWebsiteModalVisible(visible) {
@@ -1705,6 +2153,56 @@ ${trimmed}
         const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
         if (!apiKey) throw new Error('Mistral API‑Key fehlt');
         return await mistralChat({ apiKey, model: info.model, messages, stream: false, signal });
+      }
+    }
+  }
+
+  async function requestTemplateAiSnippet(topic, markdown, signal) {
+    const subject = (topic || '').replace(/[\r\n]+/g, ' ').trim();
+    if (!subject) throw new Error('Bitte gib ein Thema oder Ziel für die Vorlage an.');
+    const provider = getAiProvider();
+    const info = resolveCurrentProviderInfo();
+    const trimmed = (markdown || '').trim();
+    const hasContent = !!trimmed;
+    const systemInstruction = 'Du bist eine erfahrene technische Redakteurin. Erstelle hochwertige Markdown-Vorlagen mit klaren Überschriften, Tabellen oder Listen, die direkt eingesetzt werden können. Verwende Platzhalter wie {{title}}, {{date}}, {{datetime}}, {{time}} oder {{year}}, wenn sie sinnvoll sind. Gib ausschließlich die fertige Markdown-Vorlage ohne zusätzliche Erklärungen aus.';
+    const contextPart = hasContent
+      ? `Berücksichtige den folgenden Editor-Inhalt als Referenz. Übernimm nur passende Struktur- oder Inhaltsideen und passe sie an das gewünschte Thema an.\n\n[EDITOR-INHALT]\n${trimmed}`
+      : 'Nutze dein Fachwissen, um eine vollständige Struktur mit sinnvollen Abschnitten und Stichpunkten zu entwerfen.';
+    const userInstruction = `Erstelle eine strukturierte Markdown-Vorlage zum Thema „${subject}“.\n\nAnforderungen:\n- Nutze klare Überschriften (##, ###) und strukturierende Elemente wie Listen oder Tabellen.\n- Verwende kurze Platzhaltertexte anstelle von Fließtext (z. B. TODO, Beschreibung, Verantwortliche).\n- Falls sinnvoll, setze Platzhalter {{title}}, {{date}}, {{datetime}}, {{time}} oder {{year}} ein.\n- Baue optionale Abschnitte mit Hinweisen (z. B. „Optional:“) ein, falls hilfreich.\n- Gib ausschließlich die Markdown-Vorlage zurück, ohne Erläuterungen oder Vorbemerkungen.\n\n${contextPart}`;
+
+    const messages = [
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: userInstruction },
+    ];
+
+    switch (provider) {
+      case 'openai': {
+        const apiKey = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
+        if (!apiKey) throw new Error('OpenAI API‑Key fehlt');
+        const response = await openAiCompatibleChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: false, signal });
+        return normalizeTemplateMarkdown(response);
+      }
+      case 'claude': {
+        const apiKey = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
+        if (!apiKey) throw new Error('Claude API‑Key fehlt');
+        const response = await anthropicChat({ apiKey, baseUrl: info.base, model: info.model, messages, stream: false, signal });
+        return normalizeTemplateMarkdown(response);
+      }
+      case 'ollama': {
+        const response = await ollamaChat({ base: info.base, model: info.model, messages, stream: false, signal });
+        return normalizeTemplateMarkdown(response);
+      }
+      case 'gemini': {
+        const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+        const response = await geminiChat({ apiKey, model: info.model, messages, stream: false, signal });
+        return normalizeTemplateMarkdown(response);
+      }
+      case 'mistral':
+      default: {
+        const apiKey = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
+        if (!apiKey) throw new Error('Mistral API‑Key fehlt');
+        const response = await mistralChat({ apiKey, model: info.model, messages, stream: false, signal });
+        return normalizeTemplateMarkdown(response);
       }
     }
   }
@@ -2929,8 +3427,24 @@ ${trimmed}
     return 'Unbenannt.md';
   }
 
+  function isDigit(char) {
+    return char >= '0' && char <= '9';
+  }
+
+  function filterFileNameChars(input) {
+    if (!input) return '';
+    const normalized = input.normalize('NFKD');
+    let result = '';
+    for (const char of normalized) {
+      if (isLetterLike(char) || isDigit(char) || char === '-' || char === '_' || char === '.' || char === ' ') {
+        result += char;
+      }
+    }
+    return result;
+  }
+
   function toSafeFileName(name) {
-    return name.replace(/[^\p{L}\p{N}\-_\.\s]/gu, '').replace(/\s+/g, ' ').trim().replace(/\s/g, '-');
+    return filterFileNameChars(name).replace(/\s+/g, ' ').trim().replace(/\s/g, '-');
   }
 
   // Toolbar helpers
@@ -6767,6 +7281,13 @@ ${members}` : `${cls.name}`;
   loadTemplateFavorites();
   templateInsertBtn?.setAttribute('disabled', 'disabled');
   templateFavoriteBtn?.setAttribute('disabled', 'disabled');
+  templatePreviewExpandBtn?.setAttribute('disabled', 'disabled');
+  setTemplateAiStatus('');
+  updateTemplateAiButton(false);
+  templateAiComposer?.classList.add('hidden');
+  templateAiComposer?.setAttribute('aria-hidden', 'true');
+  templatePreviewModal?.classList.add('hidden');
+  templatePreviewModal?.setAttribute('aria-hidden', 'true');
   templatesPanel?.setAttribute('aria-hidden', 'true');
   templatesOverlay?.setAttribute('aria-hidden', 'true');
 
@@ -6788,8 +7309,17 @@ ${members}` : `${cls.name}`;
     renderTemplateList();
   });
   templateInsertBtn?.addEventListener('click', () => {
-    if (!currentTemplateSelection) return;
-    const snippet = templateIndex.get(currentTemplateSelection);
+    const isAi = templateInsertBtn.getAttribute('data-template-ai') === 'true';
+    if (isAi && templateAiDraft && templateAiDraft.content) {
+      insertTemplateSnippet(templateAiDraft);
+      closeTemplatesPanel();
+      setTimeout(() => { try { editor.focus({ preventScroll: true }); } catch {} }, 0);
+      return;
+    }
+    const dataId = templateInsertBtn.getAttribute('data-template-id');
+    const targetId = dataId || currentTemplateSelection;
+    if (!targetId) return;
+    const snippet = templateIndex.get(targetId);
     if (snippet) {
       insertTemplateSnippet(snippet);
       closeTemplatesPanel();
@@ -6802,6 +7332,62 @@ ${members}` : `${cls.name}`;
     toggleTemplateFavorite(id);
     renderTemplateCategories();
     renderTemplateList();
+  });
+  templateAiGenerateBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (templateAiAbortController) {
+      handleTemplateAiGenerate();
+      return;
+    }
+    if (!templateAiComposerOpen) {
+      openTemplateAiComposer();
+      if (!(templateAiPromptInput?.value || '').trim()) {
+        setTemplateAiPromptMessage('Beschreibe kurz, welche Vorlage die KI erzeugen soll.');
+      }
+      return;
+    }
+    handleTemplateAiGenerate();
+  });
+  templateAiPromptSubmit?.addEventListener('click', (e) => {
+    e.preventDefault();
+    handleTemplateAiGenerate();
+  });
+  templateAiPromptClose?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (templateAiAbortController) {
+      handleTemplateAiGenerate();
+      return;
+    }
+    closeTemplateAiComposer();
+  });
+  templateAiPromptCancel?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (templateAiAbortController) {
+      handleTemplateAiGenerate();
+      return;
+    }
+    closeTemplateAiComposer();
+  });
+  templateAiPromptInput?.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleTemplateAiGenerate();
+    }
+  });
+  templatePreviewExpandBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openTemplatePreviewModal();
+  });
+  templatePreviewModalClose?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeTemplatePreviewModal();
+    try { templatePreviewExpandBtn?.focus({ preventScroll: true }); } catch {}
+  });
+  templatePreviewModal?.addEventListener('click', (e) => {
+    if (e.target === templatePreviewModal) {
+      closeTemplatePreviewModal();
+      try { templatePreviewExpandBtn?.focus({ preventScroll: true }); } catch {}
+    }
   });
   templatesPanel?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -7204,6 +7790,13 @@ document.addEventListener('keydown', (e) => {
   } else if (mod && e.key === 'Enter') {
     // Alternative Trigger für KI‑Generierung
     e.preventDefault(); editorGenerateAI();
+  } else if (e.key === 'Escape' && templatePreviewModal && !templatePreviewModal.classList.contains('hidden')) {
+    e.preventDefault();
+    closeTemplatePreviewModal();
+    try { templatePreviewExpandBtn?.focus({ preventScroll: true }); } catch {}
+  } else if (e.key === 'Escape' && templateAiComposerOpen && !templateAiAbortController) {
+    e.preventDefault();
+    closeTemplateAiComposer();
   } else if (e.key === 'Escape' && templatesVisible) {
     e.preventDefault();
     closeTemplatesPanel();
@@ -9011,50 +9604,6 @@ try {
       if (exist >= 0) list[exist] = { name: nm, prompt: pr }; else list.push({ name: nm, prompt: pr });
       setPresets(list);
       populate();
-      // Modelle aus aktuellem Anbieter laden
-      (async () => {
-        if (!modelInput) return;
-        try {
-          const provider = getAiProvider();
-          let models = [];
-          switch (provider) {
-            case 'openai': {
-              const key = (openaiApiKeyInput?.value || localStorage.getItem('openai-api-key') || '').trim();
-              const base = (openaiBaseInput?.value || localStorage.getItem('openai-base') || 'https://api.openai.com/v1');
-              models = key ? await fetchOpenAiModels(base, key) : ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
-              break;
-            }
-            case 'claude': {
-              const key = (claudeApiKeyInput?.value || localStorage.getItem('claude-api-key') || '').trim();
-              const base = (claudeBaseInput?.value || localStorage.getItem('claude-base') || 'https://api.anthropic.com');
-              models = key ? await fetchAnthropicModels(key, base) : ['claude-3-5-sonnet-latest', 'claude-3-haiku-20240307'];
-              break;
-            }
-            case 'ollama': {
-              const base = (ollamaUrlInput?.value || localStorage.getItem('ollama-url') || 'http://localhost:11434');
-              models = await fetchOllamaModels(base);
-              break;
-            }
-            case 'gemini': {
-              const key = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
-              models = key ? await fetchGeminiModels(key) : ['gemini-1.5-flash', 'gemini-1.5-pro'];
-              break;
-            }
-            case 'mistral': {
-              const key = (mistralApiKeyInput?.value || localStorage.getItem('mistral-api-key') || '').trim();
-              models = key ? await fetchMistralModels(key) : ['mistral-small-latest','mistral-large-latest'];
-              break;
-            }
-            default:
-              models = [];
-              break;
-          }
-          const opts = models.map(n => `<option value="${n}">${n}</option>`).join('');
-          modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>` + opts;
-        } catch {
-          modelInput.innerHTML = `<option value="">(Standard – aus Anbieter‑Einstellungen)</option>`;
-        }
-      })();
       // select this preset
       const idx = list.findIndex(x => x.name === nm);
       if (idx >= 0) sel.value = String(idx);
@@ -9331,7 +9880,20 @@ function doExportPdf() {
   })();
   const currentFileName = document.getElementById('fileName')?.textContent?.replace(/^Datei:\s*/, '') || '';
   const baseName = (mdTitle || currentFileName || 'Export').replace(/\.[^.]+$/, '');
-  const safeName = baseName.replace(/[^\p{L}\p{N}\-_\.\s]/gu, '').trim().replace(/\s+/g, '-');
+  const safeName = (() => {
+    const normalized = baseName.normalize('NFKD');
+    let filtered = '';
+    for (const char of normalized) {
+      const upper = char.toLocaleUpperCase('de-DE');
+      const lower = char.toLocaleLowerCase('de-DE');
+      const isLetter = upper !== lower;
+      const isDigitChar = char >= '0' && char <= '9';
+      if (isLetter || isDigitChar || char === '-' || char === '_' || char === '.' || char === ' ') {
+        filtered += char;
+      }
+    }
+    return filtered.trim().replace(/\s+/g, '-');
+  })();
 
   const cs = getComputedStyle(document.body);
   const bg = cs.getPropertyValue('--bg') || '#ffffff';

@@ -263,6 +263,10 @@ Viel Spaß beim Schreiben! ✨"></textarea>
     >
       <header class="templates-header">
         <strong>Vorlagen</strong>
+        <button id="templateAiGenerateBtn" class="has-icon template-ai-btn" type="button">
+          <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
+          <span class="btn-label">KI-Vorlage</span>
+        </button>
         <label class="template-search">
           <iconify-icon aria-hidden="true" icon="lucide:search"></iconify-icon>
           <input id="templateSearch" type="search" placeholder="Vorlagen durchsuchen" aria-label="Vorlagen durchsuchen" />
@@ -271,6 +275,35 @@ Viel Spaß beim Schreiben! ✨"></textarea>
           <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
         </button>
       </header>
+      <section
+        id="templateAiComposer"
+        class="template-ai-composer hidden"
+        aria-label="KI-Vorlage erstellen"
+        aria-live="polite"
+      >
+        <div class="template-ai-composer-header">
+          <label for="templateAiPromptInput">Beschreibe, was die KI als Vorlage liefern soll</label>
+          <button id="templateAiPromptCancel" type="button" class="icon-only" title="Eingabe schließen" aria-label="Eingabe schließen">
+            <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+          </button>
+        </div>
+        <textarea
+          id="templateAiPromptInput"
+          rows="3"
+          placeholder="z. B. Ich benötige einen Stundenplan für die Schule"
+          aria-label="Prompt für KI-Vorlage"
+        ></textarea>
+        <p id="templateAiPromptMessage" class="template-ai-prompt-message muted hidden"></p>
+        <div class="template-ai-composer-actions">
+          <button id="templateAiPromptSubmit" type="button" class="has-icon primary">
+            <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
+            <span class="btn-label">Vorlage generieren</span>
+          </button>
+          <button id="templateAiPromptClose" type="button" class="secondary">
+            Schließen
+          </button>
+        </div>
+      </section>
       <div class="templates-body">
         <nav id="templateCategories" class="template-categories" role="tablist" aria-label="Vorlagenkategorien"></nav>
         <div class="templates-main">
@@ -289,6 +322,10 @@ Viel Spaß beim Schreiben! ✨"></textarea>
                   <button id="templateFavoriteBtn" class="icon-only" title="Als Favorit markieren" aria-label="Als Favorit markieren">
                     <iconify-icon aria-hidden="true" icon="lucide:star"></iconify-icon>
                   </button>
+                  <button id="templatePreviewExpandBtn" class="has-icon secondary" type="button">
+                    <iconify-icon aria-hidden="true" icon="lucide:expand"></iconify-icon>
+                    <span class="btn-label">Vorschau</span>
+                  </button>
                   <button id="templateInsertBtn" class="has-icon">
                     <iconify-icon aria-hidden="true" icon="lucide:clipboard-plus"></iconify-icon>
                     <span class="btn-label">In Editor einfügen</span>
@@ -296,12 +333,38 @@ Viel Spaß beim Schreiben! ✨"></textarea>
                 </div>
               </header>
               <p id="templatePreviewDescription" class="muted"></p>
+              <p id="templateAiStatus" class="template-ai-status hidden muted"></p>
               <pre id="templatePreviewSample"></pre>
             </div>
           </article>
         </div>
       </div>
     </aside>
+
+    <div
+      id="templatePreviewModal"
+      class="template-preview-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="templatePreviewModalTitle"
+    >
+      <div class="template-preview-modal-content">
+        <header>
+          <h3 id="templatePreviewModalTitle"></h3>
+          <button
+            id="templatePreviewModalClose"
+            class="icon-only"
+            type="button"
+            title="Vorschau schließen"
+            aria-label="Vorschau schließen"
+          >
+            <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+          </button>
+        </header>
+        <p id="templatePreviewModalDescription" class="muted"></p>
+        <pre id="templatePreviewModalBody"></pre>
+      </div>
+    </div>
 
     <div id="versionsOverlay" class="versions-overlay hidden" aria-hidden="true"></div>
     <aside
