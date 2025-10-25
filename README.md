@@ -14,6 +14,12 @@ Ein leichter, rein clientseitiger Markdown‑Editor mit:
 - Themes per Dropdown: Light, Dark, Pitch Black, High Contrast, Sepia, Solarized Light/Dark (Auswahl wird gespeichert)
 - Autosave in `localStorage`
 
+## Diagramm-Unterstützung
+
+- Codeblöcke mit <code>```mermaid</code> werden automatisch in der Vorschau als Diagramm gerendert.
+- Über den neuen Toolbar-Button lässt sich ein Flowchart-Template in den Editor einfügen.
+- Mermaid wird per CDN (`https://cdn.jsdelivr.net/npm/mermaid`) geladen. Offline steht die Bibliothek daher nicht zur Verfügung, die Diagramme erscheinen dann als reiner Codeblock.
+
 ## Ollama Chat
 
 - Öffne den Chat rechts oben über „Chat“.

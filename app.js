@@ -380,6 +380,8 @@
   updateWebsiteActionButtons();
   let skipToolbarPostAction = false;
   let tableInsertSelection = null;
+  let mermaidConfigured = false;
+  let lastMermaidTheme = null;
   const GITHUB_REPO = 'anes-03/Markdown-WebEditor';
   const MAX_COMMITS_TO_SHOW = 8;
   const TABLE_MIN_ROWS = 2;
@@ -1620,6 +1622,14 @@ ${trimmed}
     }
   }
 
+  function getMermaidTheme() {
+    const themeId = document.body?.getAttribute('data-theme') || 'light';
+    if (['dark', 'black', 'solarized-dark'].includes(themeId)) return 'dark';
+    if (themeId === 'high-contrast') return 'forest';
+    if (themeId === 'sepia') return 'neutral';
+    return 'default';
+  }
+
   async function requestLearningHtml(mode, markdown, signal) {
     const config = getLearningModeConfig(mode);
     if (!config) throw new Error('Unbekannter Lernmodus');
@@ -2221,6 +2231,28 @@ ${trimmed}
     preview.innerHTML = safe;
     // re-highlight just in case
     preview.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
+    if (window.mermaid) {
+      try {
+        const mermaidTheme = getMermaidTheme();
+        if (!mermaidConfigured || lastMermaidTheme !== mermaidTheme) {
+          window.mermaid.initialize({ startOnLoad: false, theme: mermaidTheme });
+          mermaidConfigured = true;
+          lastMermaidTheme = mermaidTheme;
+        }
+        const mermaidBlocks = preview.querySelectorAll('code.language-mermaid');
+        mermaidBlocks.forEach((codeEl) => {
+          const parentPre = codeEl.closest('pre');
+          const container = document.createElement('div');
+          container.className = 'mermaid';
+          container.textContent = codeEl.textContent;
+          if (parentPre) parentPre.replaceWith(container);
+          else codeEl.replaceWith(container);
+          window.mermaid.init(undefined, container);
+        });
+      } catch (err) {
+        console.warn('Mermaid rendering fehlgeschlagen', err);
+      }
+    }
     updateReadAloudAvailability();
   }
 
@@ -2932,6 +2964,11 @@ ${trimmed}
     editor.focus();
   }
 
+  function insertMermaidDiagram() {
+    const template = '\n\n```mermaid\nflowchart TD\n  A[Start] --> B{Entscheidung?}\n  B -->|Ja| C[Option 1]\n  B -->|Nein| D[Option 2]\n```\n\n';
+    insertAtCursor(template);
+  }
+
   function insertList(ordered = false) {
     const start = editor.selectionStart;
     const end = editor.selectionEnd;
@@ -3284,6 +3321,7 @@ ${trimmed}
       case 'strike': toggleWrapSelection(editor, ['~~', '~~']); break;
       case 'code': toggleWrapSelection(editor, ['`', '`']); break;
       case 'codeblock': insertCodeBlock(); break;
+      case 'mermaid': insertMermaidDiagram(); break;
       case 'ul': insertList(false); break;
       case 'ol': insertList(true); break;
       case 'task': insertTaskList(); break;

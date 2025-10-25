@@ -355,6 +355,28 @@ button:disabled:hover {
 .markdown-body blockquote { color: var(--muted); border-left: 4px solid var(--border); margin: 0; padding: 0 12px; }
 .markdown-body table { border-collapse: collapse; width: 100%; }
 .markdown-body th, .markdown-body td { border: 1px solid var(--border); padding: 6px 8px; }
+.markdown-body .mermaid {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+  display: block;
+  color: var(--text);
+}
+.markdown-body .mermaid svg {
+  width: 100%;
+  height: auto;
+  color: var(--text);
+}
+.markdown-body .mermaid svg text {
+  fill: currentColor;
+}
+body[data-theme="high-contrast"] .markdown-body .mermaid {
+  background: var(--bg);
+  border-color: var(--accent);
+}
 
 /* Drag & drop cue */
 body.dragging #workspace { outline: 3px dashed var(--accent); outline-offset: -6px; }
