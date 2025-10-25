@@ -330,6 +330,16 @@
   const templateFavoriteBtn = document.getElementById('templateFavoriteBtn');
 
   const toolbar = document.querySelector('.toolbar');
+  const tableDialogOverlay = document.getElementById('tableDialogOverlay');
+  const tableDialog = document.getElementById('tableDialog');
+  const tableDialogForm = document.getElementById('tableDialogForm');
+  const tableRowsInput = document.getElementById('tableRowsInput');
+  const tableColsInput = document.getElementById('tableColsInput');
+  const tableAddRowBtn = document.getElementById('tableAddRowBtn');
+  const tableAddColBtn = document.getElementById('tableAddColBtn');
+  const tableDialogCloseBtn = document.getElementById('tableDialogCloseBtn');
+  const tableDialogCancelBtn = document.getElementById('tableDialogCancelBtn');
+  const tableBuilderGrid = document.getElementById('tableBuilderGrid');
 
   // State
   let fileHandle = null;
@@ -368,8 +378,18 @@
   const templateData = window.MARKDOWN_TEMPLATES || { categories: [] };
   const templateIndex = new Map();
   updateWebsiteActionButtons();
+  let skipToolbarPostAction = false;
+  let tableInsertSelection = null;
   const GITHUB_REPO = 'anes-03/Markdown-WebEditor';
   const MAX_COMMITS_TO_SHOW = 8;
+  const TABLE_MIN_ROWS = 2;
+  const TABLE_MIN_COLS = 1;
+  const TABLE_MAX_ROWS = 15;
+  const TABLE_MAX_COLS = 10;
+  const TABLE_DEFAULT_ROWS = 3;
+  const TABLE_DEFAULT_COLS = 3;
+  let tableDialogRows = TABLE_DEFAULT_ROWS;
+  let tableDialogCols = TABLE_DEFAULT_COLS;
 
   // Utilities
   const supportsFSA = () => 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
@@ -2957,8 +2977,200 @@ ${trimmed}
   }
 
   function insertTable() {
-    const tpl = `\n\n| Spalte 1 | Spalte 2 |\n| --- | --- |\n|  |  |\n\n`;
-    insertAtCursor(tpl);
+    if (!isTableDialogReady()) {
+      const tpl = `\n\n| Spalte 1 | Spalte 2 |\n| --- | --- |\n|  |  |\n\n`;
+      insertAtCursor(tpl);
+      return;
+    }
+    tableInsertSelection = {
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+    };
+    tableDialogRows = TABLE_DEFAULT_ROWS;
+    tableDialogCols = TABLE_DEFAULT_COLS;
+    tableRowsInput.value = String(tableDialogRows);
+    tableColsInput.value = String(tableDialogCols);
+    rebuildTableInputs({ row: 0, col: 0 }, true);
+    openTableDialog();
+    skipToolbarPostAction = true;
+  }
+
+  function isTableDialogReady() {
+    return !!(tableDialogOverlay && tableDialog && tableDialogForm && tableRowsInput && tableColsInput && tableBuilderGrid);
+  }
+
+  function openTableDialog() {
+    if (!isTableDialogReady()) return;
+    tableDialogOverlay.classList.remove('hidden');
+    tableDialogOverlay.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => {
+      const first = tableBuilderGrid.querySelector('input[data-row="0"][data-col="0"]');
+      if (first) {
+        first.focus();
+        first.select();
+      }
+    }, 0);
+  }
+
+  function closeTableDialog(options = {}) {
+    if (!isTableDialogReady()) return;
+    const { restoreFocus = true, clearSelection = true } = options;
+    tableDialogOverlay.classList.add('hidden');
+    tableDialogOverlay.setAttribute('aria-hidden', 'true');
+    tableBuilderGrid.innerHTML = '';
+    if (clearSelection) tableInsertSelection = null;
+    if (restoreFocus) {
+      try { editor.focus(); } catch {}
+    }
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function readCurrentTableValues() {
+    const values = new Map();
+    if (!tableBuilderGrid) return values;
+    tableBuilderGrid.querySelectorAll('input[data-row][data-col]').forEach((input) => {
+      const key = `${input.dataset.row}:${input.dataset.col}`;
+      values.set(key, input.value);
+    });
+    return values;
+  }
+
+  function createTableCellInput(row, col, existingValues) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.dataset.row = String(row);
+    input.dataset.col = String(col);
+    const key = `${row}:${col}`;
+    input.value = existingValues.has(key) ? existingValues.get(key) || '' : '';
+    input.placeholder = row === 0 ? `Spalte ${col + 1}` : `Zelle ${row + 1}-${col + 1}`;
+    return input;
+  }
+
+  function rebuildTableInputs(focusCell = null, resetValues = false) {
+    if (!isTableDialogReady()) return;
+    const existingValues = resetValues ? new Map() : readCurrentTableValues();
+    tableBuilderGrid.innerHTML = '';
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    for (let c = 0; c < tableDialogCols; c++) {
+      const th = document.createElement('th');
+      const input = createTableCellInput(0, c, existingValues);
+      th.appendChild(input);
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (let r = 1; r < tableDialogRows; r++) {
+      const tr = document.createElement('tr');
+      for (let c = 0; c < tableDialogCols; c++) {
+        const td = document.createElement('td');
+        const input = createTableCellInput(r, c, existingValues);
+        td.appendChild(input);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    tableBuilderGrid.appendChild(table);
+    if (focusCell) {
+      const target = tableBuilderGrid.querySelector(`input[data-row="${focusCell.row}"][data-col="${focusCell.col}"]`);
+      if (target) {
+        target.focus();
+        target.select();
+      }
+    }
+  }
+
+  function setTableRows(rows, focusCell = null) {
+    const next = clamp(rows, TABLE_MIN_ROWS, TABLE_MAX_ROWS);
+    const previous = tableDialogRows;
+    tableDialogRows = next;
+    tableRowsInput.value = String(tableDialogRows);
+    const focus = focusCell || (next > previous ? { row: next - 1, col: 0 } : null);
+    rebuildTableInputs(focus);
+  }
+
+  function setTableCols(cols, focusCell = null) {
+    const next = clamp(cols, TABLE_MIN_COLS, TABLE_MAX_COLS);
+    const previous = tableDialogCols;
+    tableDialogCols = next;
+    tableColsInput.value = String(tableDialogCols);
+    const focus = focusCell || (next > previous ? { row: 0, col: next - 1 } : null);
+    rebuildTableInputs(focus);
+  }
+
+  function escapeTableCell(text) {
+    return text.replace(/\|/g, '\\|').trim();
+  }
+
+  function collectTableValues() {
+    const values = [];
+    if (!isTableDialogReady()) return values;
+    for (let r = 0; r < tableDialogRows; r++) {
+      const row = [];
+      for (let c = 0; c < tableDialogCols; c++) {
+        const input = tableBuilderGrid.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+        row.push(input ? input.value.trim() : '');
+      }
+      values.push(row);
+    }
+    return values;
+  }
+
+  function buildTableMarkdown(data) {
+    if (!data.length) return '';
+    const headerRow = data[0].map((cell, idx) => escapeTableCell(cell || `Spalte ${idx + 1}`));
+    const alignRow = headerRow.map(() => '---');
+    const lines = [`| ${headerRow.join(' | ')} |`, `| ${alignRow.join(' | ')} |`];
+    const bodyRows = data.slice(1);
+    if (!bodyRows.length) {
+      bodyRows.push(new Array(headerRow.length).fill(''));
+    }
+    for (const row of bodyRows) {
+      const cells = row.map((cell) => {
+        const text = cell && cell.trim() ? escapeTableCell(cell) : ' ';
+        return text;
+      });
+      while (cells.length < headerRow.length) cells.push(' ');
+      lines.push(`| ${cells.join(' | ')} |`);
+    }
+    return lines.join('\n');
+  }
+
+  function insertTableFromDialog() {
+    const data = collectTableValues();
+    const markdown = buildTableMarkdown(data);
+    if (!markdown) {
+      closeTableDialog();
+      return;
+    }
+    closeTableDialog({ restoreFocus: false, clearSelection: false });
+    if (tableInsertSelection) {
+      try {
+        editor.focus();
+        editor.setSelectionRange(tableInsertSelection.start, tableInsertSelection.end);
+      } catch {}
+    }
+    insertAtCursor(`\n\n${markdown}\n\n`);
+    tableInsertSelection = null;
+    editor.focus();
+    updatePreview();
+    updateCursorInfo();
+    updateWordCount();
+    markDirty(true);
+  }
+
+  function handleTableDialogKeydown(e) {
+    if (!tableDialogOverlay || tableDialogOverlay.classList.contains('hidden')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeTableDialog();
+    }
   }
 
   function insertHr() {
@@ -3082,11 +3294,46 @@ ${trimmed}
       case 'hr': insertHr(); break;
       default: break;
     }
+    if (skipToolbarPostAction) {
+      skipToolbarPostAction = false;
+      return;
+    }
     updatePreview();
     updateCursorInfo();
     updateWordCount();
     markDirty(true);
   });
+
+  if (isTableDialogReady()) {
+    tableDialogOverlay.addEventListener('click', (e) => {
+      if (e.target === tableDialogOverlay) closeTableDialog();
+    });
+    tableDialogOverlay.addEventListener('keydown', handleTableDialogKeydown);
+    tableDialogCloseBtn?.addEventListener('click', () => closeTableDialog());
+    tableDialogCancelBtn?.addEventListener('click', () => closeTableDialog());
+    tableDialogForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      insertTableFromDialog();
+    });
+    tableRowsInput.addEventListener('change', () => {
+      const value = Number.parseInt(tableRowsInput.value, 10);
+      if (Number.isFinite(value)) {
+        setTableRows(value);
+      } else {
+        tableRowsInput.value = String(tableDialogRows);
+      }
+    });
+    tableColsInput.addEventListener('change', () => {
+      const value = Number.parseInt(tableColsInput.value, 10);
+      if (Number.isFinite(value)) {
+        setTableCols(value);
+      } else {
+        tableColsInput.value = String(tableDialogCols);
+      }
+    });
+    tableAddRowBtn?.addEventListener('click', () => setTableRows(tableDialogRows + 1));
+    tableAddColBtn?.addEventListener('click', () => setTableCols(tableDialogCols + 1));
+  }
 
   // View switching
   function setView(mode) {

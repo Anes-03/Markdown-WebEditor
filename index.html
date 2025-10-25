@@ -346,6 +346,50 @@ Viel Spaß beim Schreiben! ✨"></textarea>
         </div>
       </section>
     </aside>
+    <!-- Table builder dialog -->
+    <div id="tableDialogOverlay" class="modal-overlay hidden" aria-hidden="true">
+      <div id="tableDialog" class="table-dialog" role="dialog" aria-modal="true" aria-labelledby="tableDialogTitle">
+        <form id="tableDialogForm" class="table-dialog-form">
+          <header class="modal-header">
+            <h2 id="tableDialogTitle">Tabelle einfügen</h2>
+            <button type="button" id="tableDialogCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen">
+              <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+            </button>
+          </header>
+          <div class="modal-body">
+            <p class="muted">Lege Größe und Inhalte der Tabelle fest. Die erste Zeile wird als Kopfzeile verwendet.</p>
+            <div class="table-dialog-controls">
+              <label>
+                Spalten
+                <input id="tableColsInput" type="number" min="1" max="10" value="3" />
+              </label>
+              <label>
+                Zeilen
+                <input id="tableRowsInput" type="number" min="2" max="15" value="3" />
+              </label>
+              <span class="controls-spacer"></span>
+              <button type="button" id="tableAddColBtn" class="secondary has-icon" title="Spalte hinzufügen">
+                <iconify-icon aria-hidden="true" icon="lucide:plus"></iconify-icon>
+                <span class="btn-label">Spalte</span>
+              </button>
+              <button type="button" id="tableAddRowBtn" class="secondary has-icon" title="Zeile hinzufügen">
+                <iconify-icon aria-hidden="true" icon="lucide:plus"></iconify-icon>
+                <span class="btn-label">Zeile</span>
+              </button>
+            </div>
+            <div id="tableBuilderGrid" class="table-builder-grid" role="application" aria-label="Tabelleninhalt bearbeiten"></div>
+          </div>
+          <footer class="modal-footer">
+            <button type="button" id="tableDialogCancelBtn" class="secondary">Abbrechen</button>
+            <button type="submit" id="tableDialogInsertBtn" class="primary has-icon">
+              <iconify-icon aria-hidden="true" icon="mdi:table"></iconify-icon>
+              <span class="btn-label">Einfügen</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
+
     <!-- Chat Panel -->
     <div id="chatOverlay" class="chat-overlay hidden" aria-hidden="true"></div>
     <aside id="chatPanel" class="chat-panel hidden" role="dialog" aria-label="Chat" aria-modal="true">
