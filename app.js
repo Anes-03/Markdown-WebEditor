@@ -340,6 +340,24 @@
   const tableDialogCloseBtn = document.getElementById('tableDialogCloseBtn');
   const tableDialogCancelBtn = document.getElementById('tableDialogCancelBtn');
   const tableBuilderGrid = document.getElementById('tableBuilderGrid');
+  const mermaidDialogOverlay = document.getElementById('mermaidDialogOverlay');
+  const mermaidDialog = document.getElementById('mermaidDialog');
+  const mermaidDialogForm = document.getElementById('mermaidDialogForm');
+  const mermaidTypeSelect = document.getElementById('mermaidTypeSelect');
+  const mermaidOrientationField = document.getElementById('mermaidOrientationField');
+  const mermaidOrientationSelect = document.getElementById('mermaidOrientationSelect');
+  const mermaidCodeInput = document.getElementById('mermaidCodeInput');
+  const mermaidCodeHint = document.getElementById('mermaidCodeHint');
+  const mermaidDialogCloseBtn = document.getElementById('mermaidDialogCloseBtn');
+  const mermaidDialogCancelBtn = document.getElementById('mermaidDialogCancelBtn');
+  const mermaidTemplateResetBtn = document.getElementById('mermaidTemplateResetBtn');
+  const mermaidBuilder = document.getElementById('mermaidBuilder');
+  const mermaidBuilderEnabled = document.getElementById('mermaidBuilderEnabled');
+  const mermaidBuilderContent = document.getElementById('mermaidBuilderContent');
+  const mermaidBuilderResetBtn = document.getElementById('mermaidBuilderResetBtn');
+  const mermaidNodeIdOptions = document.getElementById('mermaidNodeIdOptions');
+  const mermaidPreview = document.getElementById('mermaidPreview');
+  const mermaidPreviewStatus = document.getElementById('mermaidPreviewStatus');
 
   // State
   let fileHandle = null;
@@ -392,6 +410,24 @@
   const TABLE_DEFAULT_COLS = 3;
   let tableDialogRows = TABLE_DEFAULT_ROWS;
   let tableDialogCols = TABLE_DEFAULT_COLS;
+  const MERMAID_DEFAULT_TYPE = 'flowchart';
+  const MERMAID_DEFAULT_ORIENTATION = 'TD';
+  let mermaidInsertSelection = null;
+  let mermaidTemplatePristine = true;
+  let lastMermaidType = MERMAID_DEFAULT_TYPE;
+  let lastMermaidOrientation = MERMAID_DEFAULT_ORIENTATION;
+  const MERMAID_NODE_SHAPES = [
+    { value: 'rectangle', label: 'Rechteck' },
+    { value: 'rounded', label: 'Abgerundet' },
+    { value: 'diamond', label: 'Entscheidung' },
+    { value: 'circle', label: 'Start/Ende' },
+  ];
+  const mermaidBuilderState = {
+    enabled: false,
+    type: MERMAID_DEFAULT_TYPE,
+    data: new Map(),
+  };
+  let mermaidBuilderSyncing = false;
 
   // Utilities
   const supportsFSA = () => 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
@@ -2965,8 +3001,2692 @@ ${trimmed}
   }
 
   function insertMermaidDiagram() {
-    const template = '\n\n```mermaid\nflowchart TD\n  A[Start] --> B{Entscheidung?}\n  B -->|Ja| C[Option 1]\n  B -->|Nein| D[Option 2]\n```\n\n';
-    insertAtCursor(template);
+    if (!isMermaidDialogReady()) {
+      const template = buildMermaidTemplate(MERMAID_DEFAULT_TYPE, { orientation: MERMAID_DEFAULT_ORIENTATION });
+      const fenced = `\n\n\`\`\`mermaid\n${template}\n\`\`\`\n\n`;
+      insertAtCursor(fenced);
+      return;
+    }
+    mermaidInsertSelection = {
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+    };
+    const selected = editor.value.slice(mermaidInsertSelection.start, mermaidInsertSelection.end);
+    const code = extractMermaidCodeFromSelection(selected);
+    const metadata = parseMermaidCodeMetadata(code);
+    const type = metadata?.type || MERMAID_DEFAULT_TYPE;
+    const orientation = metadata?.orientation || MERMAID_DEFAULT_ORIENTATION;
+    if (mermaidTypeSelect) {
+      mermaidTypeSelect.value = type;
+    }
+    if (mermaidOrientationSelect) {
+      mermaidOrientationSelect.value = orientation;
+    }
+    updateMermaidOrientationVisibility();
+    if (mermaidCodeInput) {
+      if (code) {
+        mermaidCodeInput.value = normalizeMermaidCode(code);
+        mermaidTemplatePristine = false;
+      } else {
+        mermaidCodeInput.value = buildMermaidTemplate(type, { orientation });
+        mermaidTemplatePristine = true;
+      }
+    }
+    loadMermaidBuilderFromCode(type, code);
+    if (mermaidCodeInput) {
+      window.setTimeout(() => {
+        try {
+          mermaidCodeInput.focus();
+          mermaidCodeInput.select();
+        } catch {}
+      }, 0);
+    }
+    lastMermaidType = type;
+    lastMermaidOrientation = orientation;
+    openMermaidDialog();
+    skipToolbarPostAction = true;
+    updateMermaidDialogPreview();
+  }
+
+  function buildMermaidTemplate(type, options = {}) {
+    const orientation = normalizeOrientation(options.orientation || MERMAID_DEFAULT_ORIENTATION);
+    switch (type) {
+      case 'flowchart': {
+        return `flowchart ${orientation}
+  Start([Start]) --> Entscheidung{Entscheidung?}
+  Entscheidung -->|Ja| Ende([Ende])
+  Entscheidung -->|Nein| Alternative([Alternative])
+  Alternative --> Ende([Ende])`;
+      }
+      case 'sequence':
+        return `sequenceDiagram
+  participant Nutzer
+  participant System
+  Nutzer->>System: Aktion ausführen
+  System-->>Nutzer: Ergebnis zurückgeben
+  alt Fehlerfall
+    System-->>Nutzer: Fehlermeldung anzeigen
+  end`;
+      case 'class': {
+        const direction = orientationToDirection(orientation);
+        return `classDiagram
+  direction ${direction}
+  class Kunde {
+    +id: string
+    +name: string
+    +bestellen()
+  }
+  class Bestellung {
+    +nummer: string
+    +status: Status
+    +absenden()
+  }
+  Kunde --> Bestellung : erstellt`;
+      }
+      case 'state': {
+        const direction = orientationToDirection(orientation);
+        return `stateDiagram-v2
+  direction ${direction}
+  [*] --> Entwurf
+  Entwurf --> Review : prüfen
+  Review --> Genehmigt : ok
+  Review --> Entwurf : überarbeiten
+  Genehmigt --> [*]`;
+      }
+      case 'gantt':
+        return `gantt
+  dateFormat  YYYY-MM-DD
+  title Projektplan
+  section Planung
+  Kickoff           :done,    d1, 2024-01-01, 3d
+  Recherche         :active,  d2, 2024-01-04, 4d
+  section Umsetzung
+  Entwicklung       :d3, 2024-01-10, 10d
+  Tests             :d4, 2024-01-22, 5d`;
+      case 'pie':
+        return `pie title Marktanteile
+  "Produkt A" : 45
+  "Produkt B" : 30
+  "Produkt C" : 25`;
+      default:
+        return buildMermaidTemplate('flowchart', { orientation });
+    }
+  }
+
+
+  function normalizeMermaidCode(code) {
+    return (code || '').replace(/\r\n/g, '\n');
+  }
+
+  function extractMermaidCodeFromSelection(selection) {
+    if (!selection) return '';
+    const trimmed = selection.trim();
+    if (!trimmed) return '';
+    const fenceMatch = trimmed.match(/^```mermaid\b[\r\n]+([\s\S]*?)```$/i);
+    if (fenceMatch) {
+      return fenceMatch[1].trim();
+    }
+    return trimmed;
+  }
+
+  function parseMermaidCodeMetadata(code) {
+    const trimmed = (code || '').trim();
+    if (!trimmed) return null;
+    const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim().length > 0);
+    if (!firstLine) return null;
+    const line = firstLine.trim();
+    const lower = line.toLowerCase();
+    if (lower.startsWith('flowchart')) {
+      const match = line.match(/flowchart\s+([a-z]{2})/i);
+      return { type: 'flowchart', orientation: (match ? match[1].toUpperCase() : MERMAID_DEFAULT_ORIENTATION) };
+    }
+    if (lower.startsWith('graph')) {
+      const match = line.match(/graph\s+([a-z]{2})/i);
+      return { type: 'flowchart', orientation: (match ? match[1].toUpperCase() : MERMAID_DEFAULT_ORIENTATION) };
+    }
+    if (lower.startsWith('sequencediagram')) return { type: 'sequence' };
+    if (lower.startsWith('classdiagram')) {
+      const parsed = parseClassDiagram(trimmed);
+      return { type: 'class', orientation: parsed?.orientation };
+    }
+    if (lower.startsWith('statediagram-v2') || lower.startsWith('statediagram')) {
+      const parsed = parseStateDiagram(trimmed);
+      return { type: 'state', orientation: parsed?.orientation };
+    }
+    if (lower.startsWith('gantt')) return { type: 'gantt' };
+    if (lower.startsWith('pie')) return { type: 'pie' };
+    return null;
+  }
+
+
+  function sanitizeMermaidNodeId(value, fallback) {
+    const trimmed = (value || '').trim().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '');
+    return trimmed || fallback;
+  }
+
+  function sanitizeMermaidLabel(value, fallback = '') {
+    const trimmed = (value || '').replace(/\r\n/g, '\n').trim();
+    return trimmed || fallback;
+  }
+
+  function sanitizeMermaidEdgeLabel(value) {
+    return (value || '').replace(/\|/g, '/').trim();
+  }
+
+  function isMermaidDialogReady() {
+    return !!(mermaidDialogOverlay && mermaidDialog && mermaidDialogForm && mermaidTypeSelect && mermaidCodeInput);
+  }
+
+  function isMermaidFlowchartType(type) {
+    return (type || mermaidTypeSelect?.value || MERMAID_DEFAULT_TYPE) === 'flowchart';
+  }
+
+  function getSelectedMermaidType() {
+    return mermaidTypeSelect?.value || MERMAID_DEFAULT_TYPE;
+  }
+
+  function getMermaidBuilder(type) {
+    return MERMAID_BUILDERS[type] || null;
+  }
+
+  function ensureMermaidBuilderData(type) {
+    const builder = getMermaidBuilder(type);
+    if (!builder) return null;
+    if (!mermaidBuilderState.data.has(type)) {
+      mermaidBuilderState.data.set(type, builder.createDefault());
+    }
+    return mermaidBuilderState.data.get(type);
+  }
+
+
+  function setMermaidBuilderData(type, data) {
+    mermaidBuilderState.data.set(type, data);
+  }
+
+  function builderSupportsOrientation(type) {
+    return !!getMermaidBuilder(type)?.supportsOrientation;
+  }
+
+  function setMermaidPreviewMessage(message, { error = false } = {}) {
+    if (!mermaidPreviewStatus) return;
+    mermaidPreviewStatus.textContent = message;
+    mermaidPreviewStatus.classList.toggle('is-error', !!error);
+  }
+
+  function updateMermaidDialogPreview() {
+    if (!mermaidPreview || !mermaidPreviewStatus) return;
+    const code = normalizeMermaidCode(mermaidCodeInput?.value || '').trim();
+    if (!code) {
+      mermaidPreview.innerHTML = '';
+      setMermaidPreviewMessage('Die Vorschau wird angezeigt, sobald gültiger Mermaid-Code vorliegt.', { error: false });
+      return;
+    }
+    if (!window.mermaid) {
+      mermaidPreview.innerHTML = '';
+      setMermaidPreviewMessage('Mermaid konnte nicht geladen werden. Bitte Internetverbindung prüfen.', { error: true });
+      return;
+    }
+    try {
+      const theme = getMermaidTheme();
+      if (!mermaidConfigured || lastMermaidTheme !== theme) {
+        window.mermaid.initialize({ startOnLoad: false, theme });
+        mermaidConfigured = true;
+        lastMermaidTheme = theme;
+      }
+      const container = document.createElement('div');
+      container.className = 'mermaid';
+      container.textContent = code;
+      mermaidPreview.innerHTML = '';
+      mermaidPreview.appendChild(container);
+      window.mermaid.init(undefined, container);
+      setMermaidPreviewMessage('Live-Vorschau aktualisiert.', { error: false });
+    } catch (err) {
+      console.warn('Mermaid Vorschau fehlgeschlagen', err);
+      mermaidPreview.innerHTML = '';
+      setMermaidPreviewMessage('Vorschau konnte nicht gerendert werden. Bitte prüfe den Code.', { error: true });
+    }
+  }
+
+  function setMermaidBuilderUI(enabled) {
+    const type = getSelectedMermaidType();
+    const hasBuilder = !!getMermaidBuilder(type);
+    const isActive = enabled && hasBuilder;
+    mermaidBuilderState.enabled = isActive;
+    mermaidBuilderState.type = type;
+    if (mermaidBuilderEnabled) {
+      mermaidBuilderEnabled.checked = isActive;
+      mermaidBuilderEnabled.disabled = !hasBuilder;
+    }
+    if (mermaidBuilderContent) {
+      mermaidBuilderContent.classList.toggle('builder-disabled', !isActive);
+      mermaidBuilderContent.setAttribute('aria-disabled', isActive ? 'false' : 'true');
+    }
+    if (mermaidCodeInput) {
+      mermaidCodeInput.readOnly = isActive;
+      mermaidCodeInput.classList.toggle('read-only', isActive);
+    }
+    if (mermaidCodeHint) mermaidCodeHint.hidden = !isActive;
+  }
+
+  function renderMermaidBuilder() {
+    if (!mermaidBuilder) return;
+    const type = getSelectedMermaidType();
+    const builder = getMermaidBuilder(type);
+    if (!builder) {
+      mermaidBuilder.classList.add('hidden');
+      return;
+    }
+    mermaidBuilder.classList.remove('hidden');
+    if (!mermaidBuilderContent) return;
+    mermaidBuilderContent.innerHTML = '';
+    if (!mermaidBuilderState.enabled) {
+      const hint = document.createElement('p');
+      hint.className = 'muted';
+      hint.textContent = 'Aktiviere den grafischen Editor, um die Diagrammteile anzupassen.';
+      mermaidBuilderContent.appendChild(hint);
+      return;
+    }
+    const data = ensureMermaidBuilderData(type);
+    if (!data) return;
+    if (builderSupportsOrientation(type)) {
+      data.orientation = normalizeOrientation(data.orientation || mermaidOrientationSelect?.value || MERMAID_DEFAULT_ORIENTATION);
+      if (mermaidOrientationSelect) {
+        mermaidOrientationSelect.value = data.orientation;
+        lastMermaidOrientation = data.orientation;
+      }
+    }
+    const helpers = {
+      createSection(title, description) {
+        return createBuilderSection(mermaidBuilderContent, title, description);
+      },
+      createTable(headers) {
+        return createBuilderTable(headers);
+      },
+      createIconButton,
+      sync: () => syncBuilderOutputs(),
+      rerender: () => renderMermaidBuilder(),
+    };
+    builder.render({ container: mermaidBuilderContent, data, helpers });
+  }
+
+  function syncBuilderOutputs() {
+    if (!mermaidBuilderState.enabled) {
+      updateMermaidDialogPreview();
+      return;
+    }
+    const type = mermaidBuilderState.type;
+    const builder = getMermaidBuilder(type);
+    const data = ensureMermaidBuilderData(type);
+    if (!builder || !data || !mermaidCodeInput) return;
+    try {
+      const code = builder.generate(data);
+      mermaidBuilderSyncing = true;
+      mermaidCodeInput.value = code;
+      mermaidTemplatePristine = true;
+      mermaidBuilderSyncing = false;
+      updateMermaidDialogPreview();
+    } catch (err) {
+      mermaidBuilderSyncing = false;
+      console.warn('Mermaid-Builder konnte den Code nicht erzeugen', err);
+    }
+  }
+
+  function setMermaidBuilderEnabled(enabled, options = {}) {
+    const type = getSelectedMermaidType();
+    const builder = getMermaidBuilder(type);
+    if (!builder) {
+      mermaidBuilderState.enabled = false;
+      setMermaidBuilderUI(false);
+      if (mermaidBuilderContent) mermaidBuilderContent.innerHTML = '';
+      return;
+    }
+    const shouldEnable = !!enabled;
+    setMermaidBuilderUI(shouldEnable);
+    if (shouldEnable) {
+      const { reset = false } = options;
+      if (reset || !mermaidBuilderState.data.has(type)) {
+        setMermaidBuilderData(type, builder.createDefault());
+      }
+      if (builderSupportsOrientation(type)) {
+        const data = ensureMermaidBuilderData(type);
+        const orientation = normalizeOrientation(data?.orientation || mermaidOrientationSelect?.value || MERMAID_DEFAULT_ORIENTATION);
+        data.orientation = orientation;
+        if (mermaidOrientationSelect) {
+          mermaidOrientationSelect.value = orientation;
+        }
+        lastMermaidOrientation = orientation;
+      }
+    }
+    renderMermaidBuilder();
+    if (shouldEnable) {
+      syncBuilderOutputs();
+    } else {
+      updateMermaidDialogPreview();
+    }
+  }
+
+  function syncMermaidBuilderAvailability(type) {
+    const builder = getMermaidBuilder(type);
+    if (!builder) {
+      if (mermaidBuilderEnabled) {
+        mermaidBuilderEnabled.checked = false;
+        mermaidBuilderEnabled.disabled = true;
+      }
+      mermaidBuilderState.enabled = false;
+      if (mermaidBuilderContent) mermaidBuilderContent.innerHTML = '';
+      if (mermaidBuilder) mermaidBuilder.classList.add('hidden');
+      return;
+    }
+    if (mermaidBuilder) mermaidBuilder.classList.remove('hidden');
+    if (mermaidBuilderEnabled) {
+      mermaidBuilderEnabled.disabled = false;
+      mermaidBuilderEnabled.checked = mermaidBuilderState.enabled;
+    }
+    mermaidBuilderState.type = type;
+    renderMermaidBuilder();
+    if (mermaidBuilderState.enabled) {
+      syncBuilderOutputs();
+    }
+  }
+
+  function loadMermaidBuilderFromCode(type, code) {
+    const builder = getMermaidBuilder(type);
+    syncMermaidBuilderAvailability(type);
+    if (!builder) return;
+    const parsed = builder.parse(code);
+    if (parsed) {
+      setMermaidBuilderData(type, parsed);
+      if (typeof builder.afterParse === 'function') {
+        builder.afterParse(parsed);
+      }
+      if (builderSupportsOrientation(type)) {
+        const orientation = normalizeOrientation(parsed.orientation);
+        if (orientation) {
+          lastMermaidOrientation = orientation;
+          if (mermaidOrientationSelect) mermaidOrientationSelect.value = orientation;
+        }
+      }
+      if (mermaidBuilderState.enabled) {
+        renderMermaidBuilder();
+        syncBuilderOutputs();
+      }
+    } else if (mermaidBuilderState.enabled) {
+      setMermaidBuilderEnabled(false);
+    }
+  }
+
+  const MERMAID_BUILDERS = {
+    flowchart: createFlowchartBuilder(),
+    sequence: createSequenceBuilder(),
+    class: createClassBuilder(),
+    state: createStateBuilder(),
+    gantt: createGanttBuilder(),
+    pie: createPieBuilder(),
+  };
+
+  const ORIENTATION_VALUES = ['TD', 'LR', 'BT', 'RL'];
+
+  function normalizeOrientation(value) {
+    const upper = (value || '').toUpperCase();
+    return ORIENTATION_VALUES.includes(upper) ? upper : MERMAID_DEFAULT_ORIENTATION;
+  }
+
+  function orientationToDirection(value) {
+    switch (normalizeOrientation(value)) {
+      case 'LR':
+      case 'RL':
+      case 'BT':
+        return normalizeOrientation(value);
+      case 'TD':
+      default:
+        return 'TB';
+    }
+  }
+
+  function directionToOrientation(value) {
+    const upper = (value || '').toUpperCase();
+    switch (upper) {
+      case 'LR':
+      case 'RL':
+      case 'BT':
+        return upper;
+      case 'TB':
+      case 'TD':
+      default:
+        return 'TD';
+    }
+  }
+
+  function createFlowchartBuilder() {
+    return {
+      supportsOrientation: true,
+      createDefault: createFlowchartDefaultData,
+      parse(code) {
+        const parsed = parseFlowchartCode(code);
+        if (!parsed) return null;
+        return {
+          orientation: normalizeOrientation(parsed.orientation),
+          nodes: (parsed.nodes.length ? parsed.nodes : createFlowchartDefaultData().nodes).map((node, index) => ({
+            id: node.id || `Knoten${index + 1}`,
+            label: node.label || node.id || `Knoten ${index + 1}`,
+            shape: node.shape || 'rectangle',
+          })),
+          edges: parsed.edges.map((edge) => ({
+            from: edge.from || '',
+            to: edge.to || '',
+            label: edge.label || '',
+          })),
+        };
+      },
+      afterParse(data) {
+        if (mermaidOrientationSelect && data?.orientation) {
+          mermaidOrientationSelect.value = normalizeOrientation(data.orientation);
+          lastMermaidOrientation = normalizeOrientation(data.orientation);
+        }
+      },
+      generate: generateFlowchartCode,
+      render({ data, helpers }) {
+        const { createSection, createTable, createIconButton, sync, rerender } = helpers;
+        data.orientation = normalizeOrientation(data.orientation || MERMAID_DEFAULT_ORIENTATION);
+        if (mermaidOrientationSelect) {
+          mermaidOrientationSelect.value = data.orientation;
+          lastMermaidOrientation = data.orientation;
+        }
+
+        const nodesSection = createSection('Knoten');
+        const addNodeBtn = createIconButton({
+          label: 'Knoten',
+          icon: 'lucide:plus',
+          onClick() {
+            const nextId = ensureUniqueNodeId(data.nodes, `Knoten${data.nodes.length + 1}`);
+            data.nodes.push({ id: nextId, label: `Schritt ${data.nodes.length + 1}`, shape: 'rectangle' });
+            rerender();
+            sync();
+          },
+        });
+        nodesSection.header.appendChild(addNodeBtn);
+        const nodesTable = createTable(['ID', 'Beschriftung', 'Form', 'Aktion']);
+        data.nodes.forEach((node, index) => {
+          const row = document.createElement('tr');
+
+          const idCell = document.createElement('td');
+          const idInput = document.createElement('input');
+          idInput.type = 'text';
+          idInput.value = node.id;
+          idInput.placeholder = 'ID';
+          idInput.addEventListener('blur', () => {
+            const next = ensureBuilderNodeId(idInput.value, `Knoten${index + 1}`);
+            if (next !== node.id) {
+              renameFlowchartReferences(data, node.id, next);
+            }
+            node.id = next;
+            sync();
+            rerender();
+          });
+          idInput.addEventListener('input', () => {
+            node.id = sanitizeMermaidNodeId(idInput.value, '');
+          });
+          idCell.appendChild(idInput);
+          row.appendChild(idCell);
+
+          const labelCell = document.createElement('td');
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.value = node.label;
+          labelInput.placeholder = 'Anzeigename';
+          labelInput.addEventListener('input', () => {
+            node.label = labelInput.value;
+          });
+          labelInput.addEventListener('blur', () => {
+            node.label = sanitizeMermaidLabel(labelInput.value, node.id);
+            sync();
+          });
+          labelCell.appendChild(labelInput);
+          row.appendChild(labelCell);
+
+          const shapeCell = document.createElement('td');
+          const shapeSelect = document.createElement('select');
+          MERMAID_NODE_SHAPES.forEach((shape) => {
+            const option = document.createElement('option');
+            option.value = shape.value;
+            option.textContent = shape.label;
+            if (shape.value === node.shape) option.selected = true;
+            shapeSelect.appendChild(option);
+          });
+          shapeSelect.addEventListener('change', () => {
+            node.shape = shapeSelect.value;
+            sync();
+          });
+          shapeCell.appendChild(shapeSelect);
+          row.appendChild(shapeCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              if (data.nodes.length <= 1) return;
+              const removedId = node.id;
+              data.nodes.splice(index, 1);
+              data.edges = data.edges.filter((edge) => edge.from !== removedId && edge.to !== removedId);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          nodesTable.tbody.appendChild(row);
+        });
+        nodesSection.section.appendChild(nodesTable.wrapper);
+
+        const edgesSection = createSection('Verbindungen');
+        const addEdgeBtn = createIconButton({
+          label: 'Verbindung',
+          icon: 'lucide:plus',
+          onClick() {
+            const from = data.nodes[0]?.id || '';
+            const to = data.nodes[data.nodes.length - 1]?.id || '';
+            data.edges.push({ from, to, label: '' });
+            rerender();
+            sync();
+          },
+        });
+        edgesSection.header.appendChild(addEdgeBtn);
+        const edgesTable = createTable(['Von', 'Beschriftung', 'Nach', 'Aktion']);
+        data.edges.forEach((edge, index) => {
+          const row = document.createElement('tr');
+
+          const fromCell = document.createElement('td');
+          const fromInput = document.createElement('input');
+          fromInput.type = 'text';
+          fromInput.value = edge.from;
+          fromInput.placeholder = 'Start';
+          fromInput.setAttribute('list', 'mermaidNodeIdOptions');
+          fromInput.addEventListener('blur', () => {
+            edge.from = sanitizeMermaidNodeId(fromInput.value, '');
+            sync();
+          });
+          fromInput.addEventListener('input', () => {
+            edge.from = sanitizeMermaidNodeId(fromInput.value, '');
+          });
+          fromCell.appendChild(fromInput);
+          row.appendChild(fromCell);
+
+          const labelCell = document.createElement('td');
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.value = edge.label;
+          labelInput.placeholder = 'Beschriftung';
+          labelInput.addEventListener('input', () => {
+            edge.label = labelInput.value;
+          });
+          labelInput.addEventListener('blur', () => {
+            edge.label = sanitizeMermaidEdgeLabel(labelInput.value);
+            sync();
+          });
+          labelCell.appendChild(labelInput);
+          row.appendChild(labelCell);
+
+          const toCell = document.createElement('td');
+          const toInput = document.createElement('input');
+          toInput.type = 'text';
+          toInput.value = edge.to;
+          toInput.placeholder = 'Ziel';
+          toInput.setAttribute('list', 'mermaidNodeIdOptions');
+          toInput.addEventListener('blur', () => {
+            edge.to = sanitizeMermaidNodeId(toInput.value, '');
+            sync();
+          });
+          toInput.addEventListener('input', () => {
+            edge.to = sanitizeMermaidNodeId(toInput.value, '');
+          });
+          toCell.appendChild(toInput);
+          row.appendChild(toCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              data.edges.splice(index, 1);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          edgesTable.tbody.appendChild(row);
+        });
+        edgesSection.section.appendChild(edgesTable.wrapper);
+
+        fillDatalist(mermaidNodeIdOptions, data.nodes.map((node) => node.id));
+      },
+    };
+  }
+
+  function createSequenceBuilder() {
+    return {
+      supportsOrientation: false,
+      createDefault: createSequenceDefaultData,
+      parse: parseSequenceDiagram,
+      generate: generateSequenceDiagram,
+      render({ data, helpers }) {
+        const { createSection, createTable, createIconButton, sync, rerender } = helpers;
+
+        const participantsSection = createSection('Teilnehmer');
+        const addParticipantBtn = createIconButton({
+          label: 'Teilnehmer',
+          icon: 'lucide:plus',
+          onClick() {
+            const base = `Teilnehmer${data.participants.length + 1}`;
+            const id = sanitizeMermaidNodeId(base, base);
+            data.participants.push({ id, label: base });
+            rerender();
+            sync();
+          },
+        });
+        participantsSection.header.appendChild(addParticipantBtn);
+        const participantsTable = createTable(['ID', 'Beschriftung', 'Aktion']);
+        data.participants.forEach((participant, index) => {
+          const row = document.createElement('tr');
+          const idCell = document.createElement('td');
+          const idInput = document.createElement('input');
+          idInput.type = 'text';
+          idInput.value = participant.id;
+          idInput.placeholder = 'ID';
+          idInput.addEventListener('blur', () => {
+            const previous = participant.id;
+            const next = sanitizeMermaidNodeId(idInput.value, `Teilnehmer${index + 1}`);
+            participant.id = next;
+            if (previous !== next) {
+              data.messages = data.messages.map((message) => ({
+                from: message.from === previous ? next : message.from,
+                to: message.to === previous ? next : message.to,
+                arrow: message.arrow,
+                text: message.text,
+              }));
+            }
+            sync();
+            rerender();
+          });
+          idInput.addEventListener('input', () => {
+            participant.id = sanitizeMermaidNodeId(idInput.value, participant.id);
+          });
+          idCell.appendChild(idInput);
+          row.appendChild(idCell);
+
+          const labelCell = document.createElement('td');
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.value = participant.label || '';
+          labelInput.placeholder = 'Anzeigename';
+          labelInput.addEventListener('input', () => {
+            participant.label = labelInput.value;
+          });
+          labelCell.appendChild(labelInput);
+          row.appendChild(labelCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              const removedId = participant.id;
+              data.participants.splice(index, 1);
+              data.messages = data.messages.filter((msg) => msg.from !== removedId && msg.to !== removedId);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          participantsTable.tbody.appendChild(row);
+        });
+        participantsSection.section.appendChild(participantsTable.wrapper);
+
+        const messageSection = createSection('Nachrichten');
+        const addMessageBtn = createIconButton({
+          label: 'Nachricht',
+          icon: 'lucide:plus',
+          onClick() {
+            const first = data.participants[0]?.id || '';
+            const second = data.participants[1]?.id || first;
+            data.messages.push({ from: first, arrow: SEQUENCE_ARROW_TYPES[0], to: second, text: '' });
+            rerender();
+            sync();
+          },
+        });
+        messageSection.header.appendChild(addMessageBtn);
+        const messageTable = createTable(['Von', 'Pfeil', 'Nach', 'Text', 'Aktion']);
+
+        const participantIds = data.participants.map((p) => p.id);
+        data.messages.forEach((message, index) => {
+          const row = document.createElement('tr');
+
+          const fromCell = document.createElement('td');
+          const fromSelect = document.createElement('select');
+          participantIds.forEach((id) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = id || '—';
+            fromSelect.appendChild(option);
+          });
+          const fromFallback = document.createElement('option');
+          fromFallback.value = '';
+          fromFallback.textContent = '—';
+          fromSelect.appendChild(fromFallback);
+          fromSelect.value = participantIds.includes(message.from) ? message.from : '';
+          fromSelect.addEventListener('change', () => {
+            message.from = sanitizeMermaidNodeId(fromSelect.value, '');
+            sync();
+          });
+          fromCell.appendChild(fromSelect);
+          row.appendChild(fromCell);
+
+          const arrowCell = document.createElement('td');
+          const arrowSelect = document.createElement('select');
+          SEQUENCE_ARROW_TYPES.forEach((arrow) => {
+            const option = document.createElement('option');
+            option.value = arrow;
+            option.textContent = arrow;
+            arrowSelect.appendChild(option);
+          });
+          arrowSelect.value = message.arrow || SEQUENCE_ARROW_TYPES[0];
+          arrowSelect.addEventListener('change', () => {
+            message.arrow = arrowSelect.value;
+            sync();
+          });
+          arrowCell.appendChild(arrowSelect);
+          row.appendChild(arrowCell);
+
+          const toCell = document.createElement('td');
+          const toSelect = document.createElement('select');
+          participantIds.forEach((id) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = id || '—';
+            toSelect.appendChild(option);
+          });
+          const toFallback = document.createElement('option');
+          toFallback.value = '';
+          toFallback.textContent = '—';
+          toSelect.appendChild(toFallback);
+          toSelect.value = participantIds.includes(message.to) ? message.to : '';
+          toSelect.addEventListener('change', () => {
+            message.to = sanitizeMermaidNodeId(toSelect.value, '');
+            sync();
+          });
+          toCell.appendChild(toSelect);
+          row.appendChild(toCell);
+
+          const textCell = document.createElement('td');
+          const textInput = document.createElement('input');
+          textInput.type = 'text';
+          textInput.value = message.text || '';
+          textInput.placeholder = 'Text';
+          textInput.addEventListener('input', () => {
+            message.text = textInput.value;
+            sync();
+          });
+          textCell.appendChild(textInput);
+          row.appendChild(textCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              data.messages.splice(index, 1);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          messageTable.tbody.appendChild(row);
+        });
+        messageSection.section.appendChild(messageTable.wrapper);
+      },
+    };
+  }
+
+  function createClassBuilder() {
+    return {
+      supportsOrientation: true,
+      createDefault: createClassDefaultData,
+      parse: parseClassDiagram,
+      generate: generateClassDiagram,
+      render({ data, helpers }) {
+        const { createSection, createTable, createIconButton, sync, rerender } = helpers;
+        data.orientation = normalizeOrientation(data.orientation || MERMAID_DEFAULT_ORIENTATION);
+        if (mermaidOrientationSelect) {
+          mermaidOrientationSelect.value = data.orientation;
+          lastMermaidOrientation = data.orientation;
+        }
+
+        const classesSection = createSection('Klassen', 'Mitglieder je Zeile.');
+        const addClassBtn = createIconButton({
+          label: 'Klasse',
+          icon: 'lucide:plus',
+          onClick() {
+            const base = `Klasse${data.classes.length + 1}`;
+            const name = sanitizeMermaidNodeId(base, base);
+            data.classes.push({ name, members: [] });
+            rerender();
+            sync();
+          },
+        });
+        classesSection.header.appendChild(addClassBtn);
+        const classesTable = createTable(['Name', 'Mitglieder', 'Aktion']);
+        data.classes.forEach((cls, index) => {
+          const row = document.createElement('tr');
+
+          const nameCell = document.createElement('td');
+          const nameInput = document.createElement('input');
+          nameInput.type = 'text';
+          nameInput.value = cls.name || '';
+          nameInput.placeholder = 'Klassenname';
+          nameInput.addEventListener('blur', () => {
+            const previous = cls.name;
+            const next = sanitizeMermaidNodeId(nameInput.value, `Klasse${index + 1}`);
+            cls.name = next;
+            if (previous !== next) {
+              data.relations = data.relations.map((rel) => ({
+                from: rel.from === previous ? next : rel.from,
+                to: rel.to === previous ? next : rel.to,
+                type: rel.type,
+                label: rel.label,
+              }));
+            }
+            sync();
+            rerender();
+          });
+          nameInput.addEventListener('input', () => {
+            cls.name = sanitizeMermaidNodeId(nameInput.value, cls.name);
+          });
+          nameCell.appendChild(nameInput);
+          row.appendChild(nameCell);
+
+          const membersCell = document.createElement('td');
+          const membersTextarea = document.createElement('textarea');
+          membersTextarea.value = (cls.members || []).join('\n');
+          membersTextarea.placeholder = '+eigenschaft: Typ';
+          membersTextarea.addEventListener('input', () => {
+            cls.members = membersTextarea.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+            sync();
+          });
+          membersCell.appendChild(membersTextarea);
+          row.appendChild(membersCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              const removed = cls.name;
+              data.classes.splice(index, 1);
+              data.relations = data.relations.filter((rel) => rel.from !== removed && rel.to !== removed);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          classesTable.tbody.appendChild(row);
+        });
+        classesSection.section.appendChild(classesTable.wrapper);
+
+        const relationsSection = createSection('Beziehungen');
+        const addRelationBtn = createIconButton({
+          label: 'Beziehung',
+          icon: 'lucide:plus',
+          onClick() {
+            const from = data.classes[0]?.name || '';
+            const to = data.classes[1]?.name || from;
+            data.relations.push({ from, type: CLASS_RELATION_TYPES[0], to, label: '' });
+            rerender();
+            sync();
+          },
+        });
+        relationsSection.header.appendChild(addRelationBtn);
+        const relationsTable = createTable(['Von', 'Typ', 'Nach', 'Beschriftung', 'Aktion']);
+        const classNames = data.classes.map((cls) => cls.name);
+        data.relations.forEach((rel, index) => {
+          const row = document.createElement('tr');
+
+          const fromCell = document.createElement('td');
+          const fromSelect = document.createElement('select');
+          classNames.forEach((name) => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            fromSelect.appendChild(option);
+          });
+          const fromFallback = document.createElement('option');
+          fromFallback.value = '';
+          fromFallback.textContent = '—';
+          fromSelect.appendChild(fromFallback);
+          fromSelect.value = classNames.includes(rel.from) ? rel.from : '';
+          fromSelect.addEventListener('change', () => {
+            rel.from = sanitizeMermaidNodeId(fromSelect.value, '');
+            sync();
+          });
+          fromCell.appendChild(fromSelect);
+          row.appendChild(fromCell);
+
+          const typeCell = document.createElement('td');
+          const typeSelect = document.createElement('select');
+          CLASS_RELATION_TYPES.forEach((type) => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            typeSelect.appendChild(option);
+          });
+          typeSelect.value = CLASS_RELATION_TYPES.includes(rel.type) ? rel.type : CLASS_RELATION_TYPES[0];
+          typeSelect.addEventListener('change', () => {
+            rel.type = typeSelect.value;
+            sync();
+          });
+          typeCell.appendChild(typeSelect);
+          row.appendChild(typeCell);
+
+          const toCell = document.createElement('td');
+          const toSelect = document.createElement('select');
+          classNames.forEach((name) => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            toSelect.appendChild(option);
+          });
+          const toFallback = document.createElement('option');
+          toFallback.value = '';
+          toFallback.textContent = '—';
+          toSelect.appendChild(toFallback);
+          toSelect.value = classNames.includes(rel.to) ? rel.to : '';
+          toSelect.addEventListener('change', () => {
+            rel.to = sanitizeMermaidNodeId(toSelect.value, '');
+            sync();
+          });
+          toCell.appendChild(toSelect);
+          row.appendChild(toCell);
+
+          const labelCell = document.createElement('td');
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.value = rel.label || '';
+          labelInput.placeholder = 'Beschriftung';
+          labelInput.addEventListener('input', () => {
+            rel.label = labelInput.value;
+            sync();
+          });
+          labelCell.appendChild(labelInput);
+          row.appendChild(labelCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              data.relations.splice(index, 1);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          relationsTable.tbody.appendChild(row);
+        });
+        relationsSection.section.appendChild(relationsTable.wrapper);
+      },
+    };
+  }
+
+  function createStateBuilder() {
+    return {
+      supportsOrientation: true,
+      createDefault: createStateDefaultData,
+      parse: parseStateDiagram,
+      generate: generateStateDiagram,
+      render({ data, helpers }) {
+        const { createSection, createTable, createIconButton, sync, rerender } = helpers;
+        data.orientation = normalizeOrientation(data.orientation || MERMAID_DEFAULT_ORIENTATION);
+        if (mermaidOrientationSelect) {
+          mermaidOrientationSelect.value = data.orientation;
+          lastMermaidOrientation = data.orientation;
+        }
+
+        const allStateNames = () => {
+          const unique = new Set();
+          if (data.initial) unique.add(data.initial);
+          (data.states || []).forEach((state) => unique.add(state));
+          (data.finals || []).forEach((state) => unique.add(state));
+          return Array.from(unique);
+        };
+
+        const initialSection = createSection('Startzustand');
+        const initialInput = document.createElement('input');
+        initialInput.type = 'text';
+        initialInput.value = data.initial || '';
+        initialInput.placeholder = 'Start';
+        initialInput.addEventListener('input', () => {
+          data.initial = sanitizeMermaidNodeId(initialInput.value, '');
+          sync();
+        });
+        initialSection.section.appendChild(initialInput);
+
+        const statesSection = createSection('Zustände');
+        const addStateBtn = createIconButton({
+          label: 'Zustand',
+          icon: 'lucide:plus',
+          onClick() {
+            const base = `State${(data.states || []).length + 1}`;
+            const id = sanitizeMermaidNodeId(base, base);
+            data.states = data.states || [];
+            data.states.push(id);
+            rerender();
+            sync();
+          },
+        });
+        statesSection.header.appendChild(addStateBtn);
+        const statesTable = createTable(['Name', 'Aktion']);
+        (data.states || []).forEach((state, index) => {
+          const row = document.createElement('tr');
+          const nameCell = document.createElement('td');
+          const nameInput = document.createElement('input');
+          nameInput.type = 'text';
+          nameInput.value = state;
+          nameInput.placeholder = 'Zustand';
+          nameInput.addEventListener('blur', () => {
+            const previous = state;
+            const next = sanitizeMermaidNodeId(nameInput.value, `State${index + 1}`);
+            data.states[index] = next;
+            if (previous !== next) {
+              data.transitions = (data.transitions || []).map((tr) => ({
+                from: tr.from === previous ? next : tr.from,
+                to: tr.to === previous ? next : tr.to,
+                label: tr.label,
+              }));
+              data.finals = (data.finals || []).map((final) => (final === previous ? next : final));
+              if (data.initial === previous) data.initial = next;
+            }
+            sync();
+            rerender();
+          });
+          nameCell.appendChild(nameInput);
+          row.appendChild(nameCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              const removed = data.states[index];
+              data.states.splice(index, 1);
+              data.transitions = (data.transitions || []).filter((tr) => tr.from !== removed && tr.to !== removed);
+              data.finals = (data.finals || []).filter((final) => final !== removed);
+              if (data.initial === removed) data.initial = '';
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          statesTable.tbody.appendChild(row);
+        });
+        statesSection.section.appendChild(statesTable.wrapper);
+
+        const finalsSection = createSection('Endzustände');
+        const addFinalBtn = createIconButton({
+          label: 'Endzustand',
+          icon: 'lucide:plus',
+          onClick() {
+            const base = `End${(data.finals || []).length + 1}`;
+            const id = sanitizeMermaidNodeId(base, base);
+            data.finals = data.finals || [];
+            data.finals.push(id);
+            rerender();
+            sync();
+          },
+        });
+        finalsSection.header.appendChild(addFinalBtn);
+        const finalsTable = createTable(['Name', 'Aktion']);
+        (data.finals || []).forEach((finalState, index) => {
+          const row = document.createElement('tr');
+          const nameCell = document.createElement('td');
+          const nameInput = document.createElement('input');
+          nameInput.type = 'text';
+          nameInput.value = finalState;
+          nameInput.placeholder = 'Endzustand';
+          nameInput.addEventListener('blur', () => {
+            const previous = finalState;
+            const next = sanitizeMermaidNodeId(nameInput.value, `End${index + 1}`);
+            data.finals[index] = next;
+            data.transitions = (data.transitions || []).map((tr) => ({
+              from: tr.from === previous ? next : tr.from,
+              to: tr.to === previous ? next : tr.to,
+              label: tr.label,
+            }));
+            sync();
+            rerender();
+          });
+          nameCell.appendChild(nameInput);
+          row.appendChild(nameCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              const removed = data.finals[index];
+              data.finals.splice(index, 1);
+              data.transitions = (data.transitions || []).filter((tr) => tr.from !== removed && tr.to !== removed);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          finalsTable.tbody.appendChild(row);
+        });
+        finalsSection.section.appendChild(finalsTable.wrapper);
+
+        const transitionsSection = createSection('Übergänge');
+        const addTransitionBtn = createIconButton({
+          label: 'Übergang',
+          icon: 'lucide:plus',
+          onClick() {
+            const states = allStateNames();
+            const from = states[0] || '';
+            const to = states[1] || from;
+            data.transitions = data.transitions || [];
+            data.transitions.push({ from, to, label: '' });
+            rerender();
+            sync();
+          },
+        });
+        transitionsSection.header.appendChild(addTransitionBtn);
+        const transitionsTable = createTable(['Von', 'Nach', 'Ereignis', 'Aktion']);
+        const availableStates = allStateNames();
+        (data.transitions || []).forEach((transition, index) => {
+          const row = document.createElement('tr');
+
+          const fromCell = document.createElement('td');
+          const fromSelect = document.createElement('select');
+          availableStates.forEach((state) => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state || '—';
+            fromSelect.appendChild(option);
+          });
+          const fromFallback = document.createElement('option');
+          fromFallback.value = '';
+          fromFallback.textContent = '—';
+          fromSelect.appendChild(fromFallback);
+          fromSelect.value = availableStates.includes(transition.from) ? transition.from : '';
+          fromSelect.addEventListener('change', () => {
+            transition.from = sanitizeMermaidNodeId(fromSelect.value, '');
+            sync();
+          });
+          fromCell.appendChild(fromSelect);
+          row.appendChild(fromCell);
+
+          const toCell = document.createElement('td');
+          const toSelect = document.createElement('select');
+          availableStates.forEach((state) => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state || '—';
+            toSelect.appendChild(option);
+          });
+          const toFallback = document.createElement('option');
+          toFallback.value = '';
+          toFallback.textContent = '—';
+          toSelect.appendChild(toFallback);
+          toSelect.value = availableStates.includes(transition.to) ? transition.to : '';
+          toSelect.addEventListener('change', () => {
+            transition.to = sanitizeMermaidNodeId(toSelect.value, '');
+            sync();
+          });
+          toCell.appendChild(toSelect);
+          row.appendChild(toCell);
+
+          const labelCell = document.createElement('td');
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.value = transition.label || '';
+          labelInput.placeholder = 'Ereignis';
+          labelInput.addEventListener('input', () => {
+            transition.label = labelInput.value;
+            sync();
+          });
+          labelCell.appendChild(labelInput);
+          row.appendChild(labelCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              data.transitions.splice(index, 1);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          transitionsTable.tbody.appendChild(row);
+        });
+        transitionsSection.section.appendChild(transitionsTable.wrapper);
+      },
+    };
+  }
+
+  function createGanttBuilder() {
+    return {
+      supportsOrientation: false,
+      createDefault: createGanttDefaultData,
+      parse: parseGanttDiagram,
+      generate: generateGanttDiagram,
+      render({ data, helpers }) {
+        const { createSection, createTable, createIconButton, sync, rerender } = helpers;
+
+        const metaSection = createSection('Metadaten');
+        const titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.value = data.title || '';
+        titleInput.placeholder = 'Titel';
+        titleInput.addEventListener('input', () => {
+          data.title = titleInput.value.trim();
+          sync();
+        });
+        metaSection.section.appendChild(titleInput);
+
+        const formatInput = document.createElement('input');
+        formatInput.type = 'text';
+        formatInput.value = data.dateFormat || 'YYYY-MM-DD';
+        formatInput.placeholder = 'YYYY-MM-DD';
+        formatInput.addEventListener('input', () => {
+          data.dateFormat = formatInput.value.trim() || 'YYYY-MM-DD';
+          sync();
+        });
+        metaSection.section.appendChild(formatInput);
+
+        const tasksSection = createSection('Aufgaben', 'Abschnitt, Aufgabe, Status, Kennung, Start, Dauer/Ende');
+        const addTaskBtn = createIconButton({
+          label: 'Aufgabe',
+          icon: 'lucide:plus',
+          onClick() {
+            data.tasks = data.tasks || [];
+            data.tasks.push({ section: '', name: `Aufgabe ${data.tasks.length + 1}`, status: '', id: '', start: '', duration: '' });
+            rerender();
+            sync();
+          },
+        });
+        tasksSection.header.appendChild(addTaskBtn);
+        const tasksTable = createTable(['Abschnitt', 'Aufgabe', 'Status', 'Kennung', 'Start', 'Dauer/Ende', 'Aktion']);
+        (data.tasks || []).forEach((task, index) => {
+          const row = document.createElement('tr');
+
+          const cells = [
+            { key: 'section', placeholder: 'Abschnitt' },
+            { key: 'name', placeholder: 'Aufgabe' },
+            { key: 'status', placeholder: 'Status (z.B. done)' },
+            { key: 'id', placeholder: 'ID (optional)' },
+            { key: 'start', placeholder: 'Startdatum oder Referenz' },
+            { key: 'duration', placeholder: 'Dauer oder Ende' },
+          ];
+
+          cells.forEach(({ key, placeholder }) => {
+            const cell = document.createElement('td');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = task[key] || '';
+            input.placeholder = placeholder;
+            input.addEventListener('input', () => {
+              task[key] = input.value;
+              sync();
+            });
+            cell.appendChild(input);
+            row.appendChild(cell);
+          });
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              data.tasks.splice(index, 1);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          tasksTable.tbody.appendChild(row);
+        });
+        tasksSection.section.appendChild(tasksTable.wrapper);
+      },
+    };
+  }
+
+  function createPieBuilder() {
+    return {
+      supportsOrientation: false,
+      createDefault: createPieDefaultData,
+      parse: parsePieDiagram,
+      generate: generatePieDiagram,
+      render({ data, helpers }) {
+        const { createSection, createTable, createIconButton, sync, rerender } = helpers;
+
+        const titleSection = createSection('Titel');
+        const titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.value = data.title || '';
+        titleInput.placeholder = 'Titel';
+        titleInput.addEventListener('input', () => {
+          data.title = titleInput.value.trim();
+          sync();
+        });
+        titleSection.section.appendChild(titleInput);
+
+        const slicesSection = createSection('Segmente');
+        const addSliceBtn = createIconButton({
+          label: 'Segment',
+          icon: 'lucide:plus',
+          onClick() {
+            data.slices = data.slices || [];
+            data.slices.push({ label: `Segment ${data.slices.length + 1}`, value: 10 });
+            rerender();
+            sync();
+          },
+        });
+        slicesSection.header.appendChild(addSliceBtn);
+        const slicesTable = createTable(['Bezeichnung', 'Wert', 'Aktion']);
+        (data.slices || []).forEach((slice, index) => {
+          const row = document.createElement('tr');
+
+          const labelCell = document.createElement('td');
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.value = slice.label || '';
+          labelInput.placeholder = 'Bezeichnung';
+          labelInput.addEventListener('input', () => {
+            slice.label = labelInput.value;
+            sync();
+          });
+          labelCell.appendChild(labelInput);
+          row.appendChild(labelCell);
+
+          const valueCell = document.createElement('td');
+          const valueInput = document.createElement('input');
+          valueInput.type = 'number';
+          valueInput.value = Number.isFinite(slice.value) ? String(slice.value) : '0';
+          valueInput.placeholder = 'Wert';
+          valueInput.step = '1';
+          valueInput.addEventListener('input', () => {
+            const val = Number.parseFloat(valueInput.value);
+            slice.value = Number.isFinite(val) ? val : 0;
+            sync();
+          });
+          valueCell.appendChild(valueInput);
+          row.appendChild(valueCell);
+
+          const actionsCell = document.createElement('td');
+          actionsCell.className = 'actions';
+          const removeBtn = createIconButton({
+            label: 'Entfernen',
+            icon: 'lucide:trash-2',
+            className: 'icon-only',
+            onClick() {
+              data.slices.splice(index, 1);
+              rerender();
+              sync();
+            },
+          });
+          actionsCell.appendChild(removeBtn);
+          row.appendChild(actionsCell);
+
+          slicesTable.tbody.appendChild(row);
+        });
+        slicesSection.section.appendChild(slicesTable.wrapper);
+      },
+    };
+  }
+
+  function createFlowchartDefaultData() {
+    return {
+      orientation: MERMAID_DEFAULT_ORIENTATION,
+      nodes: [
+        { id: 'Start', label: 'Start', shape: 'circle' },
+        { id: 'Entscheidung', label: 'Entscheidung?', shape: 'diamond' },
+        { id: 'Alternative', label: 'Alternative', shape: 'rectangle' },
+        { id: 'Ende', label: 'Ende', shape: 'circle' },
+      ],
+      edges: [
+        { from: 'Start', to: 'Entscheidung', label: '' },
+        { from: 'Entscheidung', to: 'Ende', label: 'Ja' },
+        { from: 'Entscheidung', to: 'Alternative', label: 'Nein' },
+        { from: 'Alternative', to: 'Ende', label: '' },
+      ],
+    };
+  }
+
+  function createSequenceDefaultData() {
+    return {
+      participants: [
+        { id: 'Client', label: 'Nutzer' },
+        { id: 'Server', label: 'System' },
+      ],
+      messages: [
+        { from: 'Client', arrow: '->>', to: 'Server', text: 'Anfrage' },
+        { from: 'Server', arrow: '-->>', to: 'Client', text: 'Antwort' },
+      ],
+    };
+  }
+
+  function createClassDefaultData() {
+    return {
+      orientation: MERMAID_DEFAULT_ORIENTATION,
+      classes: [
+        { name: 'Kunde', members: ['+id: string', '+bestellen()'] },
+        { name: 'Bestellung', members: ['+nummer: string', '+absenden()'] },
+      ],
+      relations: [
+        { from: 'Kunde', type: '-->', to: 'Bestellung', label: 'erstellt' },
+      ],
+    };
+  }
+
+  function createStateDefaultData() {
+    return {
+      orientation: MERMAID_DEFAULT_ORIENTATION,
+      initial: 'Start',
+      finals: ['Ende'],
+      states: ['Prüfen'],
+      transitions: [
+        { from: 'Start', to: 'Prüfen', label: 'beginnen' },
+        { from: 'Prüfen', to: 'Ende', label: 'abschließen' },
+      ],
+    };
+  }
+
+  function createGanttDefaultData() {
+    return {
+      title: 'Projektplan',
+      dateFormat: 'YYYY-MM-DD',
+      tasks: [
+        { section: 'Planung', name: 'Kickoff', status: 'done', id: 't1', start: '2024-01-01', duration: '3d' },
+        { section: 'Umsetzung', name: 'Implementierung', status: 'active', id: 't2', start: '2024-01-04', duration: '5d' },
+      ],
+    };
+  }
+
+  function createPieDefaultData() {
+    return {
+      title: 'Marktanteile',
+      slices: [
+        { label: 'Produkt A', value: 45 },
+        { label: 'Produkt B', value: 30 },
+        { label: 'Produkt C', value: 25 },
+      ],
+    };
+  }
+
+  function renderFlowchartBuilder(data, helpers) {
+    if (typeof data.orientation === 'string' && mermaidOrientationSelect) {
+      mermaidOrientationSelect.value = data.orientation;
+      lastMermaidOrientation = data.orientation;
+    }
+    const { createSection, createTable, createIconButton, sync, rerender } = helpers;
+
+    const nodesSection = createSection('Knoten');
+    const addNodeBtn = createIconButton({
+      label: 'Knoten',
+      icon: 'lucide:plus',
+      onClick() {
+        const nextId = ensureUniqueNodeId(data.nodes, `Knoten${data.nodes.length + 1}`);
+        data.nodes.push({ id: nextId, label: `Schritt ${data.nodes.length + 1}`, shape: 'rectangle' });
+        rerender();
+        sync();
+      },
+    });
+    nodesSection.header.appendChild(addNodeBtn);
+    const nodesTable = createTable(['ID', 'Beschriftung', 'Form', 'Aktion']);
+    data.nodes.forEach((node, index) => {
+      const row = document.createElement('tr');
+
+      const idCell = document.createElement('td');
+      const idInput = document.createElement('input');
+      idInput.type = 'text';
+      idInput.value = node.id;
+      idInput.placeholder = 'ID';
+      idInput.addEventListener('blur', () => {
+        const next = ensureBuilderNodeId(idInput.value, `Knoten${index + 1}`);
+        if (next !== node.id) {
+          renameFlowchartReferences(data, node.id, next);
+        }
+        node.id = next;
+        sync();
+        rerender();
+      });
+      idInput.addEventListener('input', () => {
+        node.id = sanitizeMermaidNodeId(idInput.value, '');
+      });
+      idCell.appendChild(idInput);
+      row.appendChild(idCell);
+
+      const labelCell = document.createElement('td');
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.value = node.label;
+      labelInput.placeholder = 'Anzeigename';
+      labelInput.addEventListener('input', () => {
+        node.label = labelInput.value;
+      });
+      labelInput.addEventListener('blur', () => {
+        node.label = sanitizeMermaidLabel(labelInput.value, node.id);
+        sync();
+      });
+      labelCell.appendChild(labelInput);
+      row.appendChild(labelCell);
+
+      const shapeCell = document.createElement('td');
+      const shapeSelect = document.createElement('select');
+      MERMAID_NODE_SHAPES.forEach((shape) => {
+        const option = document.createElement('option');
+        option.value = shape.value;
+        option.textContent = shape.label;
+        if (shape.value === node.shape) option.selected = true;
+        shapeSelect.appendChild(option);
+      });
+      shapeSelect.addEventListener('change', () => {
+        node.shape = shapeSelect.value;
+        sync();
+      });
+      shapeCell.appendChild(shapeSelect);
+      row.appendChild(shapeCell);
+
+      const actionsCell = document.createElement('td');
+      actionsCell.className = 'actions';
+      const removeBtn = createIconButton({
+        label: 'Entfernen',
+        icon: 'lucide:trash-2',
+        className: 'icon-only',
+        onClick() {
+          if (data.nodes.length <= 1) return;
+          const previousId = node.id;
+          data.nodes.splice(index, 1);
+          data.edges = data.edges.filter((edge) => edge.from !== previousId && edge.to !== previousId);
+          rerender();
+          sync();
+        },
+      });
+      actionsCell.appendChild(removeBtn);
+      row.appendChild(actionsCell);
+
+      nodesTable.tbody.appendChild(row);
+    });
+    nodesSection.section.appendChild(nodesTable.wrapper);
+
+    const edgesSection = createSection('Verbindungen');
+    const addEdgeBtn = createIconButton({
+      label: 'Verbindung',
+      icon: 'lucide:plus',
+      onClick() {
+        const from = data.nodes[0]?.id || '';
+        const to = data.nodes[data.nodes.length - 1]?.id || '';
+        data.edges.push({ from, to, label: '' });
+        rerender();
+        sync();
+      },
+    });
+    edgesSection.header.appendChild(addEdgeBtn);
+    const edgesTable = createTable(['Von', 'Beschriftung', 'Nach', 'Aktion']);
+    data.edges.forEach((edge, index) => {
+      const row = document.createElement('tr');
+      const fromCell = document.createElement('td');
+      const fromInput = document.createElement('input');
+      fromInput.type = 'text';
+      fromInput.value = edge.from;
+      fromInput.placeholder = 'Start';
+      fromInput.setAttribute('list', 'mermaidNodeIdOptions');
+      fromInput.addEventListener('blur', () => {
+        edge.from = sanitizeMermaidNodeId(fromInput.value, '');
+        sync();
+      });
+      fromInput.addEventListener('input', () => {
+        edge.from = sanitizeMermaidNodeId(fromInput.value, '');
+      });
+      fromCell.appendChild(fromInput);
+      row.appendChild(fromCell);
+
+      const labelCell = document.createElement('td');
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.value = edge.label;
+      labelInput.placeholder = 'Beschriftung';
+      labelInput.addEventListener('input', () => {
+        edge.label = labelInput.value;
+      });
+      labelInput.addEventListener('blur', () => {
+        edge.label = sanitizeMermaidEdgeLabel(labelInput.value);
+        sync();
+      });
+      labelCell.appendChild(labelInput);
+      row.appendChild(labelCell);
+
+      const toCell = document.createElement('td');
+      const toInput = document.createElement('input');
+      toInput.type = 'text';
+      toInput.value = edge.to;
+      toInput.placeholder = 'Ziel';
+      toInput.setAttribute('list', 'mermaidNodeIdOptions');
+      toInput.addEventListener('blur', () => {
+        edge.to = sanitizeMermaidNodeId(toInput.value, '');
+        sync();
+      });
+      toInput.addEventListener('input', () => {
+        edge.to = sanitizeMermaidNodeId(toInput.value, '');
+      });
+      toCell.appendChild(toInput);
+      row.appendChild(toCell);
+
+      const actionsCell = document.createElement('td');
+      actionsCell.className = 'actions';
+      const removeBtn = createIconButton({
+        label: 'Entfernen',
+        icon: 'lucide:trash-2',
+        className: 'icon-only',
+        onClick() {
+          data.edges.splice(index, 1);
+          rerender();
+          sync();
+        },
+      });
+      actionsCell.appendChild(removeBtn);
+      row.appendChild(actionsCell);
+
+      edgesTable.tbody.appendChild(row);
+    });
+    edgesSection.section.appendChild(edgesTable.wrapper);
+
+    fillDatalist(mermaidNodeIdOptions, data.nodes.map((node) => node.id));
+  }
+
+  function renderSequenceBuilder(data, helpers) {
+    const { createSection, sync } = helpers;
+    const participantSection = createSection('Teilnehmer', 'Eine Zeile pro Eintrag, Format: ID | Anzeigename (Anzeigename optional).');
+    const participantTextarea = document.createElement('textarea');
+    participantTextarea.value = data.participants.map((part) => {
+      const id = part.id || '';
+      const label = part.label && part.label !== part.id ? part.label : '';
+      return label ? `${id} | ${label}` : id;
+    }).join('\n');
+    participantTextarea.placeholder = 'Client | Nutzer';
+    participantTextarea.addEventListener('input', () => {
+      data.participants = parseSequenceParticipants(participantTextarea.value);
+      sync();
+    });
+    participantSection.section.appendChild(participantTextarea);
+
+    const messageSection = createSection('Nachrichten', 'Eine Zeile pro Nachricht, Format: Von ->> Nach : Text');
+    const messageTextarea = document.createElement('textarea');
+    messageTextarea.value = data.messages.map((msg) => {
+      const arrow = msg.arrow || '->';
+      const text = msg.text ? ` : ${msg.text}` : '';
+      return `${msg.from || ''} ${arrow} ${msg.to || ''}${text}`.trim();
+    }).join('\n');
+    messageTextarea.placeholder = 'Client ->> Server : Anfrage';
+    messageTextarea.addEventListener('input', () => {
+      data.messages = parseSequenceMessages(messageTextarea.value);
+      sync();
+    });
+    messageSection.section.appendChild(messageTextarea);
+  }
+
+  function renderClassBuilder(data, helpers) {
+    const { createSection, sync } = helpers;
+    const classesSection = createSection('Klassen', 'Klassenblock mit leerer Zeile trennen. Erste Zeile = Klassenname, folgende Zeilen = Mitglieder.');
+    const classesTextarea = document.createElement('textarea');
+    classesTextarea.value = data.classes.map((cls) => {
+      const members = (cls.members || []).map((member) => `  ${member}`).join('\n');
+      return members ? `${cls.name}
+${members}` : `${cls.name}`;
+    }).join('\n\n');
+    classesTextarea.placeholder = `Kunde
+  +id: string
+  +bestellen()`;
+    classesTextarea.addEventListener('input', () => {
+      data.classes = parseClassBlocks(classesTextarea.value);
+      sync();
+    });
+    classesSection.section.appendChild(classesTextarea);
+
+    const relationsSection = createSection('Beziehungen', 'Format: KlasseA --> KlasseB : Beschriftung (Beschriftung optional).');
+    const relationsTextarea = document.createElement('textarea');
+    relationsTextarea.value = data.relations.map((rel) => {
+      const label = rel.label ? ` : ${rel.label}` : '';
+      return `${rel.from || ''} ${rel.type || '-->'} ${rel.to || ''}${label}`.trim();
+    }).join('\n');
+    relationsTextarea.placeholder = 'Kunde --> Bestellung : erstellt';
+    relationsTextarea.addEventListener('input', () => {
+      data.relations = parseClassRelations(relationsTextarea.value);
+      sync();
+    });
+    relationsSection.section.appendChild(relationsTextarea);
+  }
+
+  function renderStateBuilder(data, helpers) {
+    const { createSection, sync } = helpers;
+    const initialSection = createSection('Startzustand');
+    const initialInput = document.createElement('input');
+    initialInput.type = 'text';
+    initialInput.value = data.initial || '';
+    initialInput.placeholder = 'Start';
+    initialInput.addEventListener('input', () => {
+      data.initial = sanitizeMermaidNodeId(initialInput.value, '');
+      sync();
+    });
+    initialSection.section.appendChild(initialInput);
+
+    const finalsSection = createSection('Endzustände', 'Ein Zustand pro Zeile.');
+    const finalsTextarea = document.createElement('textarea');
+    finalsTextarea.value = (data.finals || []).join('\n');
+    finalsTextarea.placeholder = 'Ende';
+    finalsTextarea.addEventListener('input', () => {
+      data.finals = finalsTextarea.value.split(/\r?\n/).map((line) => sanitizeMermaidNodeId(line.trim(), '')).filter(Boolean);
+      sync();
+    });
+    finalsSection.section.appendChild(finalsTextarea);
+
+    const statesSection = createSection('Weitere Zustände', 'Ein Zustand pro Zeile.');
+    const statesTextarea = document.createElement('textarea');
+    statesTextarea.value = (data.states || []).join('\n');
+    statesTextarea.placeholder = 'Prüfen';
+    statesTextarea.addEventListener('input', () => {
+      data.states = statesTextarea.value.split(/\r?\n/).map((line) => sanitizeMermaidNodeId(line.trim(), '')).filter(Boolean);
+      sync();
+    });
+    statesSection.section.appendChild(statesTextarea);
+
+    const transitionsSection = createSection('Übergänge', 'Format: Von --> Nach : Ereignis');
+    const transitionsTextarea = document.createElement('textarea');
+    transitionsTextarea.value = (data.transitions || []).map((tr) => {
+      const label = tr.label ? ` : ${tr.label}` : '';
+      return `${tr.from || ''} --> ${tr.to || ''}${label}`.trim();
+    }).join('\n');
+    transitionsTextarea.placeholder = 'Start --> Prüfen : beginnen';
+    transitionsTextarea.addEventListener('input', () => {
+      data.transitions = parseStateTransitions(transitionsTextarea.value);
+      sync();
+    });
+    transitionsSection.section.appendChild(transitionsTextarea);
+  }
+
+
+  function renderGanttBuilder(data, helpers) {
+    const { createSection, sync } = helpers;
+    const metaSection = createSection('Metadaten');
+
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.value = data.title || '';
+    titleInput.placeholder = 'Titel';
+    titleInput.addEventListener('input', () => {
+      data.title = titleInput.value.trim();
+      sync();
+    });
+    metaSection.section.appendChild(titleInput);
+
+    const formatInput = document.createElement('input');
+    formatInput.type = 'text';
+    formatInput.value = data.dateFormat || 'YYYY-MM-DD';
+    formatInput.placeholder = 'YYYY-MM-DD';
+    formatInput.addEventListener('input', () => {
+      data.dateFormat = formatInput.value.trim() || 'YYYY-MM-DD';
+      sync();
+    });
+    metaSection.section.appendChild(formatInput);
+
+    const tasksSection = createSection('Aufgaben', 'Format: Abschnitt | Aufgabe | Status | ID | Start | Dauer');
+    const tasksTextarea = document.createElement('textarea');
+    tasksTextarea.value = (data.tasks || []).map((task) => {
+      return [
+        task.section || '',
+        task.name || '',
+        task.status || '',
+        task.id || '',
+        task.start || '',
+        task.duration || '',
+      ].join(' | ');
+    }).join('\n');
+    tasksTextarea.placeholder = 'Planung | Kickoff | done | t1 | 2024-01-01 | 3d';
+    tasksTextarea.addEventListener('input', () => {
+      data.tasks = parseGanttTasks(tasksTextarea.value);
+      sync();
+    });
+    tasksSection.section.appendChild(tasksTextarea);
+  }
+
+
+  function renderPieBuilder(data, helpers) {
+    const { createSection, sync } = helpers;
+    const titleSection = createSection('Titel');
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.value = data.title || '';
+    titleInput.placeholder = 'Titel';
+    titleInput.addEventListener('input', () => {
+      data.title = titleInput.value.trim();
+      sync();
+    });
+    titleSection.section.appendChild(titleInput);
+
+    const slicesSection = createSection('Segmente', 'Format: Bezeichnung | Wert');
+    const slicesTextarea = document.createElement('textarea');
+    slicesTextarea.value = (data.slices || []).map((slice) => `${slice.label || ''} | ${slice.value ?? ''}`).join('\n');
+    slicesTextarea.placeholder = 'Produkt A | 45';
+    slicesTextarea.addEventListener('input', () => {
+      data.slices = parsePieSlices(slicesTextarea.value);
+      sync();
+    });
+    slicesSection.section.appendChild(slicesTextarea);
+  }
+
+
+
+  const SEQUENCE_ARROW_TYPES = ['->', '->>', '-->', '-->>'];
+
+  function parseSequenceParticipants(value) {
+    return value.split(/\r?\n/).map((line) => {
+      const [idPart, labelPart] = line.split('|').map((part) => (part || '').trim());
+      const id = sanitizeMermaidNodeId(idPart, '');
+      const label = labelPart || id;
+      return id ? { id, label } : null;
+    }).filter(Boolean);
+  }
+
+  function parseSequenceMessages(value) {
+    return value.split(/\r?\n/).map((line) => {
+      const parts = line.split(':');
+      const left = (parts.shift() || '').trim();
+      const text = parts.join(':').trim();
+      const arrowMatch = left.match(/^([^\s]+)\s*([\-\.=>]+)\s*([^\s]+)$/);
+      if (!arrowMatch) return null;
+      const from = sanitizeMermaidNodeId(arrowMatch[1], '');
+      const arrow = SEQUENCE_ARROW_TYPES.includes(arrowMatch[2]) ? arrowMatch[2] : '->';
+      const to = sanitizeMermaidNodeId(arrowMatch[3], '');
+      if (!from || !to) return null;
+      return { from, arrow, to, text };
+    }).filter(Boolean);
+  }
+
+  function parseSequenceDiagram(code) {
+    const text = normalizeMermaidCode(code || '').trim();
+    if (!text) return null;
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length || lines[0].toLowerCase() !== 'sequencediagram') return null;
+    const participants = [];
+    const messages = [];
+    const participantPattern = /^participant\s+([^\s]+)(?:\s+as\s+(.+))?$/i;
+    const messagePattern = /^([^\s]+)\s*([\-\.=>]+)\s*([^\s:]+)\s*:?(.*)$/;
+    for (const line of lines.slice(1)) {
+      const participantMatch = line.match(participantPattern);
+      if (participantMatch) {
+        const id = sanitizeMermaidNodeId(participantMatch[1], '');
+        if (!id) continue;
+        const label = sanitizeMermaidLabel(participantMatch[2] || id, id);
+        if (!participants.some((entry) => entry.id === id)) {
+          participants.push({ id, label });
+        }
+        continue;
+      }
+      const messageMatch = line.match(messagePattern);
+      if (messageMatch) {
+        const arrow = SEQUENCE_ARROW_TYPES.includes(messageMatch[2]) ? messageMatch[2] : '->';
+        messages.push({
+          from: sanitizeMermaidNodeId(messageMatch[1], ''),
+          arrow,
+          to: sanitizeMermaidNodeId(messageMatch[3], ''),
+          text: (messageMatch[4] || '').trim(),
+        });
+      }
+    }
+    if (!participants.length) return createSequenceDefaultData();
+    return { participants, messages };
+  }
+
+  function generateSequenceDiagram(data) {
+    const lines = ['sequenceDiagram'];
+    const seen = new Set();
+    data.participants.forEach((part) => {
+      const id = sanitizeMermaidNodeId(part.id, '');
+      if (!id || seen.has(id)) return;
+      const label = sanitizeMermaidLabel(part.label || id, id);
+      if (label && label !== id) {
+        lines.push(`  participant ${id} as ${label}`);
+      } else {
+        lines.push(`  participant ${id}`);
+      }
+      seen.add(id);
+    });
+    data.messages.forEach((msg) => {
+      const from = sanitizeMermaidNodeId(msg.from, '');
+      const to = sanitizeMermaidNodeId(msg.to, '');
+      if (!from || !to) return;
+      const arrow = SEQUENCE_ARROW_TYPES.includes(msg.arrow) ? msg.arrow : '->';
+      const text = msg.text ? ` : ${msg.text}` : '';
+      lines.push(`  ${from} ${arrow} ${to}${text}`);
+    });
+    return lines.join('\n');
+  }
+
+  const CLASS_RELATION_TYPES = ['-->', '<--', '--|>', '<|--', '..>', '<..', '..|>', '<|..', '--', '..'];
+
+  function parseClassBlocks(value) {
+    const blocks = value.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+    return blocks.map((block) => {
+      const lines = block.split(/\r?\n/).map((line) => line.replace(/^\s+/, '')).filter(Boolean);
+      const name = sanitizeMermaidNodeId(lines.shift() || '', '');
+      const members = lines.map((line) => line.trim()).filter(Boolean);
+      return name ? { name, members } : null;
+    }).filter(Boolean);
+  }
+
+  function parseClassRelations(value) {
+    return value.split(/\r?\n/).map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return null;
+      const [relationPart, labelPart] = trimmed.split(':');
+      const label = (labelPart || '').trim();
+      const parts = relationPart.trim().split(/\s+/);
+      if (parts.length < 3) return null;
+      const from = sanitizeMermaidNodeId(parts[0], '');
+      const type = CLASS_RELATION_TYPES.includes(parts[1]) ? parts[1] : '-->';
+      const to = sanitizeMermaidNodeId(parts[2], '');
+      if (!from || !to) return null;
+      return { from, type, to, label };
+    }).filter(Boolean);
+  }
+
+  function parseClassDiagram(code) {
+    const text = normalizeMermaidCode(code || '').trim();
+    if (!text) return null;
+    const lines = text.split(/\r?\n/);
+    if (!lines.length || lines[0].trim().toLowerCase() !== 'classdiagram') return null;
+    const classes = [];
+    const relations = [];
+    let orientation = MERMAID_DEFAULT_ORIENTATION;
+    let currentClass = null;
+    lines.slice(1).forEach((rawLine) => {
+      const line = rawLine.trim();
+      if (!line) return;
+      const directionMatch = line.match(/^direction\s+([A-Za-z]{2})/i);
+      if (directionMatch) {
+        orientation = directionToOrientation(directionMatch[1]);
+        return;
+      }
+      if (line.startsWith('class ')) {
+        const nameMatch = line.match(/^class\s+([^\s{]+)(?:\s*\{)?/);
+        if (nameMatch) {
+          if (currentClass) classes.push(currentClass);
+          currentClass = { name: sanitizeMermaidNodeId(nameMatch[1], ''), members: [] };
+        }
+        if (line.endsWith('{')) return;
+      } else if (line === '}' && currentClass) {
+        classes.push(currentClass);
+        currentClass = null;
+        return;
+      } else if (currentClass) {
+        currentClass.members.push(line);
+        return;
+      }
+      const relationMatch = line.match(/^([^\s]+)\s+([^\s]+)\s+([^\s]+)(?:\s*:\s*(.+))?$/);
+      if (relationMatch) {
+        relations.push({
+          from: sanitizeMermaidNodeId(relationMatch[1], ''),
+          type: CLASS_RELATION_TYPES.includes(relationMatch[2]) ? relationMatch[2] : CLASS_RELATION_TYPES[0],
+          to: sanitizeMermaidNodeId(relationMatch[3], ''),
+          label: relationMatch[4] || '',
+        });
+      }
+    });
+    if (currentClass) classes.push(currentClass);
+    if (!classes.length) return createClassDefaultData();
+    return { orientation, classes, relations };
+  }
+
+
+  function generateClassDiagram(data) {
+    const lines = ['classDiagram'];
+    const direction = orientationToDirection(data.orientation);
+    if (direction) lines.push(`  direction ${direction}`);
+    (data.classes || []).forEach((cls) => {
+      const name = sanitizeMermaidNodeId(cls.name, '');
+      if (!name) return;
+      const members = (cls.members || []).filter(Boolean);
+      if (!members.length) {
+        lines.push(`  class ${name}`);
+        return;
+      }
+      lines.push(`  class ${name} {`);
+      members.forEach((member) => {
+        lines.push(`    ${member}`);
+      });
+      lines.push('  }');
+    });
+    (data.relations || []).forEach((rel) => {
+      const from = sanitizeMermaidNodeId(rel.from, '');
+      const to = sanitizeMermaidNodeId(rel.to, '');
+      if (!from || !to) return;
+      const type = CLASS_RELATION_TYPES.includes(rel.type) ? rel.type : CLASS_RELATION_TYPES[0];
+      const label = rel.label ? ` : ${rel.label}` : '';
+      lines.push(`  ${from} ${type} ${to}${label}`);
+    });
+    return lines.join('\n');
+  }
+
+
+  function parseStateTransitions(value) {
+    return value.split(/\r?\n/).map((line) => {
+      const parts = line.split(':');
+      const left = (parts.shift() || '').trim();
+      const label = (parts.join(':') || '').trim();
+      const arrowMatch = left.match(/^([^\s]+)\s*--?>\s*([^\s]+)$/);
+      if (!arrowMatch) return null;
+      const from = sanitizeMermaidNodeId(arrowMatch[1], '');
+      const to = sanitizeMermaidNodeId(arrowMatch[2], '');
+      if (!from || !to) return null;
+      return { from, to, label };
+    }).filter(Boolean);
+  }
+
+  function parseStateDiagram(code) {
+    const text = normalizeMermaidCode(code || '').trim();
+    if (!text) return null;
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length || !/^stateDiagram/i.test(lines[0])) return null;
+    const data = createStateDefaultData();
+    data.states = [...data.states];
+    data.transitions = [];
+    data.finals = [...data.finals];
+    lines.slice(1).forEach((line) => {
+      if (!line) return;
+      const directionMatch = line.match(/^direction\s+([A-Za-z]{2})/i);
+      if (directionMatch) {
+        data.orientation = directionToOrientation(directionMatch[1]);
+        return;
+      }
+      if (/^\[\*\]\s*-->/.test(line)) {
+        const target = line.replace(/^\[\*\]\s*-->/, '').trim();
+        data.initial = sanitizeMermaidNodeId(target, data.initial);
+        return;
+      }
+      if (/-->\s*\[\*\]/.test(line)) {
+        const source = line.replace(/-->\s*\[\*\]/, '').trim();
+        const state = sanitizeMermaidNodeId(source, '');
+        if (state && !data.finals.includes(state)) data.finals.push(state);
+        return;
+      }
+      if (/^state\s+/.test(line)) {
+        const stateName = line.replace(/^state\s+/, '').trim();
+        const id = sanitizeMermaidNodeId(stateName, '');
+        if (id && !data.states.includes(id) && id !== data.initial && !data.finals.includes(id)) {
+          data.states.push(id);
+        }
+        return;
+      }
+      const transitionMatch = line.match(/^([^\s]+)\s*--?>\s*([^\s]+)(?:\s*:\s*(.+))?/);
+      if (transitionMatch) {
+        data.transitions.push({
+          from: sanitizeMermaidNodeId(transitionMatch[1], ''),
+          to: sanitizeMermaidNodeId(transitionMatch[2], ''),
+          label: transitionMatch[3] || '',
+        });
+      }
+    });
+    return data;
+  }
+
+
+  function generateStateDiagram(data) {
+    const lines = ['stateDiagram-v2'];
+    const direction = orientationToDirection(data.orientation);
+    if (direction) lines.push(`  direction ${direction}`);
+    const initial = sanitizeMermaidNodeId(data.initial, '');
+    if (initial) lines.push(`  [*] --> ${initial}`);
+    (data.transitions || []).forEach((transition) => {
+      const from = sanitizeMermaidNodeId(transition.from, '');
+      const to = sanitizeMermaidNodeId(transition.to, '');
+      if (!from || !to) return;
+      const label = transition.label ? ` : ${transition.label}` : '';
+      lines.push(`  ${from} --> ${to}${label}`);
+    });
+    (data.finals || []).forEach((state) => {
+      const id = sanitizeMermaidNodeId(state, '');
+      if (!id) return;
+      lines.push(`  ${id} --> [*]`);
+    });
+    return lines.join('\n');
+  }
+
+
+  function parseGanttTasks(value) {
+    return value.split(/\r?\n/).map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return null;
+      const parts = trimmed.split('|').map((part) => part.trim());
+      return {
+        section: parts[0] || '',
+        name: parts[1] || '',
+        status: parts[2] || '',
+        id: parts[3] || '',
+        start: parts[4] || '',
+        duration: parts[5] || '',
+      };
+    }).filter(Boolean);
+  }
+
+
+  function parseGanttDiagram(code) {
+    const textInput = normalizeMermaidCode(code || '').trim();
+    if (!textInput) return null;
+    const lines = textInput.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length || lines[0].toLowerCase() !== 'gantt') return null;
+    const data = createGanttDefaultData();
+    data.tasks = [];
+    let currentSection = '';
+    lines.slice(1).forEach((line) => {
+      if (!line) return;
+      if (line.toLowerCase().startsWith('dateformat')) {
+        data.dateFormat = line.replace(/dateformat\s+/i, '').trim();
+        return;
+      }
+      if (line.toLowerCase().startsWith('title')) {
+        data.title = line.replace(/title\s+/i, '').trim();
+        return;
+      }
+      if (line.toLowerCase().startsWith('section')) {
+        currentSection = line.replace(/section\s+/i, '').trim();
+        return;
+      }
+      const colonIndex = line.indexOf(':');
+      if (colonIndex === -1) return;
+      const name = line.slice(0, colonIndex).trim();
+      const remainder = line.slice(colonIndex + 1).split(',').map((part) => part.trim()).filter((part) => part.length > 0);
+      data.tasks.push({
+        section: currentSection,
+        name,
+        status: remainder[0] || '',
+        id: remainder[1] || '',
+        start: remainder[2] || '',
+        duration: remainder[3] || '',
+      });
+    });
+    if (!data.tasks.length) {
+      data.tasks = createGanttDefaultData().tasks.map((task) => ({ ...task }));
+    }
+    return data;
+  }
+
+
+  function generateGanttDiagram(data) {
+    const lines = ['gantt'];
+    const dateFormat = data.dateFormat || 'YYYY-MM-DD';
+    lines.push(`  dateFormat  ${dateFormat}`);
+    if (data.title) lines.push(`  title ${data.title}`);
+    let lastSection = undefined;
+    (data.tasks || []).forEach((task) => {
+      const sectionName = task.section || '';
+      if (sectionName !== lastSection) {
+        if (sectionName) lines.push(`  section ${sectionName}`);
+        lastSection = sectionName;
+      }
+      const timingParts = [];
+      if (task.status) timingParts.push(task.status);
+      if (task.id) timingParts.push(task.id);
+      if (task.start) timingParts.push(task.start);
+      if (task.duration) timingParts.push(task.duration);
+      const timing = timingParts.join(', ');
+      lines.push(`  ${task.name || 'Aufgabe'} :${timing}`);
+    });
+    return lines.join('\n');
+  }
+
+
+  function parsePieSlices(value) {
+    return value.split(/\r?\n/).map((line) => {
+      if (!line.trim()) return null;
+      const [labelPart, valuePart] = line.split('|').map((part) => (part || '').trim());
+      const label = labelPart || 'Segment';
+      const value = Number.parseFloat(valuePart);
+      return { label, value: Number.isFinite(value) ? value : 0 };
+    }).filter(Boolean);
+  }
+
+  function parsePieDiagram(code) {
+    const textInput = normalizeMermaidCode(code || '').trim();
+    if (!textInput) return null;
+    const lines = textInput.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length || !lines[0].toLowerCase().startsWith('pie')) return null;
+    const data = createPieDefaultData();
+    data.slices = [];
+    const titleMatch = lines[0].match(/pie\s+title\s+(.+)/i);
+    if (titleMatch) data.title = titleMatch[1].trim();
+    lines.slice(1).forEach((line) => {
+      const match = line.match(/^"?(.+?)"?\s*:\s*(.+)$/);
+      if (!match) return;
+      const label = match[1].trim();
+      const value = Number.parseFloat(match[2]);
+      data.slices.push({ label, value: Number.isFinite(value) ? value : 0 });
+    });
+    if (!data.slices.length) {
+      data.slices = createPieDefaultData().slices.map((slice) => ({ ...slice }));
+    }
+    return data;
+  }
+
+  function generatePieDiagram(data) {
+    const lines = ['pie title ' + (data.title || 'Verteilung')];
+    (data.slices || []).forEach((slice) => {
+      const label = slice.label || 'Segment';
+      const value = Number.isFinite(slice.value) ? slice.value : 0;
+      lines.push(`  "${label}" : ${value}`);
+    });
+    return lines.join('\n');
+  }
+
+
+  function generatePieDiagram(data) {
+    const lines = ['pie title ' + (data.title || 'Verteilung')];
+    (data.slices || []).forEach((slice) => {
+      const label = slice.label || 'Segment';
+      const value = Number.isFinite(slice.value) ? slice.value : 0;
+      lines.push(`  "${label}" : ${value}`);
+    });
+    return lines.join('\n');
+  }
+
+  function generateFlowchartCode(data) {
+    const orientation = ['TD', 'LR', 'BT', 'RL'].includes(data.orientation) ? data.orientation : MERMAID_DEFAULT_ORIENTATION;
+    const lines = [`flowchart ${orientation}`];
+    (data.nodes || []).forEach((node) => {
+      const id = sanitizeMermaidNodeId(node.id, '');
+      if (!id) return;
+      const label = sanitizeMermaidLabel(node.label, id);
+      let wrapStart = '[';
+      let wrapEnd = ']';
+      if (node.shape === 'rounded') {
+        wrapStart = '(';
+        wrapEnd = ')';
+      } else if (node.shape === 'diamond') {
+        wrapStart = '{';
+        wrapEnd = '}';
+      } else if (node.shape === 'circle') {
+        wrapStart = '((';
+        wrapEnd = '))';
+      }
+      lines.push(`  ${id}${wrapStart}${label}${wrapEnd}`);
+    });
+    (data.edges || []).forEach((edge) => {
+      const from = sanitizeMermaidNodeId(edge.from, '');
+      const to = sanitizeMermaidNodeId(edge.to, '');
+      if (!from || !to) return;
+      const label = sanitizeMermaidEdgeLabel(edge.label);
+      const labelSegment = label ? ` |${label}|` : '';
+      lines.push(`  ${from} -->${labelSegment} ${to}`);
+    });
+    return lines.join('\n');
+  }
+
+  function createBuilderSection(container, title, description) {
+    const section = document.createElement('section');
+    section.className = 'builder-section';
+    const header = document.createElement('header');
+    header.className = 'builder-section-header';
+    const heading = document.createElement('strong');
+    heading.textContent = title;
+    header.appendChild(heading);
+    section.appendChild(header);
+    if (description) {
+      const desc = document.createElement('p');
+      desc.className = 'muted builder-hint';
+      desc.textContent = description;
+      section.appendChild(desc);
+    }
+    container.appendChild(section);
+    return { section, header };
+  }
+
+  function createBuilderTable(headers) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'builder-table-wrapper';
+    const table = document.createElement('table');
+    table.className = 'builder-table';
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headers.forEach((label) => {
+      const th = document.createElement('th');
+      th.scope = 'col';
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    return { wrapper, table, tbody };
+  }
+
+  function createIconButton({ label, icon, className = 'secondary has-icon', onClick }) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    if (label) {
+      button.title = label;
+      button.setAttribute('aria-label', label);
+    }
+    if (icon && className !== 'icon-only') {
+      const iconEl = document.createElement('iconify-icon');
+      iconEl.setAttribute('aria-hidden', 'true');
+      iconEl.setAttribute('icon', icon);
+      button.appendChild(iconEl);
+    }
+    if (className === 'icon-only' && icon) {
+      const iconEl = document.createElement('iconify-icon');
+      iconEl.setAttribute('aria-hidden', 'true');
+      iconEl.setAttribute('icon', icon);
+      button.appendChild(iconEl);
+    }
+    if (className !== 'icon-only') {
+      const span = document.createElement('span');
+      span.className = 'btn-label';
+      span.textContent = label;
+      button.appendChild(span);
+    }
+    if (typeof onClick === 'function') {
+      button.addEventListener('click', onClick);
+    }
+    return button;
+  }
+
+  function fillDatalist(listElement, values) {
+    if (!listElement) return;
+    listElement.innerHTML = '';
+    values.filter(Boolean).forEach((value) => {
+      const option = document.createElement('option');
+      option.value = value;
+      listElement.appendChild(option);
+    });
+  }
+
+  function ensureBuilderNodeId(value, fallback) {
+    const sanitized = sanitizeMermaidNodeId(value, fallback);
+    return sanitized || fallback;
+  }
+
+  function ensureUniqueNodeId(nodes, candidate) {
+    let base = ensureBuilderNodeId(candidate, 'Knoten');
+    let id = base;
+    let run = 1;
+    const taken = new Set(nodes.map((node) => node.id));
+    while (taken.has(id)) {
+      id = `${base}_${run++}`;
+    }
+    return id;
+  }
+
+  function renameFlowchartReferences(data, previousId, nextId) {
+    data.edges = data.edges.map((edge) => {
+      const updated = { ...edge };
+      if (edge.from === previousId) updated.from = nextId;
+      if (edge.to === previousId) updated.to = nextId;
+      return updated;
+    });
+  }
+
+  function parseFlowchartCode(rawCode) {
+    const code = normalizeMermaidCode(rawCode || '').trim();
+    if (!code) return null;
+    const rawLines = code.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!rawLines.length) return null;
+    let orientation = MERMAID_DEFAULT_ORIENTATION;
+    let lines = rawLines;
+    const firstLine = rawLines[0].replace(/;+$/, '').trim();
+    if (/^(flowchart|graph)\s+/i.test(firstLine)) {
+      const match = firstLine.match(/^(?:flowchart|graph)\s+([A-Za-z]{2})/i);
+      if (match) orientation = match[1].toUpperCase();
+      lines = rawLines.slice(1);
+    }
+    const nodes = [];
+    const edges = [];
+    const nodePattern = /^([A-Za-z0-9_]+)\s*(\[\s*(.+?)\s*\]|\(\s*(.+?)\s*\)|\{\s*(.+?)\s*\}|\(\(\s*(.+?)\s*\)\))$/;
+    const edgePattern = /^([A-Za-z0-9_]+)\s*-->\s*(?:\|\s*(.+?)\s*\|\s*)?([A-Za-z0-9_]+)$/;
+    for (const rawLine of lines) {
+      const sanitized = rawLine.replace(/;+$/, '').trim();
+      if (!sanitized) continue;
+      if (/^%%/.test(sanitized)) continue;
+      const nodeMatch = sanitized.match(nodePattern);
+      if (nodeMatch) {
+        const id = sanitizeMermaidNodeId(nodeMatch[1], '');
+        if (!id) continue;
+        let shape = 'rectangle';
+        let label = nodeMatch[3] || '';
+        if (nodeMatch[4]) {
+          shape = 'rounded';
+          label = nodeMatch[4];
+        } else if (nodeMatch[5]) {
+          shape = 'diamond';
+          label = nodeMatch[5];
+        } else if (nodeMatch[6]) {
+          shape = 'circle';
+          label = nodeMatch[6];
+        }
+        nodes.push({
+          id,
+          label: sanitizeMermaidLabel(label, id),
+          shape,
+        });
+        continue;
+      }
+      const edgeMatch = sanitized.match(edgePattern);
+      if (edgeMatch) {
+        edges.push({
+          from: sanitizeMermaidNodeId(edgeMatch[1], ''),
+          label: sanitizeMermaidEdgeLabel(edgeMatch[2]),
+          to: sanitizeMermaidNodeId(edgeMatch[3], ''),
+        });
+        continue;
+      }
+      return null;
+    }
+    const validIds = new Set(nodes.map((node) => node.id));
+    const filteredEdges = edges.filter((edge) => validIds.has(edge.from) && validIds.has(edge.to));
+    return {
+      orientation: ['TD', 'LR', 'BT', 'RL'].includes(orientation) ? orientation : MERMAID_DEFAULT_ORIENTATION,
+      nodes,
+      edges: filteredEdges,
+    };
+  }
+
+  function openMermaidDialog() {
+    if (!isMermaidDialogReady()) return;
+    mermaidDialogOverlay.classList.remove('hidden');
+    mermaidDialogOverlay.setAttribute('aria-hidden', 'false');
+    setStatus('Diagramm-Editor (experimentell) geöffnet');
+    window.setTimeout(() => {
+      try {
+        if (mermaidCodeInput) {
+          mermaidCodeInput.focus();
+          mermaidCodeInput.select();
+        }
+      } catch {}
+    }, 0);
+  }
+
+  function closeMermaidDialog(options = {}) {
+    if (!isMermaidDialogReady()) return;
+    const { restoreFocus = true, clearSelection = true } = options;
+    mermaidDialogOverlay.classList.add('hidden');
+    mermaidDialogOverlay.setAttribute('aria-hidden', 'true');
+    if (clearSelection) mermaidInsertSelection = null;
+    if (restoreFocus) {
+      try { editor.focus(); } catch {}
+    }
+  }
+
+  function handleMermaidDialogKeydown(e) {
+    if (!mermaidDialogOverlay || mermaidDialogOverlay.classList.contains('hidden')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeMermaidDialog();
+    }
+  }
+
+  function updateMermaidOrientationVisibility() {
+    if (!mermaidOrientationField) return;
+    const type = getSelectedMermaidType();
+    const supportsOrientation = builderSupportsOrientation(type);
+    mermaidOrientationField.hidden = !supportsOrientation;
+    if (supportsOrientation && mermaidOrientationSelect) {
+      let orientation = lastMermaidOrientation || MERMAID_DEFAULT_ORIENTATION;
+      const data = ensureMermaidBuilderData(type);
+      if (mermaidBuilderState.enabled && data?.orientation) {
+        orientation = normalizeOrientation(data.orientation);
+      }
+      orientation = normalizeOrientation(orientation);
+      mermaidOrientationSelect.value = orientation;
+      lastMermaidOrientation = orientation;
+    }
+    syncMermaidBuilderAvailability(type);
+  }
+
+
+  function shouldOverwriteMermaidCode() {
+    if (mermaidBuilderState.enabled) return true;
+    if (mermaidTemplatePristine) return true;
+    return window.confirm('Eigene Anpassungen werden überschrieben. Fortfahren?');
+  }
+
+  function updateMermaidTemplateFromControls(options = {}) {
+    if (!isMermaidDialogReady()) return false;
+    const { force = false } = options;
+    if (mermaidBuilderState.enabled) {
+      syncBuilderOutputs();
+      return true;
+    }
+    if (!force && !shouldOverwriteMermaidCode()) return false;
+    const type = mermaidTypeSelect?.value || MERMAID_DEFAULT_TYPE;
+    const orientation = mermaidOrientationSelect?.value || MERMAID_DEFAULT_ORIENTATION;
+    if (mermaidCodeInput) {
+      mermaidCodeInput.value = buildMermaidTemplate(type, { orientation });
+      mermaidTemplatePristine = true;
+      updateMermaidDialogPreview();
+    }
+    return true;
+  }
+
+  function handleMermaidTypeChange() {
+    if (!isMermaidDialogReady()) return;
+    const newType = mermaidTypeSelect?.value || MERMAID_DEFAULT_TYPE;
+    const previousType = lastMermaidType;
+    const previousOrientation = lastMermaidOrientation;
+    updateMermaidOrientationVisibility();
+    const updated = updateMermaidTemplateFromControls({ force: false });
+    if (!updated) {
+      if (mermaidTypeSelect) mermaidTypeSelect.value = previousType;
+      if (mermaidOrientationSelect) mermaidOrientationSelect.value = previousOrientation;
+      updateMermaidOrientationVisibility();
+      return;
+    }
+    lastMermaidType = newType;
+    lastMermaidOrientation = normalizeOrientation(mermaidOrientationSelect?.value || previousOrientation || MERMAID_DEFAULT_ORIENTATION);
+    if (mermaidCodeInput) {
+      loadMermaidBuilderFromCode(newType, mermaidCodeInput.value);
+    } else {
+      syncMermaidBuilderAvailability(newType);
+    }
+    updateMermaidDialogPreview();
+  }
+
+
+  function handleMermaidOrientationChange() {
+    if (!isMermaidDialogReady()) return;
+    const newOrientation = normalizeOrientation(mermaidOrientationSelect?.value || MERMAID_DEFAULT_ORIENTATION);
+    if (mermaidBuilderState.enabled) {
+      const type = mermaidBuilderState.type;
+      if (builderSupportsOrientation(type)) {
+        const data = ensureMermaidBuilderData(type);
+        if (data) data.orientation = newOrientation;
+        lastMermaidOrientation = newOrientation;
+        syncBuilderOutputs();
+        return;
+      }
+    }
+    const previousOrientation = lastMermaidOrientation;
+    lastMermaidOrientation = newOrientation;
+    const updated = updateMermaidTemplateFromControls({ force: false });
+    if (!updated) {
+      lastMermaidOrientation = previousOrientation;
+      if (mermaidOrientationSelect) mermaidOrientationSelect.value = previousOrientation;
+      return;
+    }
+    updateMermaidDialogPreview();
+  }
+
+
+  function insertMermaidFromDialog() {
+    if (!isMermaidDialogReady() || !mermaidCodeInput) return;
+    const raw = mermaidCodeInput.value || '';
+    const normalized = normalizeMermaidCode(raw).replace(/\s+$/g, '');
+    if (!normalized) {
+      mermaidCodeInput.focus();
+      return;
+    }
+    const block = `\n\n\`\`\`mermaid\n${normalized}\n\`\`\`\n\n`;
+    const selection = mermaidInsertSelection;
+    const start = selection ? selection.start : editor.selectionStart;
+    const end = selection ? selection.end : editor.selectionEnd;
+    editor.setRangeText(block, start, end, 'end');
+    const pos = start + block.length;
+    try { editor.setSelectionRange(pos, pos); } catch {}
+    mermaidTemplatePristine = true;
+    closeMermaidDialog({ clearSelection: true });
+    updatePreview();
+    updateCursorInfo();
+    updateWordCount();
+    markDirty(true);
   }
 
   function insertList(ordered = false) {
@@ -3371,6 +6091,72 @@ ${trimmed}
     });
     tableAddRowBtn?.addEventListener('click', () => setTableRows(tableDialogRows + 1));
     tableAddColBtn?.addEventListener('click', () => setTableCols(tableDialogCols + 1));
+  }
+
+  if (isMermaidDialogReady()) {
+    mermaidDialogOverlay.addEventListener('click', (e) => {
+      if (e.target === mermaidDialogOverlay) closeMermaidDialog();
+    });
+    mermaidDialogOverlay.addEventListener('keydown', handleMermaidDialogKeydown);
+    mermaidDialogCloseBtn?.addEventListener('click', () => closeMermaidDialog());
+    mermaidDialogCancelBtn?.addEventListener('click', () => closeMermaidDialog());
+    mermaidDialogForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      insertMermaidFromDialog();
+    });
+    mermaidCodeInput.addEventListener('input', () => {
+      if (mermaidBuilderSyncing) return;
+      mermaidTemplatePristine = false;
+      if (mermaidBuilderState.enabled) {
+        setMermaidBuilderEnabled(false);
+      }
+      updateMermaidDialogPreview();
+    });
+    mermaidTypeSelect.addEventListener('change', () => handleMermaidTypeChange());
+    mermaidOrientationSelect?.addEventListener('change', () => handleMermaidOrientationChange());
+    mermaidTemplateResetBtn?.addEventListener('click', () => {
+      if (mermaidBuilderState.enabled) {
+        setMermaidBuilderEnabled(true, { reset: true });
+        lastMermaidType = mermaidTypeSelect?.value || MERMAID_DEFAULT_TYPE;
+        lastMermaidOrientation = mermaidOrientationSelect?.value || MERMAID_DEFAULT_ORIENTATION;
+        return;
+      }
+      const restored = updateMermaidTemplateFromControls({ force: true });
+      if (!restored) return;
+      lastMermaidType = mermaidTypeSelect?.value || MERMAID_DEFAULT_TYPE;
+      lastMermaidOrientation = mermaidOrientationSelect?.value || MERMAID_DEFAULT_ORIENTATION;
+      window.setTimeout(() => {
+        try {
+          mermaidCodeInput.focus();
+          mermaidCodeInput.select();
+        } catch {}
+      }, 0);
+    });
+    mermaidBuilderEnabled?.addEventListener('change', () => {
+      const type = getSelectedMermaidType();
+      if (!mermaidBuilderEnabled.checked) {
+        setMermaidBuilderEnabled(false);
+        return;
+      }
+      const builder = getMermaidBuilder(type);
+      if (!builder) {
+        setMermaidBuilderEnabled(false);
+        if (mermaidBuilderEnabled) mermaidBuilderEnabled.checked = false;
+        return;
+      }
+      const parsed = builder.parse(mermaidCodeInput?.value || '');
+      if (parsed) {
+        setMermaidBuilderData(type, parsed);
+        if (typeof builder.afterParse === 'function') builder.afterParse(parsed);
+        setMermaidBuilderEnabled(true, { reset: false });
+      } else {
+        setMermaidBuilderEnabled(true, { reset: true });
+      }
+    });
+    mermaidBuilderResetBtn?.addEventListener('click', () => {
+      setMermaidBuilderEnabled(true, { reset: true });
+    });
+    updateMermaidOrientationVisibility();
   }
 
   // View switching

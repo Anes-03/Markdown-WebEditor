@@ -164,7 +164,6 @@
       <button data-action="strike" class="has-icon" title="Durchgestrichen"><iconify-icon aria-hidden="true" icon="lucide:strikethrough"></iconify-icon><span class="btn-label">Strike</span></button>
       <button data-action="code" class="has-icon" title="Code (Inline)"><iconify-icon aria-hidden="true" icon="lucide:code"></iconify-icon><span class="btn-label">Code</span></button>
       <button data-action="codeblock" class="has-icon" title="Code Block"><iconify-icon aria-hidden="true" icon="lucide:code-2"></iconify-icon><span class="btn-label">Codeblock</span></button>
-      <button data-action="mermaid" class="has-icon" title="Mermaid-Diagramm"><iconify-icon aria-hidden="true" icon="mdi:chart-timeline-variant"></iconify-icon><span class="btn-label">Mermaid</span></button>
       <span class="sep"></span>
       <button data-action="ul" class="has-icon" title="Liste"><iconify-icon aria-hidden="true" icon="lucide:list"></iconify-icon><span class="btn-label">Liste</span></button>
       <button data-action="ol" class="has-icon" title="Nummerierte Liste"><iconify-icon aria-hidden="true" icon="lucide:list-ordered"></iconify-icon><span class="btn-label">Nummeriert</span></button>
@@ -174,6 +173,7 @@
       <button data-action="link" class="has-icon" title="Link (Cmd/Ctrl+K)"><iconify-icon aria-hidden="true" icon="lucide:link"></iconify-icon><span class="btn-label">Link</span></button>
       <button data-action="image" class="has-icon" title="Bild einfügen"><iconify-icon aria-hidden="true" icon="lucide:image"></iconify-icon><span class="btn-label">Bild</span></button>
       <button data-action="table" class="has-icon" title="Tabelle"><iconify-icon aria-hidden="true" icon="mdi:table"></iconify-icon><span class="btn-label">Tabelle</span></button>
+      <button data-action="mermaid" class="has-icon" title="Diagramm einfügen"><iconify-icon aria-hidden="true" icon="mdi:chart-timeline-variant"></iconify-icon><span class="btn-label">Diagramm</span></button>
       <button data-action="hr" class="has-icon" title="Trennlinie"><iconify-icon aria-hidden="true" icon="lucide:minus"></iconify-icon><span class="btn-label">Linie</span></button>
       <span class="sep"></span>
       <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Text Generieren</span></button>
@@ -386,6 +386,79 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             <button type="submit" id="tableDialogInsertBtn" class="primary has-icon">
               <iconify-icon aria-hidden="true" icon="mdi:table"></iconify-icon>
               <span class="btn-label">Einfügen</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
+
+    <!-- Mermaid diagram dialog -->
+    <div id="mermaidDialogOverlay" class="modal-overlay hidden" aria-hidden="true">
+      <div id="mermaidDialog" class="mermaid-dialog" role="dialog" aria-modal="true" aria-labelledby="mermaidDialogTitle">
+        <form id="mermaidDialogForm" class="mermaid-dialog-form">
+          <header class="modal-header">
+            <div class="modal-title-group">
+              <h2 id="mermaidDialogTitle">Diagramm erstellen</h2>
+              <span class="badge badge-experimental" aria-label="Experimentelle Funktion">Experimentell</span>
+            </div>
+            <button type="button" id="mermaidDialogCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen">
+              <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+            </button>
+          </header>
+          <div class="modal-body">
+            <p class="muted">Nutze den experimentellen Diagramm-Editor, um Typ und Code anzupassen, bevor du den Inhalt in dein Dokument übernimmst.</p>
+            <div class="mermaid-dialog-controls">
+              <label>
+                Diagrammtyp
+                <select id="mermaidTypeSelect">
+                  <option value="flowchart">Flussdiagramm</option>
+                  <option value="sequence">Sequenzdiagramm</option>
+                  <option value="class">Klassendiagramm</option>
+                  <option value="state">Zustandsdiagramm</option>
+                  <option value="gantt">Gantt-Diagramm</option>
+                  <option value="pie">Tortendiagramm</option>
+                </select>
+              </label>
+              <label id="mermaidOrientationField">
+                Diagrammrichtung
+                <select id="mermaidOrientationSelect">
+                  <option value="TD">Oben → unten (TD)</option>
+                  <option value="LR">Links → rechts (LR)</option>
+                  <option value="BT">Unten → oben (BT)</option>
+                  <option value="RL">Rechts → links (RL)</option>
+                </select>
+              </label>
+              <button type="button" id="mermaidTemplateResetBtn" class="secondary">Standard wiederherstellen</button>
+            </div>
+            <div id="mermaidBuilder" class="mermaid-builder hidden">
+              <div class="mermaid-builder-header">
+                <label class="builder-toggle">
+                  <input type="checkbox" id="mermaidBuilderEnabled" />
+                  <span>Grafischen Editor aktivieren</span>
+                </label>
+                <button type="button" id="mermaidBuilderResetBtn" class="secondary">Builder zurücksetzen</button>
+              </div>
+              <div id="mermaidBuilderContent" class="mermaid-builder-content"></div>
+              <datalist id="mermaidNodeIdOptions"></datalist>
+            </div>
+            <section class="mermaid-preview-panel">
+              <header>
+                <strong>Vorschau</strong>
+              </header>
+              <div id="mermaidPreview" class="mermaid-preview" role="img" aria-live="polite"></div>
+              <p id="mermaidPreviewStatus" class="muted mermaid-preview-status">Die Vorschau wird angezeigt, sobald gültiger Mermaid-Code vorliegt.</p>
+            </section>
+            <label class="mermaid-code-field">
+              Mermaid-Code
+              <textarea id="mermaidCodeInput" rows="12" spellcheck="false"></textarea>
+              <span id="mermaidCodeHint" class="muted">Der Code wird vom Builder überschrieben, solange der graphische Editor aktiv ist.</span>
+            </label>
+          </div>
+          <footer class="modal-footer">
+            <button type="button" id="mermaidDialogCancelBtn" class="secondary">Abbrechen</button>
+            <button type="submit" id="mermaidDialogInsertBtn" class="primary has-icon">
+              <iconify-icon aria-hidden="true" icon="mdi:chart-timeline-variant"></iconify-icon>
+              <span class="btn-label">Diagramm einfügen</span>
             </button>
           </footer>
         </form>

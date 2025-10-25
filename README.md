@@ -17,7 +17,9 @@ Ein leichter, rein clientseitiger Markdown‑Editor mit:
 ## Diagramm-Unterstützung
 
 - Codeblöcke mit <code>```mermaid</code> werden automatisch in der Vorschau als Diagramm gerendert.
-- Über den neuen Toolbar-Button lässt sich ein Flowchart-Template in den Editor einfügen.
+- Über den Toolbar-Button „Mermaid“ öffnet sich ein Dialog, in dem Diagrammtyp, Flussrichtung und Code vor dem Einfügen angepasst werden können.
+- Für alle Diagrammtypen steht ein grafischer Editor bereit: Flowcharts bieten Tabellen für Knoten/Verbindungen, andere Diagrammarten werden über strukturierte Formulare gepflegt und der Mermaid‑Code aktualisiert sich automatisch.
+- Eine Live-Vorschau innerhalb des Dialogs rendert das Diagramm fortlaufend, bevor es in den Editor übernommen wird.
 - Mermaid wird per CDN (`https://cdn.jsdelivr.net/npm/mermaid`) geladen. Offline steht die Bibliothek daher nicht zur Verfügung, die Diagramme erscheinen dann als reiner Codeblock.
 
 ## Ollama Chat
