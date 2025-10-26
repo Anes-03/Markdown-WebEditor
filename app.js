@@ -154,6 +154,9 @@
     },
   };
   const ONBOARDING_STORAGE_KEY = 'md-onboarding-v1';
+  const CANONICAL_SHARE_URL = 'https://markdown-webesitor.252425.xyz/';
+  const CANONICAL_SHARE_TITLE = 'Markdown WebEditor';
+  const CANONICAL_SHARE_TEXT = 'Markdown WebEditor – dein leichter Markdown Editor direkt im Browser.';
   const onboardingSteps = [
     {
       title: 'Willkommen im Markdown WebEditor',
@@ -312,6 +315,15 @@
   const settingsConfigImportBtn = document.getElementById('settingsConfigImportBtn');
   const settingsConfigImportFile = document.getElementById('settingsConfigImportFile');
   const settingsConfigResetBtn = document.getElementById('settingsConfigResetBtn');
+  const settingsShareCopyBtn = document.getElementById('settingsShareCopyBtn');
+  const settingsShareNativeBtn = document.getElementById('settingsShareNativeBtn');
+  const settingsShareTwitterBtn = document.getElementById('settingsShareTwitterBtn');
+  const settingsShareLinkedinBtn = document.getElementById('settingsShareLinkedinBtn');
+  const settingsShareFacebookBtn = document.getElementById('settingsShareFacebookBtn');
+  const settingsShareWhatsappBtn = document.getElementById('settingsShareWhatsappBtn');
+  const settingsShareTelegramBtn = document.getElementById('settingsShareTelegramBtn');
+  const settingsShareMastodonBtn = document.getElementById('settingsShareMastodonBtn');
+  const settingsShareEmailBtn = document.getElementById('settingsShareEmailBtn');
   const settingsOnboardingRestartBtn = document.getElementById('settingsOnboardingRestartBtn');
 
   const templatesToggleBtn = document.getElementById('templatesToggleBtn');
@@ -620,6 +632,45 @@
 
   function setStatus(msg) {
     statusEl.textContent = msg;
+  }
+
+  function getCanonicalSharePayload() {
+    return {
+      url: CANONICAL_SHARE_URL,
+      title: CANONICAL_SHARE_TITLE,
+      text: CANONICAL_SHARE_TEXT,
+    };
+  }
+
+  function openShareTarget(url) {
+    if (!url) return;
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer,width=600,height=600');
+    } catch {
+      try { window.location.href = url; } catch {}
+    }
+  }
+
+  async function copyShareLinkToClipboard() {
+    const { url, text } = getCanonicalSharePayload();
+    const payload = `${text}\n${url}`.trim();
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = payload;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      setStatus('Teilen-Link kopiert');
+    } catch (err) {
+      console.error(err);
+      alert('Link konnte nicht kopiert werden. Bitte manuell kopieren.');
+      setStatus('Kopieren fehlgeschlagen');
+    }
   }
 
   async function readErrorResponseBody(res) {
@@ -9011,6 +9062,96 @@ try {
     } finally {
       if (settingsConfigImportFile) settingsConfigImportFile.value = '';
     }
+  });
+
+  settingsShareCopyBtn?.addEventListener('click', () => { void copyShareLinkToClipboard(); });
+
+  if (settingsShareNativeBtn) {
+    if (typeof navigator.share !== 'function') {
+      settingsShareNativeBtn.remove();
+    } else {
+      settingsShareNativeBtn.addEventListener('click', async () => {
+        const payload = getCanonicalSharePayload();
+        try {
+          await navigator.share(payload);
+          setStatus('Teilen gestartet');
+        } catch (err) {
+          if (err?.name === 'AbortError') {
+            setStatus('Teilen abgebrochen');
+          } else {
+            console.error(err);
+            alert('Teilen nicht möglich. Bitte einen anderen Button verwenden.');
+            setStatus('Teilen fehlgeschlagen');
+          }
+        }
+      });
+    }
+  }
+
+  settingsShareTwitterBtn?.addEventListener('click', () => {
+    const payload = getCanonicalSharePayload();
+    const encodedUrl = encodeURIComponent(payload.url);
+    const encodedText = encodeURIComponent(payload.text);
+    const shareUrl = `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`;
+    openShareTarget(shareUrl);
+    setStatus('Freigabe auf X geöffnet');
+  });
+
+  settingsShareLinkedinBtn?.addEventListener('click', () => {
+    const payload = getCanonicalSharePayload();
+    const encodedUrl = encodeURIComponent(payload.url);
+    const encodedTitle = encodeURIComponent(payload.title);
+    const encodedText = encodeURIComponent(payload.text);
+    const shareUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${encodedUrl}&title=${encodedTitle}&summary=${encodedText}`;
+    openShareTarget(shareUrl);
+    setStatus('Freigabe auf LinkedIn geöffnet');
+  });
+
+  settingsShareFacebookBtn?.addEventListener('click', () => {
+    const payload = getCanonicalSharePayload();
+    const encodedUrl = encodeURIComponent(payload.url);
+    const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+    openShareTarget(shareUrl);
+    setStatus('Freigabe auf Facebook geöffnet');
+  });
+
+  settingsShareWhatsappBtn?.addEventListener('click', () => {
+    const payload = getCanonicalSharePayload();
+    const encodedMessage = encodeURIComponent(`${payload.text} ${payload.url}`.trim());
+    const shareUrl = `https://api.whatsapp.com/send?text=${encodedMessage}`;
+    openShareTarget(shareUrl);
+    setStatus('Freigabe auf WhatsApp geöffnet');
+  });
+
+  settingsShareTelegramBtn?.addEventListener('click', () => {
+    const payload = getCanonicalSharePayload();
+    const encodedUrl = encodeURIComponent(payload.url);
+    const encodedText = encodeURIComponent(payload.text);
+    const shareUrl = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`;
+    openShareTarget(shareUrl);
+    setStatus('Freigabe auf Telegram geöffnet');
+  });
+
+  settingsShareMastodonBtn?.addEventListener('click', () => {
+    const payload = getCanonicalSharePayload();
+    const encodedUrl = encodeURIComponent(payload.url);
+    const encodedText = encodeURIComponent(`${payload.text}`);
+    const shareUrl = `https://mastodonshare.com/?text=${encodedText}&url=${encodedUrl}`;
+    openShareTarget(shareUrl);
+    setStatus('Freigabe für Mastodon geöffnet');
+  });
+
+  settingsShareEmailBtn?.addEventListener('click', () => {
+    const payload = getCanonicalSharePayload();
+    const encodedSubject = encodeURIComponent(payload.title);
+    const encodedBody = encodeURIComponent(`${payload.text}\n\n${payload.url}`.trim());
+    const mailtoUrl = `mailto:?subject=${encodedSubject}&body=${encodedBody}`;
+    try {
+      window.location.href = mailtoUrl;
+    } catch {
+      openShareTarget(mailtoUrl);
+    }
+    setStatus('E-Mail-Entwurf vorbereitet');
   });
 
   settingsConfigResetBtn?.addEventListener('click', () => {
