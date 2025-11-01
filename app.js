@@ -116,6 +116,24 @@
         return `${base}\n\nAnforderungen:\n- Gestalte eine bildschirmfüllende Lernoberfläche mit einer festen Kopfzeile, Fortschrittsanzeige und einem zentralen Bereich für die aktuelle Karte.\n- Zeige immer nur eine Karte gleichzeitig. Biete Buttons zum Umdrehen sowie Schaltflächen „Gewusst“ und „Nochmal“, die den Lernfortschritt steuern.\n- Hinterlege alle Karten als Array von Objekten in einem Vanilla-JavaScript-Block, mische die Reihenfolge beim Start und nach einem Reset, und aktualisiere Fortschritt/Zähler dynamisch.\n- Animierte Flip-Effekte dürfen per CSS umgesetzt werden, müssen aber zugänglich bleiben (Focus-States, aria-Attribute, verständliche Texte).\n- Sorge dafür, dass Text auf Vorder- und Rückseite beim Flippen lesbar bleibt (z. B. durch backface-visibility: hidden und transform-style: preserve-3d). Vermeide Animationen, die Text spiegeln oder auf den Kopf stellen; nutze stattdessen seitliches Ein- und Ausblenden oder dezente 3D-Bewegungen mit unveränderter Leserichtung.\n- Blende die Rückseite standardmäßig aus und zeige sie erst nach Interaktion. Auf der Rückseite dürfen Definition, Beispiele und Merkhilfen stehen.\n- Baue einen sichtbaren Fortschrittsbalken sowie einen Score (z. B. „3 von 10 gelernt“) ein. Ergänze einen Reset-Button, der alles zurücksetzt.\n- Speichere für jede Karte, ob sie als „Gewusst“ oder „Nochmal“ markiert wurde, und organisiere mehrere Durchgänge: Nach einer Runde sollen automatisch nur die „Nochmal“-Karten in einer neuen Runde auftauchen, bis alle Karten als „Gewusst“ markiert sind. Zeige nach jeder Runde eine Zusammenfassung und ermögliche den direkten Start der nächsten Wiederholungsrunde.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne externe Ressourcen.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
       },
     },
+    'cloze': {
+      key: 'cloze',
+      label: 'Lückentexte',
+      modalTitle: 'Interaktiver Lückentext',
+      badge: 'Lückentext',
+      statusGenerating: 'Die KI erstellt einen interaktiven Lückentext…',
+      statusReady: 'Fertig! Die Vorschau zeigt einen interaktiven Lückentext.',
+      statusReadyFallback: 'Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.',
+      fallbackTitle: 'Interaktiver Lückentext',
+      loadingMessage: 'Die KI generiert gerade einen interaktiven Lückentext. Bitte kurz warten.',
+      downloadBase: 'Interaktiver Lückentext',
+      buildUserInstruction(hasContent, markdown) {
+        const base = hasContent
+          ? `Analysiere den folgenden Markdown-Inhalt und extrahiere zentrale Begriffe, Fakten oder Zusammenhänge. Forme daraus einen interaktiven Lückentext mit 8–12 Lücken.\n\n[MARKDOWN]\n${markdown}`
+          : 'Erstelle einen deutschsprachigen interaktiven Lückentext mit 8–12 Lücken zu einem allgemeinbildenden Thema deiner Wahl.';
+        return `${base}\n\nAnforderungen:\n- Gestalte eine Lernoberfläche mit Kopfbereich (Titel, kurzer Überblick, Fortschrittsanzeige) und einem Abschnitt für den eigentlichen Lückentext.\n- Bilde den Lückentext als Absätze, in denen einzelne Schlüsselwörter durch <input type="text" class="cloze-input"> ersetzt werden. Kennzeichne jede Lücke mit einer laufenden Nummer.\n- Lege alle Lösungen und akzeptierten Alternativen in einem eingebetteten JavaScript-Array ab. Verwende ein Skript, das Nutzerantworten prüft, Feedback anzeigt und den Fortschritt aktualisiert.\n- Ergänze Buttons zum Überprüfen einzelner Lücken sowie zum Anzeigen aller Lösungen. Nach vollständiger Lösung soll eine Zusammenfassung mit korrekt/inkorrekt-Statistik erscheinen.\n- Achte auf Tastaturbedienbarkeit, aussagekräftige aria-Labels und sichtbare Fokuszustände. Verzichte auf externe Bibliotheken.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne Abhängigkeiten.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
+      },
+    },
     'quiz-mc': {
       key: 'quiz-mc',
       label: 'Quiz (Multiple Choice)',
@@ -190,7 +208,7 @@
       description: 'Teile Ergebnisse direkt als Website oder Lernmaterial.',
       highlights: [
         'Wähle Export → Website, um eine responsive HTML-Seite zu generieren und direkt zu kopieren oder herunterzuladen.',
-        'Öffne das Lernen-Menü für automatisch erzeugte Karteikarten sowie Quizze mit Multiple Choice oder Freitext.',
+        'Öffne das Lernen-Menü für automatisch erzeugte Karteikarten, Lückentexte sowie Quizze mit Multiple Choice oder Freitext.',
         'Nutze die Vorschau-Modalfenster, um Ergebnisse erneut zu generieren, zu kopieren oder abzuspeichern.',
       ],
     },
