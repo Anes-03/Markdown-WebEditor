@@ -45,11 +45,48 @@ Hinweis zu CORS: Wenn die Seite lokal läuft (file:// oder anderer Origin), muss
 - Google Gemini
   - API‑Key hinterlegen, Modell per Dropdown wählen oder manuell eintragen.
   - „Verbindung testen“ ruft `https://generativelanguage.googleapis.com/v1beta/models` auf.
+- Neu: Trage im Feld **Bild-Proxy-Endpunkt** die URL eines Backend-Proxys ein. Der Proxy nimmt Prompts entgegen, ruft Googles kostenloses Imagen-Modell `imagen-3.0-generate-001` (Free Tier laut [Gemini-Doku](https://ai.google.dev/gemini-api/docs/image-generation?hl=de)) auf und liefert ein Base64-Bild zurück. So bleibt dein API-Key verborgen und du vermeidest CORS-Fehler. Ohne Proxy versucht der Editor weiterhin den direkten Browser-Aufruf – das setzt allerdings erlaubte Origins und einen nicht eingeschränkten API-Key voraus.
+
 - Mistral AI
   - API‑Key hinterlegen und Modell wählen.
   - „Verbindung testen“ nutzt `https://api.mistral.ai/v1/models`.
 
 > **Hinweis:** Alle genannten Cloud‑Anbieter werden direkt aus dem Browser angesprochen. Prüfe ggf. CORS‑Beschränkungen des Dienstes und teile nur Inhalte, die dort verarbeitet werden dürfen.
+
+## KI-Bilder generieren
+
+- Über die Toolbar-Schaltfläche **Bild Generieren** öffnest du den KI-Bilddialog direkt neben der Textgenerierung.
+- Gib eine Beschreibung ein, starte die Generierung und warte auf die Vorschau.
+- Gefällt dir das Ergebnis, kannst du es mit einem Klick in den Editor einfügen (das Bild wird als Data-URL im Markdown gespeichert).
+- Die Funktion ruft (falls konfiguriert) zuerst den Backend-Proxy aus den Gemini-Einstellungen auf und erwartet JSON mit Base64-Bilddaten (`image_base64`, `imageBase64`, `dataUrl` …). Ohne Proxy nutzt der Editor weiterhin Googles offiziellen Imagen-Endpunkt [`models/imagetext:generate`](https://ai.google.dev/api/rest/v1beta/models.imagetext/generate) mit dem Free-Tier-Modell `imagen-3.0-generate-001` und greift bei Fehlern auf `imagegeneration@001:generateImage` zurück.
+- Beispiel für einen Minimal-Proxy (Node.js + Express + `@google/generative-ai`):
+  ```js
+  import express from 'express';
+  import { GoogleGenerativeAI } from '@google/generative-ai';
+
+  const app = express();
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: 'imagen-3.0-generate-001' });
+
+  app.use(express.json());
+
+  app.post('/api/generate-image', async (req, res) => {
+    try {
+      const prompt = String(req.body?.prompt || '').trim();
+      if (!prompt) return res.status(400).json({ error: 'Prompt fehlt' });
+      const result = await model.generateImages({ prompt, numberOfImages: 1, outputMimeType: 'image/png' });
+      const image = result?.images?.[0];
+      if (!image?.inlineData?.data) throw new Error('Keine Bilddaten erhalten');
+      res.json({ image_base64: image.inlineData.data, mime_type: image.inlineData.mimeType || 'image/png' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: error.message || 'Bildgenerierung fehlgeschlagen' });
+    }
+  });
+
+  app.listen(3000);
+  ```
+- Der Proxy antwortet mit Base64-Daten (`image_base64` + optional `mime_type`), die der Editor automatisch in Data-URLs umwandelt und in Markdown einbettet.
 
 ## Starten
 

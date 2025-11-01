@@ -349,6 +349,19 @@
   const chatStreamToggle = document.getElementById('chatStreamToggle');
   const applyModeSelect = null;
   const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+  const aiImageBtn = document.getElementById('aiImageBtn');
+  const aiImageOverlay = document.getElementById('aiImageOverlay');
+  const aiImageModal = document.getElementById('aiImageModal');
+  const aiImageCloseBtn = document.getElementById('aiImageCloseBtn');
+  const aiImageCloseFooterBtn = document.getElementById('aiImageCloseFooterBtn');
+  const aiImageForm = document.getElementById('aiImageForm');
+  const aiImagePromptInput = document.getElementById('aiImagePrompt');
+  const aiImageGenerateBtn = document.getElementById('aiImageGenerateBtn');
+  const aiImageAbortBtn = document.getElementById('aiImageAbortBtn');
+  const aiImageInsertBtn = document.getElementById('aiImageInsertBtn');
+  const aiImageStatus = document.getElementById('aiImageStatus');
+  const aiImagePreview = document.getElementById('aiImagePreview');
+  const aiImagePreviewPlaceholder = document.getElementById('aiImagePreviewPlaceholder');
   const websiteOverlay = document.getElementById('websiteOverlay');
   const websiteModal = document.getElementById('websiteModal');
   const websiteCloseBtn = document.getElementById('websiteCloseBtn');
@@ -393,6 +406,7 @@
   const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
   const geminiModelInput = document.getElementById('geminiModelInput');
   const geminiModelSelect = document.getElementById('geminiModelSelect');
+  const geminiImageProxyInput = document.getElementById('geminiImageProxyInput');
   const geminiSaveBtn = document.getElementById('geminiSaveBtn');
   const geminiTestBtn = document.getElementById('geminiTestBtn');
   const geminiStatus = document.getElementById('geminiStatus');
@@ -548,6 +562,11 @@
   const learningDocuments = new Map();
   /** @type {string | null} */
   let learningMode = null;
+  let aiImageModalOpen = false;
+  let aiImageAbortController = null;
+  let aiImageLastFocus = null;
+  let aiImageCurrentDataUrl = '';
+  let aiImageCurrentPrompt = '';
   let templatesVisible = false;
   let currentTemplateCategory = 'all';
   let currentTemplateSearch = '';
@@ -573,6 +592,7 @@
   let lastMermaidTheme = null;
   const GITHUB_REPO = 'anes-03/Markdown-WebEditor';
   const MAX_COMMITS_TO_SHOW = 8;
+<<<<<<< ours
   const TABLE_MIN_ROWS = 2;
   const TABLE_MIN_COLS = 1;
   const TABLE_MAX_ROWS = 15;
@@ -599,6 +619,60 @@
     data: new Map(),
   };
   let mermaidBuilderSyncing = false;
+=======
+  const DEFAULT_AI_IMAGE_FORMAT = 'PNG';
+  const DEFAULT_AI_IMAGE_MIME = 'image/png';
+  const GOOGLE_IMAGEN_MODEL = 'imagen-3.0-generate-001';
+  const GOOGLE_IMAGE_ENDPOINTS = [
+    {
+      name: 'imagen-imagetext-generate',
+      prepare(prompt) {
+        return {
+          url: 'https://generativelanguage.googleapis.com/v1beta/models/imagetext:generate',
+          payload: buildImagenGeneratePayload(prompt),
+          retryStatuses: [400, 404, 405, 501],
+        };
+      },
+    },
+    {
+      name: 'imagen-imagetext-generate-raw-model',
+      prepare(prompt) {
+        return {
+          url: 'https://generativelanguage.googleapis.com/v1beta/models/imagetext:generate',
+          payload: buildImagenGeneratePayload(prompt, { omitPrefix: true }),
+          retryStatuses: [404, 405, 501],
+        };
+      },
+    },
+    {
+      name: 'legacy-generateImage',
+      prepare(prompt) {
+        return {
+          url: 'https://generativelanguage.googleapis.com/v1beta/models/imagegeneration@001:generateImage',
+          payload: {
+            prompt: { text: prompt },
+            numberOfImages: 1,
+            imageFormat: DEFAULT_AI_IMAGE_FORMAT,
+          },
+          retryStatuses: [],
+        };
+      },
+    },
+  ];
+
+  function buildImagenGeneratePayload(prompt, options) {
+    const omitPrefix = options?.omitPrefix;
+    const payload = {
+      model: omitPrefix ? GOOGLE_IMAGEN_MODEL : `models/${GOOGLE_IMAGEN_MODEL}`,
+      prompt: { text: prompt },
+      sampleCount: 1,
+    };
+    const locale =
+      (typeof navigator !== 'undefined' && (navigator.language || navigator.userLanguage || '').trim?.()) || '';
+    if (locale) payload.language = locale;
+    return payload;
+  }
+>>>>>>> theirs
 
   // Utilities
   const supportsFSA = () => 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
@@ -973,8 +1047,15 @@
     if (event.target === onboardingOverlay) closeOnboarding(true);
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && onboardingOverlay && !onboardingOverlay.classList.contains('hidden')) {
-      closeOnboarding(true);
+    if (event.key === 'Escape') {
+      if (aiImageModalOpen) {
+        event.preventDefault();
+        closeAiImageModal();
+        return;
+      }
+      if (onboardingOverlay && !onboardingOverlay.classList.contains('hidden')) {
+        closeOnboarding(true);
+      }
     }
   });
 
@@ -2059,11 +2140,585 @@ ${trimmed}
     learningStatus.classList.toggle('error', !!isError);
   }
 
+<<<<<<< ours
   function setLearningBusy(busy) {
     learningIsBusy = !!busy;
     if (learningModal) learningModal.setAttribute('aria-busy', busy ? 'true' : 'false');
     if (learningRegenerateBtn) learningRegenerateBtn.disabled = !!busy;
     updateLearningActionButtons();
+=======
+  function setAiImageModalVisible(visible) {
+    const isVisible = !!visible;
+    aiImageModalOpen = isVisible;
+    if (aiImageOverlay) {
+      aiImageOverlay.classList.toggle('hidden', !isVisible);
+      aiImageOverlay.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+    }
+    if (aiImageModal) {
+      aiImageModal.classList.toggle('hidden', !isVisible);
+      aiImageModal.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+    }
+  }
+
+  function resetAiImageModal(options = {}) {
+    const keepPrompt = !!options.keepPrompt;
+    if (!keepPrompt && aiImagePromptInput) {
+      aiImagePromptInput.value = '';
+    }
+    aiImageCurrentPrompt = keepPrompt && aiImagePromptInput ? (aiImagePromptInput.value || '').trim() : '';
+    aiImageCurrentDataUrl = '';
+    if (aiImagePreview) {
+      aiImagePreview.src = '';
+      aiImagePreview.classList.add('hidden');
+      aiImagePreview.removeAttribute('aria-busy');
+    }
+    if (aiImagePreviewPlaceholder) aiImagePreviewPlaceholder.classList.remove('hidden');
+    updateAiImageInsertAvailability();
+    updateAiImageStatus('', false);
+  }
+
+  function openAiImageModal() {
+    if (!aiImageModal || !aiImageOverlay) return;
+    if (aiImageModalOpen) return;
+    aiImageLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setAiImageModalVisible(true);
+    resetAiImageModal({ keepPrompt: true });
+    const focusTarget = () => {
+      const el = aiImagePromptInput || aiImageGenerateBtn || aiImageModal;
+      if (el && typeof el.focus === 'function') {
+        try { el.focus({ preventScroll: true }); } catch { try { el.focus(); } catch {} }
+      }
+    };
+    if (typeof queueMicrotask === 'function') queueMicrotask(focusTarget);
+    else setTimeout(focusTarget, 0);
+  }
+
+  function closeAiImageModal() {
+    if (!aiImageModalOpen) return;
+    abortAiImageGeneration();
+    setAiImageModalVisible(false);
+    resetAiImageModal({ keepPrompt: false });
+    if (aiImageLastFocus && typeof aiImageLastFocus.focus === 'function') {
+      setTimeout(() => {
+        try { aiImageLastFocus.focus({ preventScroll: true }); } catch { try { aiImageLastFocus.focus(); } catch {} }
+      }, 50);
+    }
+    aiImageLastFocus = null;
+  }
+
+  function setAiImageBusy(busy) {
+    const isBusy = !!busy;
+    if (aiImageGenerateBtn) aiImageGenerateBtn.disabled = isBusy;
+    if (aiImageAbortBtn) aiImageAbortBtn.disabled = !isBusy;
+    if (aiImagePromptInput) aiImagePromptInput.disabled = isBusy;
+  }
+
+  function updateAiImageStatus(message, isError) {
+    if (!aiImageStatus) return;
+    aiImageStatus.textContent = message || '';
+    aiImageStatus.style.color = isError ? 'var(--danger, #f44)' : 'var(--muted)';
+  }
+
+  function updateAiImageInsertAvailability() {
+    if (aiImageInsertBtn) aiImageInsertBtn.disabled = !aiImageCurrentDataUrl;
+  }
+
+  function showAiImagePreview(dataUrl, prompt) {
+    aiImageCurrentDataUrl = dataUrl;
+    aiImageCurrentPrompt = prompt;
+    if (aiImagePreview) {
+      aiImagePreview.src = dataUrl;
+      aiImagePreview.alt = prompt ? `Generiertes Bild: ${prompt}` : 'Generiertes KI-Bild';
+      aiImagePreview.classList.remove('hidden');
+      aiImagePreview.removeAttribute('aria-busy');
+    }
+    if (aiImagePreviewPlaceholder) aiImagePreviewPlaceholder.classList.add('hidden');
+    updateAiImageInsertAvailability();
+  }
+
+  function resolveGeminiImageProxyUrl() {
+    const typed = (geminiImageProxyInput?.value || '').trim();
+    if (typed) return typed;
+    try {
+      const stored = localStorage.getItem('gemini-image-proxy') || '';
+      return stored.trim();
+    } catch {
+      return '';
+    }
+  }
+
+  async function generateAiImageViaProxy(proxyUrl, prompt, signal) {
+    if (!proxyUrl) return null;
+    let targetUrl = proxyUrl;
+    try {
+      const parsed = new URL(proxyUrl, window.location.href);
+      targetUrl = parsed.toString();
+    } catch {}
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+      signal,
+    });
+    if (!response.ok) throw await createHttpError(response);
+    const raw = await response.text();
+    let payload = raw;
+    if (raw) {
+      try { payload = JSON.parse(raw); }
+      catch { payload = raw; }
+    } else {
+      payload = {};
+    }
+    const normalized = normalizeProxyImageResponse(payload, targetUrl);
+    if (!normalized) throw new Error('Die Proxy-Antwort enthielt kein Bild.');
+    if (!normalized.dataUrl && normalized.remoteUrl) {
+      const resolvedUrl = resolveRelativeUrlCandidate(normalized.remoteUrl, targetUrl);
+      const res = await fetch(resolvedUrl, { signal });
+      if (!res.ok) throw new Error(`Proxy-Bild konnte nicht geladen werden (${res.status})`);
+      const blob = await res.blob();
+      const dataUrl = await blobToDataUrl(blob);
+      return {
+        dataUrl,
+        mimeType: blob.type || normalized.mimeType || DEFAULT_AI_IMAGE_MIME,
+      };
+    }
+    return {
+      dataUrl: normalized.dataUrl,
+      mimeType: normalized.mimeType || DEFAULT_AI_IMAGE_MIME,
+    };
+  }
+
+  function normalizeProxyImageResponse(payload, baseUrl) {
+    if (payload === null || payload === undefined) return null;
+    const queue = [];
+    const seen = new Set();
+    queue.push(payload);
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current) continue;
+      if (typeof current === 'object') {
+        if (seen.has(current)) continue;
+        seen.add(current);
+      }
+      const normalized = normalizeProxyImageCandidate(current, baseUrl);
+      if (normalized && (normalized.dataUrl || normalized.remoteUrl)) {
+        return normalized;
+      }
+      if (current && typeof current === 'object') {
+        for (const value of Object.values(current)) {
+          if (Array.isArray(value)) queue.push(...value);
+          else queue.push(value);
+        }
+      }
+    }
+    return null;
+  }
+
+  function normalizeProxyImageCandidate(candidate, baseUrl) {
+    if (!candidate) return null;
+    if (typeof candidate === 'string') {
+      return normalizeProxyImageString(candidate, '', baseUrl);
+    }
+    if (typeof candidate !== 'object') return null;
+    const mime = candidate.mimeType || candidate.mime_type || candidate.type || '';
+    const directFields = [
+      candidate.dataUrl,
+      candidate.data_url,
+      candidate.imageDataUrl,
+      candidate.image_data_url,
+      candidate.url,
+      candidate.href,
+      candidate.src,
+      candidate.imageUrl,
+      candidate.image_url,
+      candidate.imageUri,
+      candidate.image_uri,
+    ];
+    for (const direct of directFields) {
+      const normalized = normalizeProxyImageString(direct, mime, baseUrl);
+      if (normalized) {
+        if (!normalized.mimeType && mime) normalized.mimeType = mime;
+        return normalized;
+      }
+    }
+    const inlineFields = [
+      candidate.base64,
+      candidate.base64Data,
+      candidate.base64_data,
+      candidate.base64String,
+      candidate.imageBase64,
+      candidate.image_base64,
+      candidate.bytes,
+      candidate.bytesBase64,
+      candidate.bytes_base64,
+      candidate.b64_json,
+      candidate.inlineData?.data,
+      candidate.inline_data?.data,
+      candidate.data,
+      candidate.body,
+      candidate.content,
+    ];
+    for (const inline of inlineFields) {
+      const normalized = normalizeProxyImageString(inline, mime, baseUrl);
+      if (normalized) {
+        if (!normalized.mimeType && mime) normalized.mimeType = mime;
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  function normalizeProxyImageString(value, fallbackMime, baseUrl) {
+    if (!value) return null;
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('data:')) {
+      const mime = extractMimeFromDataUrl(trimmed) || fallbackMime || DEFAULT_AI_IMAGE_MIME;
+      return { dataUrl: trimmed, mimeType: mime };
+    }
+    if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith('/')) {
+      const resolved = resolveRelativeUrlCandidate(trimmed, baseUrl);
+      const mime = fallbackMime || DEFAULT_AI_IMAGE_MIME;
+      return { remoteUrl: resolved, mimeType: mime };
+    }
+    const sanitized = trimmed.replace(/\s+/g, '');
+    if (!sanitized) return null;
+    if (/^[A-Za-z0-9+/=]+$/.test(sanitized)) {
+      const mime = fallbackMime || DEFAULT_AI_IMAGE_MIME;
+      return { dataUrl: `data:${mime};base64,${sanitized}`, mimeType: mime };
+    }
+    return null;
+  }
+
+  function resolveRelativeUrlCandidate(candidateUrl, baseUrl) {
+    if (!candidateUrl) return candidateUrl;
+    try {
+      const resolved = new URL(candidateUrl, baseUrl || window.location.href);
+      return resolved.toString();
+    } catch {
+      return candidateUrl;
+    }
+  }
+
+  function extractMimeFromDataUrl(dataUrl) {
+    if (typeof dataUrl !== 'string') return '';
+    const match = /^data:([^;,]+)[;,]/i.exec(dataUrl.trim());
+    return match ? match[1] : '';
+  }
+
+  async function generateAiImageFromPrompt(prompt, signal) {
+    if (typeof fetch !== 'function') {
+      throw new Error('fetch wird nicht unterstützt');
+    }
+    const proxyUrl = resolveGeminiImageProxyUrl();
+    if (proxyUrl) {
+      const viaProxy = await generateAiImageViaProxy(proxyUrl, prompt, signal);
+      if (viaProxy) return viaProxy;
+    }
+    const apiKey = (geminiApiKeyInput?.value || localStorage.getItem('gemini-api-key') || '').trim();
+    if (!apiKey) throw new Error('Gemini API‑Key oder Proxy-Endpunkt fehlt für die Bildgenerierung');
+    let lastError = null;
+    for (const attempt of GOOGLE_IMAGE_ENDPOINTS) {
+      const prepared = typeof attempt.prepare === 'function' ? attempt.prepare(prompt) : null;
+      if (!prepared) continue;
+      const { url, payload, retryStatuses } = prepared;
+      const separator = url.includes('?') ? '&' : '?';
+      const urlWithKey = `${url}${separator}key=${encodeURIComponent(apiKey)}`;
+      try {
+        const response = await fetch(urlWithKey, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal,
+        });
+        let data = null;
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
+        if (!response.ok) {
+          const message = data?.error?.message || response.statusText || 'Unbekannter Fehler bei der Bildgenerierung';
+          const error = new Error(message);
+          error.status = response.status;
+          if (Array.isArray(retryStatuses) && retryStatuses.includes(response.status)) {
+            error.retryable = true;
+          }
+          throw error;
+        }
+        const candidates = collectGoogleImageCandidates(data);
+        if (!candidates.length) throw new Error('Die Antwort enthielt kein Bild.');
+        const first = candidates[0] || {};
+        const result = await resolveGoogleImageCandidate(first, apiKey, controllerSignal(signal));
+        if (!result) throw new Error('Das Bild konnte nicht aus der Antwort gelesen werden.');
+        return result;
+      } catch (err) {
+        const retryable = err?.retryable || (Array.isArray(retryStatuses) && retryStatuses.includes(err?.status));
+        lastError = err instanceof Error ? err : new Error(err?.message || String(err));
+        if (!retryable) {
+          throw lastError;
+        }
+      }
+    }
+    if (lastError) throw lastError;
+    throw new Error('Die Bildgenerierung ist derzeit nicht verfügbar.');
+  }
+
+  function controllerSignal(signal) {
+    return signal instanceof AbortSignal ? signal : undefined;
+  }
+
+  function collectGoogleImageCandidates(payload) {
+    if (!payload) return [];
+    const candidates = [];
+    const pools = [
+      payload?.images,
+      payload?.generatedImages,
+      payload?.generated_images,
+      payload?.data,
+      payload?.results,
+      payload?.candidates,
+      payload?.response?.candidates,
+      payload?.result?.candidates,
+      payload?.responses,
+    ];
+    for (const pool of pools) {
+      if (Array.isArray(pool)) {
+        candidates.push(...pool);
+      }
+    }
+    if (payload?.image && typeof payload.image === 'object') candidates.push(payload.image);
+    if (payload?.inlineData || payload?.inline_data || payload?.fileUri || payload?.file_uri || payload?.b64_json) {
+      candidates.push(payload);
+    }
+    if (typeof payload?.content === 'object' && Array.isArray(payload.content?.parts)) {
+      candidates.push(...payload.content.parts);
+    }
+    return candidates;
+  }
+
+  async function resolveGoogleImageCandidate(candidate, apiKey, signal) {
+    const parts = [];
+    if (candidate) {
+      parts.push(candidate);
+      if (Array.isArray(candidate?.content?.parts)) parts.push(...candidate.content.parts);
+      if (Array.isArray(candidate?.images)) parts.push(...candidate.images);
+      if (candidate?.image) parts.push(candidate.image);
+    }
+    for (const part of parts) {
+      const inline = extractInlineGoogleImage(part);
+      if (inline) {
+        return inline;
+      }
+    }
+    for (const part of parts) {
+      const fileUri = extractGoogleImageFileUri(part);
+      if (fileUri) {
+        const mimeType = extractGoogleImageMime(part) || candidate?.mimeType || candidate?.mime_type || DEFAULT_AI_IMAGE_MIME;
+        try {
+          const downloaded = await downloadGoogleImageFile(fileUri, mimeType, apiKey, signal);
+          if (downloaded) return downloaded;
+        } catch (err) {
+          console.warn('Download des Google-Bildes fehlgeschlagen', err);
+          throw err;
+        }
+      }
+    }
+    return null;
+  }
+
+  function extractInlineGoogleImage(part) {
+    if (!part) return null;
+    const mimeType = extractGoogleImageMime(part) || DEFAULT_AI_IMAGE_MIME;
+    const possibilities = [
+      typeof part === 'string' ? part : null,
+      part?.image,
+      part?.b64_json,
+      part?.base64,
+      part?.base64Data,
+      part?.base64EncodedData,
+      part?.inlineData?.data,
+      part?.inlineData?.base64Data,
+      part?.inline_data?.data,
+      part?.inline_data?.base64Data,
+      part?.image?.data,
+      part?.image?.base64Data,
+      part?.image?.base64,
+      part?.image?.base64EncodedData,
+      part?.image?.inlineData?.data,
+      part?.image?.inlineData?.base64Data,
+      part?.content?.parts?.[0]?.inlineData?.data,
+      part?.content?.parts?.[0]?.inline_data?.data,
+    ];
+    let normalized = '';
+    for (const candidate of possibilities) {
+      if (!candidate) continue;
+      if (typeof candidate === 'string') {
+        normalized = candidate;
+        break;
+      }
+      if (Array.isArray(candidate)) {
+        const first = candidate.find(value => typeof value === 'string' && value);
+        if (first) {
+          normalized = first;
+          break;
+        }
+      }
+    }
+    if (!normalized || typeof normalized !== 'string') return null;
+    const safeMime = mimeType || DEFAULT_AI_IMAGE_MIME;
+    return {
+      dataUrl: `data:${safeMime};base64,${normalized}`,
+      mimeType: safeMime,
+    };
+  }
+
+  function extractGoogleImageFileUri(part) {
+    if (!part) return '';
+    return (
+      part?.fileUri ||
+      part?.file_uri ||
+      part?.fileData?.fileUri ||
+      part?.file_data?.fileUri ||
+      part?.inlineData?.fileUri ||
+      part?.inline_data?.fileUri ||
+      part?.contentUri ||
+      part?.uri ||
+      ''
+    );
+  }
+
+  function extractGoogleImageMime(part) {
+    if (!part) return '';
+    return (
+      part?.mimeType ||
+      part?.mime_type ||
+      part?.fileData?.mimeType ||
+      part?.file_data?.mimeType ||
+      part?.inlineData?.mimeType ||
+      part?.inline_data?.mimeType ||
+      part?.mime ||
+      ''
+    );
+  }
+
+  async function downloadGoogleImageFile(fileUri, mimeType, apiKey, signal) {
+    if (typeof fetch !== 'function') throw new Error('fetch wird nicht unterstützt');
+    if (!fileUri) return null;
+    let url;
+    try {
+      url = new URL(String(fileUri));
+    } catch {
+      return null;
+    }
+    if (!url.searchParams.has('alt')) url.searchParams.set('alt', 'media');
+    if (apiKey && !url.searchParams.has('key')) {
+      url.searchParams.set('key', apiKey);
+    }
+    const headers = {};
+    if (mimeType) headers.Accept = mimeType;
+    if (apiKey) headers['X-Goog-Api-Key'] = apiKey;
+    const response = await fetch(url.toString(), { method: 'GET', headers, signal });
+    if (!response.ok) {
+      throw new Error(`Medienabruf fehlgeschlagen (${response.status} ${response.statusText || ''})`.trim());
+    }
+    const blob = await response.blob();
+    const safeMime = blob.type || mimeType || DEFAULT_AI_IMAGE_MIME;
+    const dataUrl = await blobToDataUrl(blob);
+    return { dataUrl, mimeType: safeMime };
+  }
+
+  async function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Die Bilddaten konnten nicht gelesen werden.'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Die Bilddaten konnten nicht gelesen werden.'));
+      try {
+        reader.readAsDataURL(blob);
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
+  }
+
+  async function handleAiImageGenerate(event) {
+    if (event) event.preventDefault();
+    if (!aiImageModalOpen) openAiImageModal();
+    if (aiImagePromptInput?.disabled) return;
+    const prompt = (aiImagePromptInput?.value || '').trim();
+    if (!prompt) {
+      updateAiImageStatus('Bitte beschreibe das gewünschte Bild.', true);
+      if (aiImagePromptInput) {
+        try { aiImagePromptInput.focus({ preventScroll: true }); } catch { try { aiImagePromptInput.focus(); } catch {} }
+      }
+      return;
+    }
+    if (aiImageAbortController) {
+      try { aiImageAbortController.abort(); } catch {}
+      aiImageAbortController = null;
+    }
+    const controller = new AbortController();
+    aiImageAbortController = controller;
+    setAiImageBusy(true);
+    updateAiImageStatus('Die KI erstellt dein Bild…', false);
+    if (aiImagePreview) aiImagePreview.setAttribute('aria-busy', 'true');
+    try {
+      const result = await generateAiImageFromPrompt(prompt, controller.signal);
+      if (controller.signal.aborted) return;
+      showAiImagePreview(result.dataUrl, prompt);
+      updateAiImageStatus('Fertig! Wenn dir das Ergebnis gefällt, kannst du es einfügen.', false);
+      setStatus('Das KI-Bild wurde erstellt.');
+    } catch (err) {
+      if (controller.signal.aborted) {
+        updateAiImageStatus('Die Bildgenerierung wurde abgebrochen.', true);
+      } else {
+        console.error('KI-Bildgenerierung fehlgeschlagen', err);
+        updateAiImageStatus(`Bild konnte nicht generiert werden: ${err?.message || err}`, true);
+        setStatus(`Fehler bei der Bildgenerierung: ${err?.message || err}`);
+      }
+    } finally {
+      if (aiImageAbortController === controller) aiImageAbortController = null;
+      setAiImageBusy(false);
+      if (aiImagePreview) aiImagePreview.removeAttribute('aria-busy');
+    }
+  }
+
+  function abortAiImageGeneration() {
+    if (!aiImageAbortController) return;
+    try { aiImageAbortController.abort(); } catch {}
+    aiImageAbortController = null;
+    setAiImageBusy(false);
+    updateAiImageStatus('Die Bildgenerierung wurde abgebrochen.', true);
+    if (aiImagePreview) aiImagePreview.removeAttribute('aria-busy');
+  }
+
+  function sanitizeImageAlt(text) {
+    if (!text) return 'KI-Bild';
+    return text.replace(/[\[\]\r\n]+/g, ' ').trim() || 'KI-Bild';
+  }
+
+  function insertAiImageIntoEditor() {
+    if (!editor || !aiImageCurrentDataUrl) return;
+    const altText = sanitizeImageAlt(aiImageCurrentPrompt || '');
+    const markdown = `![${altText}](${aiImageCurrentDataUrl})`;
+    insertAtCursor(markdown + '\n\n');
+    setStatus('KI-Bild wurde in den Editor eingefügt.');
+  }
+
+  function formatCommitDate(date) {
+    try {
+      return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    } catch {
+      return date.toLocaleString('de-DE');
+    }
+>>>>>>> theirs
   }
 
   function setLearningModalVisible(visible) {
@@ -7959,22 +8614,27 @@ ${members}` : `${cls.name}`;
 
   // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
+  const key = (e.key || '');
+  if (aiImageModalOpen && key.toLowerCase() !== 'escape') {
+    return;
+  }
   const mod = e.metaKey || e.ctrlKey;
-  if (mod && e.key.toLowerCase() === 's') {
+  const lowerKey = key.toLowerCase();
+  if (mod && lowerKey === 's') {
     e.preventDefault(); if (e.shiftKey) doSaveFileAs(); else doSaveFile();
-  } else if (mod && e.key.toLowerCase() === 'o') {
+  } else if (mod && lowerKey === 'o') {
     e.preventDefault(); doOpenFile();
-  } else if (mod && e.key.toLowerCase() === 'n') {
+  } else if (mod && lowerKey === 'n') {
     e.preventDefault(); doNewFile();
-  } else if (mod && e.key.toLowerCase() === 'b') {
+  } else if (mod && lowerKey === 'b') {
     e.preventDefault(); toggleWrapSelection(editor, ['**', '**']); updatePreview(); markDirty(true);
-  } else if (mod && e.key.toLowerCase() === 'i') {
+  } else if (mod && lowerKey === 'i') {
     e.preventDefault(); toggleWrapSelection(editor, ['*', '*']); updatePreview(); markDirty(true);
-  } else if (mod && e.key.toLowerCase() === 'k') {
+  } else if (mod && lowerKey === 'k') {
     e.preventDefault(); insertLink(); updatePreview(); markDirty(true);
-  } else if (mod && e.key.toLowerCase() === 'g') {
+  } else if (mod && lowerKey === 'g') {
     e.preventDefault(); editorGenerateAI();
-  } else if (mod && e.key === 'Enter') {
+  } else if (mod && lowerKey === 'enter') {
     // Alternative Trigger für KI‑Generierung
     e.preventDefault(); editorGenerateAI();
   } else if (e.key === 'Escape' && templatePreviewModal && !templatePreviewModal.classList.contains('hidden')) {
@@ -7999,6 +8659,10 @@ document.addEventListener('keydown', (e) => {
 try {
   if (!window.__mdKeyHandlerInstalled) {
     window.addEventListener('keydown', (e) => {
+      const key = (e.key || '');
+      if (aiImageModalOpen && key.toLowerCase() !== 'escape') {
+        return;
+      }
       const mod = e.metaKey || e.ctrlKey;
       const k = (e.key || '').toLowerCase();
   // Nur für unsere bekannten Kürzel eingreifen (keine rohe Enter-Taste!)
@@ -8053,6 +8717,33 @@ try {
     }
     // Fallback if no inline panel exists
     try { editorGenerateAI(); } catch {}
+  });
+  aiImageBtn?.addEventListener('click', () => {
+    openAiImageModal();
+  });
+  aiImageOverlay?.addEventListener('click', (event) => {
+    if (event.target === aiImageOverlay) closeAiImageModal();
+  });
+  aiImageCloseBtn?.addEventListener('click', (event) => {
+    event.preventDefault();
+    closeAiImageModal();
+  });
+  aiImageCloseFooterBtn?.addEventListener('click', (event) => {
+    event.preventDefault();
+    closeAiImageModal();
+  });
+  aiImageForm?.addEventListener('submit', handleAiImageGenerate);
+  aiImageGenerateBtn?.addEventListener('click', (event) => {
+    event.preventDefault();
+    handleAiImageGenerate(event);
+  });
+  aiImageAbortBtn?.addEventListener('click', (event) => {
+    event.preventDefault();
+    abortAiImageGeneration();
+  });
+  aiImageInsertBtn?.addEventListener('click', (event) => {
+    event.preventDefault();
+    insertAiImageIntoEditor();
   });
   aiGenStartBtn?.addEventListener('click', editorGenerateAI);
   aiGenAbortBtn?.addEventListener('click', () => { inlineGenerator.abort(); });
@@ -8173,17 +8864,22 @@ try {
     try {
       const apiKey = localStorage.getItem('gemini-api-key') || '';
       const model = localStorage.getItem('gemini-model') || 'gemini-1.5-flash';
+      const proxy = localStorage.getItem('gemini-image-proxy') || '';
       if (geminiApiKeyInput) geminiApiKeyInput.value = apiKey;
       if (geminiModelInput) geminiModelInput.value = model;
       if (geminiModelSelect) geminiModelSelect.value = '';
+      if (geminiImageProxyInput) geminiImageProxyInput.value = proxy;
     } catch {}
   }
   function saveGeminiSettings() {
     try {
       const apiKey = (geminiApiKeyInput?.value || '').trim();
       const model = (geminiModelInput?.value || '').trim();
+      const proxy = (geminiImageProxyInput?.value || '').trim();
       if (apiKey) localStorage.setItem('gemini-api-key', apiKey);
       if (model) localStorage.setItem('gemini-model', model);
+      if (proxy) localStorage.setItem('gemini-image-proxy', proxy);
+      else localStorage.removeItem('gemini-image-proxy');
       setGeminiStatus('Gespeichert', true);
     } catch {}
   }
@@ -9415,6 +10111,7 @@ try {
         gemini: {
           apiKey: readStoredValue('gemini-api-key') || '',
           model: readStoredValue('gemini-model') || '',
+          imageProxy: readStoredValue('gemini-image-proxy') || '',
         },
         mistral: {
           apiKey: readStoredValue('mistral-api-key') || '',
@@ -9554,6 +10251,7 @@ try {
       const info = providers.gemini;
       if ('apiKey' in info) writeStoredValue('gemini-api-key', info.apiKey);
       if ('model' in info) writeStoredValue('gemini-model', info.model);
+      if ('imageProxy' in info) writeStoredValue('gemini-image-proxy', info.imageProxy);
     }
     if (providers.mistral && typeof providers.mistral === 'object') {
       const info = providers.mistral;
@@ -9601,6 +10299,7 @@ try {
       'ollama-model',
       'gemini-api-key',
       'gemini-model',
+      'gemini-image-proxy',
       'mistral-api-key',
       'mistral-model',
       'pref-reader-input',
