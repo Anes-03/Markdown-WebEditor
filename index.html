@@ -181,7 +181,6 @@
       <button data-action="hr" class="has-icon" title="Trennlinie"><iconify-icon aria-hidden="true" icon="lucide:minus"></iconify-icon><span class="btn-label">Linie</span></button>
       <span class="sep"></span>
       <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Text Generieren</span></button>
-      <button id="aiImageBtn" class="has-icon" title="KI: Bild generieren"><iconify-icon aria-hidden="true" icon="lucide:image-plus"></iconify-icon><span class="btn-label">Bild Generieren</span></button>
       <button id="chatToggleBtn" class="has-icon" title="Chat ein-/ausblenden"><iconify-icon aria-hidden="true" icon="lucide:message-circle"></iconify-icon><span class="btn-label">Chat</span></button>
     </div>
 
@@ -871,13 +870,6 @@ Viel Spaß beim Schreiben! ✨"></textarea>
                 <select id="geminiModelSelect"><option value="">Modelle laden…</option></select>
                 <input type="text" id="geminiModelInput" placeholder="gemini-1.5-flash (optional, manuell)" />
               </label>
-              <label>
-                Bild-Proxy-Endpunkt
-                <input type="url" id="geminiImageProxyInput" placeholder="https://example.com/api/generate-image" inputmode="url" />
-                <div class="muted">
-                  Server-Endpunkt, der Prompts entgegennimmt, das kostenlose Imagen-Modell aufruft und eine Base64-Antwort zurückliefert.
-                </div>
-              </label>
               <div class="row">
                 <button id="geminiSaveBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
                 <button id="geminiTestBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="mdi:power-plug-outline"></iconify-icon><span class="btn-label">Verbindung testen</span></button>
@@ -1032,63 +1024,6 @@ Viel Spaß beim Schreiben! ✨"></textarea>
       <footer class="settings-footer">
         <div class="spacer"></div>
         <button id="settingsSaveBtn">Speichern</button>
-      </footer>
-    </aside>
-
-    <div id="aiImageOverlay" class="ai-image-overlay hidden" aria-hidden="true"></div>
-    <aside
-      id="aiImageModal"
-      class="ai-image-modal hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="aiImageModalTitle"
-      aria-hidden="true"
-      tabindex="-1"
-    >
-      <header class="chat-header">
-        <strong id="aiImageModalTitle">Bild mit KI erstellen</strong>
-        <div class="spacer"></div>
-        <button id="aiImageCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen">
-          <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
-        </button>
-      </header>
-      <div class="ai-image-body">
-        <div class="ai-image-preview" aria-live="polite">
-          <div id="aiImagePreviewPlaceholder" class="ai-image-preview-placeholder">
-            <iconify-icon aria-hidden="true" icon="lucide:image"></iconify-icon>
-            <p>Noch kein Bild generiert.</p>
-          </div>
-          <img id="aiImagePreview" alt="Generierte Bildvorschau" class="hidden" />
-        </div>
-        <form id="aiImageForm" class="ai-image-form" autocomplete="off">
-          <label for="aiImagePrompt">Beschreibung</label>
-          <textarea
-            id="aiImagePrompt"
-            rows="3"
-            placeholder="Beschreibe das gewünschte Bild, z. B. „Futuristische Stadtlandschaft bei Nacht“"
-            required
-          ></textarea>
-          <div class="ai-image-actions">
-            <button id="aiImageGenerateBtn" class="has-icon" type="submit">
-              <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
-              <span class="btn-label">Bild generieren</span>
-            </button>
-            <button id="aiImageAbortBtn" class="secondary has-icon" type="button" disabled>
-              <iconify-icon aria-hidden="true" icon="mdi:stop-circle-outline"></iconify-icon>
-              <span class="btn-label">Abbrechen</span>
-            </button>
-            <div class="spacer"></div>
-            <button id="aiImageInsertBtn" class="has-icon" type="button" disabled>
-              <iconify-icon aria-hidden="true" icon="lucide:clipboard-image"></iconify-icon>
-              <span class="btn-label">In Editor einfügen</span>
-            </button>
-          </div>
-        </form>
-        <p id="aiImageStatus" class="ai-image-status" aria-live="polite"></p>
-      </div>
-      <footer class="ai-image-footer">
-        <div class="spacer"></div>
-        <button id="aiImageCloseFooterBtn" class="secondary">Schließen</button>
       </footer>
     </aside>
 
