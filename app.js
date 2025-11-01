@@ -74,29 +74,147 @@
   const aiGenInfo = document.getElementById('aiGenInfo');
   const aiPresetSettingsBtn = document.getElementById('aiPresetSettingsBtn');
 
+  const PRESET_CATEGORIES = {
+    summary: { id: 'summary', label: 'Zusammenfassen & Länge', icon: 'lucide:file-text' },
+    style: { id: 'style', label: 'Stil & Stimme', icon: 'lucide:sparkles' },
+    structure: { id: 'structure', label: 'Struktur & Format', icon: 'lucide:files' },
+    explain: { id: 'explain', label: 'Erklären & Analysieren', icon: 'lucide:brain' },
+    translate: { id: 'translate', label: 'Übersetzen', icon: 'mdi:translate' },
+    visuals: { id: 'visuals', label: 'Diagramme & Visualisierung', icon: 'mdi:chart-timeline-variant' },
+    custom: { id: 'custom', label: 'Eigene Presets', icon: 'lucide:star' },
+  };
+  const PRESET_CATEGORY_ORDER = ['summary', 'style', 'structure', 'explain', 'translate', 'visuals', 'custom'];
+  const CUSTOM_PRESET_CATEGORY = 'custom';
+
   const BUILT_IN_PRESETS = [
-    { name: 'Zusammenfassen', prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.' },
-    { name: 'Verbessern', prompt: 'Verbessere Stil, Klarheit und Grammatik des Textes, ohne Inhalt zu ändern. Nur Ergebnis in Markdown.' },
-    { name: 'Freundlich umformulieren', prompt: 'Formuliere den Text in einem freundlichen, respektvollen und wertschätzenden Ton neu. Erhalte die inhaltliche Aussage, entschärfe harsche Formulierungen, nutze inklusive Sprache. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
-    { name: 'Professionell umschreiben', prompt: 'Schreibe den Text in einem professionellen, sachlichen und klar strukturierten Stil um. Vermeide Umgangssprache, optimiere Präzision und Lesbarkeit, behalte den Kerninhalt bei. Nur das Ergebnis in Markdown ausgeben.' },
-    { name: 'Locker umformulieren', prompt: 'Formuliere den Text locker, natürlich und umgangssprachlich neu. Erhalte die Aussage, vereinfache komplexe Sätze und nutze alltagstaugliche Wörter. Nur das umformulierte Ergebnis in Markdown ausgeben.' },
-    { name: 'Neutralisieren', prompt: 'Formuliere den Text neutral und wertfrei um. Entferne emotionale oder wertende Sprache und behalte den Inhalt bei. Nur das neutralisierte Ergebnis in Markdown ausgeben.' },
-    { name: 'Kürzen', prompt: 'Kürze den Text deutlich (ca. 30–50%), entferne Füllwörter und Redundanzen und erhalte die Kernaussagen. Struktur möglichst beibehalten. Nur das gekürzte Ergebnis in Markdown ausgeben.' },
-    { name: 'Verlängern', prompt: 'Erweitere den Text behutsam um erläuternde Details, Beispiele und klarere Übergänge. Erhalte Ton und Intention; keine neuen Fakten erfinden. Nur das erweiterte Ergebnis in Markdown ausgeben.' },
-    { name: 'Technisch erklären', prompt: 'Erkläre den Text technisch präzise für ein fachkundiges Publikum. Nutze korrekte Terminologie, klare Struktur (Markdown-Überschriften/Listen) und Beispiele, falls sinnvoll. Nur die Erklärung in Markdown ausgeben.' },
-    { name: 'DE → EN', prompt: 'Übersetze den Text ins Englische. Nur Übersetzung ausgeben.' },
-    { name: 'EN → DE', prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.' },
-    { name: 'Tabelle aus Text', prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.' },
-    { name: 'Stichpunkte', prompt: 'Konvertiere den Text in eine prägnante ungeordnete Liste (Markdown). Nur die Liste ausgeben.' },
-    { name: 'Nummerierte Schritte', prompt: 'Konvertiere den Text in eine nummerierte Schritt-für-Schritt Liste (Markdown). Nur die Liste ausgeben.' },
-    { name: 'Aufgabenliste', prompt: 'Konvertiere den Text in eine Aufgabenliste in Markdown mit - [ ] Einträgen. Nur die Liste ausgeben.' },
-    { name: 'Zitat', prompt: 'Wandle den Text in ein Markdown-Blockzitat (> ...) um. Nur das Zitat ausgeben.' },
-    { name: 'Codeblock', prompt: 'Wandle den Text in einen Markdown-Codeblock um. Sprache, falls erkennbar, ansonsten ohne. Nur den Codeblock ausgeben.' },
-    { name: 'Überschrift H1', prompt: 'Formatiere die erste Zeile als H1 (#) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
-    { name: 'Überschrift H2', prompt: 'Formatiere die erste Zeile als H2 (##) und lasse den restlichen Text darunter unverändert. Nur vollständiges Markdown ausgeben.' },
-    { name: 'Trennlinie', prompt: 'Gib nur eine Markdown-Trennlinie (---) aus.' },
+    {
+      name: 'Zusammenfassen',
+      category: 'summary',
+      description: 'Fasst den Inhalt in 3–5 Sätzen zusammen.',
+      prompt: 'Fasse den Text prägnant in 3–5 Sätzen zusammen. Nur Markdown-Ausgabe.',
+    },
+    {
+      name: 'Kürzen',
+      category: 'summary',
+      description: 'Reduziert Inhalte auf die Kernaussagen.',
+      prompt: 'Kürze den Text deutlich (ca. 30–50%), entferne Füllwörter und Redundanzen und erhalte die Kernaussagen. Struktur möglichst beibehalten. Nur das gekürzte Ergebnis in Markdown ausgeben.',
+    },
+    {
+      name: 'Verlängern',
+      category: 'summary',
+      description: 'Erweitert den Text mit Beispielen und Übergängen.',
+      prompt: 'Erweitere den Text behutsam um erläuternde Details, Beispiele und klarere Übergänge. Erhalte Ton und Intention; keine neuen Fakten erfinden. Nur das erweiterte Ergebnis in Markdown ausgeben.',
+    },
+    {
+      name: 'Verbessern',
+      category: 'style',
+      description: 'Optimiert Stil, Klarheit und Grammatik.',
+      prompt: 'Verbessere Stil, Klarheit und Grammatik des Textes, ohne Inhalt zu ändern. Nur Ergebnis in Markdown.',
+    },
+    {
+      name: 'Freundlich umformulieren',
+      category: 'style',
+      description: 'Formuliert wertschätzend und inklusiv.',
+      prompt: 'Formuliere den Text in einem freundlichen, respektvollen und wertschätzenden Ton neu. Erhalte die inhaltliche Aussage, entschärfe harsche Formulierungen, nutze inklusive Sprache. Nur das umformulierte Ergebnis in Markdown ausgeben.',
+    },
+    {
+      name: 'Professionell umschreiben',
+      category: 'style',
+      description: 'Schreibt sachlich, präzise und strukturiert.',
+      prompt: 'Schreibe den Text in einem professionellen, sachlichen und klar strukturierten Stil um. Vermeide Umgangssprache, optimiere Präzision und Lesbarkeit, behalte den Kerninhalt bei. Nur das Ergebnis in Markdown ausgeben.',
+    },
+    {
+      name: 'Locker umformulieren',
+      category: 'style',
+      description: 'Macht den Ton locker und alltagstauglich.',
+      prompt: 'Formuliere den Text locker, natürlich und umgangssprachlich neu. Erhalte die Aussage, vereinfache komplexe Sätze und nutze alltagstaugliche Wörter. Nur das umformulierte Ergebnis in Markdown ausgeben.',
+    },
+    {
+      name: 'Neutralisieren',
+      category: 'style',
+      description: 'Entfernt Wertungen und emotionale Sprache.',
+      prompt: 'Formuliere den Text neutral und wertfrei um. Entferne emotionale oder wertende Sprache und behalte den Inhalt bei. Nur das neutralisierte Ergebnis in Markdown ausgeben.',
+    },
+    {
+      name: 'Technisch erklären',
+      category: 'explain',
+      description: 'Bereitet Inhalte für Fachpublikum auf.',
+      prompt: 'Erkläre den Text technisch präzise für ein fachkundiges Publikum. Nutze korrekte Terminologie, klare Struktur (Markdown-Überschriften/Listen) und Beispiele, falls sinnvoll. Nur die Erklärung in Markdown ausgeben.',
+    },
+    {
+      name: 'Stichpunkte',
+      category: 'structure',
+      description: 'Verdichtet Inhalte zu Bullet-Points.',
+      prompt: 'Konvertiere den Text in eine prägnante ungeordnete Liste (Markdown). Nur die Liste ausgeben.',
+    },
+    {
+      name: 'Nummerierte Schritte',
+      category: 'structure',
+      description: 'Strukturiert Abläufe als Schrittfolge.',
+      prompt: 'Konvertiere den Text in eine nummerierte Schritt-für-Schritt Liste (Markdown). Nur die Liste ausgeben.',
+    },
+    {
+      name: 'Aufgabenliste',
+      category: 'structure',
+      description: 'Erstellt eine Taskliste mit Checkboxen.',
+      prompt: 'Konvertiere den Text in eine Aufgabenliste in Markdown mit - [ ] Einträgen. Nur die Liste ausgeben.',
+    },
+    {
+      name: 'Tabelle aus Text',
+      category: 'structure',
+      description: 'Überführt Inhalte in eine Markdown-Tabelle.',
+      prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.',
+    },
+    {
+      name: 'Zitat',
+      category: 'structure',
+      description: 'Wandelt Text in ein Blockzitat.',
+      prompt: 'Wandle den Text in ein Markdown-Blockzitat (> ...) um. Nur das Zitat ausgeben.',
+    },
+    {
+      name: 'Codeblock',
+      category: 'structure',
+      description: 'Formatiert den Inhalt als Codeblock.',
+      prompt: 'Wandle den Text in einen Markdown-Codeblock um. Sprache, falls erkennbar, ansonsten ohne. Nur den Codeblock ausgeben.',
+    },
+    {
+      name: 'DE → EN',
+      category: 'translate',
+      description: 'Übersetzt den Text ins Englische.',
+      prompt: 'Übersetze den Text ins Englische. Nur Übersetzung ausgeben.',
+    },
+    {
+      name: 'EN → DE',
+      category: 'translate',
+      description: 'Übersetzt den Text ins Deutsche.',
+      prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.',
+    },
+    {
+      name: 'Flowchart erstellen',
+      category: 'visuals',
+      description: 'Visualisiert Kernaussagen als Mermaid-Flowchart.',
+      prompt: 'Analysiere den Text und extrahiere die wichtigsten Schritte oder Entscheidungen. Gib ein vollständiges Markdown-Fragment mit einem ```mermaid```-Block aus, der ein Flowchart im Format "flowchart TD" mit maximal 8 Knoten zeigt. Verwende kurze aktive Beschriftungen, nutze sprechende IDs (z. B. Schritt1, EntscheidungA) und ergänze sinnvolle Pfeiltexte. Keine zusätzliche Erklärung außerhalb des Codeblocks.',
+    },
+    {
+      name: 'Sequenzdiagramm erstellen',
+      category: 'visuals',
+      description: 'Stellt Abläufe als Mermaid-Sequenzdiagramm dar.',
+      prompt: 'Analysiere Rollen und Interaktionen im Text. Erzeuge ausschließlich ein Markdown-Fragment mit einem ```mermaid```-Block vom Typ "sequenceDiagram". Definiere alle Beteiligten mit sprechenden Namen, beschreibe maximal 10 Nachrichten mit kurzen, aktiven Formulierungen und verwende notes over/left/right wenn hilfreich. Keine weiteren Erklärungen außerhalb des Codeblocks.',
+    },
+    {
+      name: 'Mindmap erstellen',
+      category: 'visuals',
+      description: 'Verdichtet Themen zu einer Mermaid-Mindmap.',
+      prompt: 'Identifiziere das Hauptthema und die wichtigsten Unterthemen des Textes. Gib ausschließlich ein Markdown-Fragment mit einem ```mermaid```-Block vom Typ "mindmap" zurück. Verwende klare, kurze Stichworte, gruppiere verwandte Ideen unter gemeinsamen Ästen und beschränke dich auf höchstens drei Ebenen. Keine zusätzliche Erklärung außerhalb des Codeblocks.',
+    },
   ];
   const BUILT_IN_PRESET_NAMES = new Set(BUILT_IN_PRESETS.map(p => p.name.trim()));
+  function getPresetCategoryInfo(id) {
+    const key = typeof id === 'string' ? id.trim() : '';
+    if (key && PRESET_CATEGORIES[key]) return PRESET_CATEGORIES[key];
+    return PRESET_CATEGORIES[CUSTOM_PRESET_CATEGORY] || { label: 'Eigene Presets', icon: '⭐' };
+  }
+  let syncInlinePresetPicker = () => {};
   const LEARNING_MODES = {
     'flashcards': {
       key: 'flashcards',
@@ -9224,7 +9342,14 @@ try {
       const name = typeof item.name === 'string' ? item.name.trim() : '';
       const prompt = typeof item.prompt === 'string' ? item.prompt : '';
       if (!name) continue;
-      sanitized.push({ name, prompt });
+      const category = typeof item.category === 'string' ? item.category.trim() : '';
+      const description = typeof item.description === 'string' ? item.description.trim() : '';
+      const icon = typeof item.icon === 'string' ? item.icon.trim() : '';
+      const payload = { name, prompt };
+      if (category) payload.category = category;
+      if (description) payload.description = description;
+      if (icon) payload.icon = icon;
+      sanitized.push(payload);
     }
     return sanitized;
   }
@@ -9705,18 +9830,20 @@ try {
   setTimeout(() => { try { initOnboarding(); } catch {} }, 250);
 
   function initAiInlineDefaults(builtIns) {
-    const sel = document.getElementById('aiPresetSelect');
-    const name = document.getElementById('aiPresetName');
+    const picker = document.getElementById('aiPresetPicker');
+    const toggle = document.getElementById('aiPresetToggle');
+    const menu = document.getElementById('aiPresetMenu');
+    const activeNameEl = document.getElementById('aiPresetActiveName');
+    const activeDetailsEl = document.getElementById('aiPresetActiveDetails');
     const prompt = document.getElementById('aiPromptInput');
-    const saveBtn = document.getElementById('aiPresetSaveBtn');
-    const delBtn = document.getElementById('aiPresetDeleteBtn');
-    const renameBtn = document.getElementById('aiPresetRenameBtn');
-    const exportBtn = document.getElementById('aiPresetExportBtn');
-    const importBtn = document.getElementById('aiPresetImportBtn');
-    const importFile = document.getElementById('aiPresetImportFile');
-    // removed temperature/max controls
-    if (!sel || !prompt) return;
+    if (!picker || !toggle || !menu || !prompt) return;
+
     const builtInPresets = Array.isArray(builtIns) ? builtIns : [];
+    let presetList = [];
+    let activeIndex = -1;
+    let menuOpen = false;
+
+    toggle.setAttribute('aria-controls', 'aiPresetMenu');
 
     function getPresets() {
       try {
@@ -9725,93 +9852,284 @@ try {
         return [];
       }
     }
+
     function setPresets(list) {
       const sanitized = normalizePresetList(list);
       try { localStorage.setItem('ai-presets', JSON.stringify(sanitized)); } catch {}
     }
+
     function ensureDefaults() {
       const list = getPresets();
-      const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
+      const map = new Map(Array.isArray(list) ? list.map(p => [p.name, { ...p }]) : []);
       for (const preset of builtInPresets) {
         if (!preset || typeof preset.name !== 'string') continue;
         const name = preset.name.trim();
         if (!name) continue;
-        if (!map.has(name)) map.set(name, { ...preset, name });
+        const existing = map.get(name);
+        if (existing) {
+          map.set(name, {
+            ...preset,
+            ...existing,
+            name,
+            prompt: typeof existing.prompt === 'string' ? existing.prompt : (preset.prompt || ''),
+          });
+        } else {
+          map.set(name, { ...preset, name });
+        }
       }
       const merged = Array.from(map.values());
       setPresets(merged);
       return merged;
     }
-    function populate() {
-      const list = ensureDefaults();
-      sel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
-    }
-    populate();
 
-    sel.addEventListener('change', () => {
-      const list = getPresets();
-      const idx = parseInt(sel.value, 10);
-      const p = list[idx];
-      if (p) { prompt.value = p.prompt; name && (name.value = p.name); }
+    function groupPresets(list) {
+      const groups = new Map();
+      for (let idx = 0; idx < list.length; idx++) {
+        const entry = list[idx];
+        if (!entry || typeof entry.name !== 'string') continue;
+        const rawCat = typeof entry.category === 'string' ? entry.category.trim() : '';
+        const category = rawCat || CUSTOM_PRESET_CATEGORY;
+        if (!groups.has(category)) groups.set(category, []);
+        groups.get(category).push({ item: entry, index: idx });
+      }
+      const orderIndex = (id) => {
+        const pos = PRESET_CATEGORY_ORDER.indexOf(id);
+        return pos >= 0 ? pos : PRESET_CATEGORY_ORDER.length + Array.from(groups.keys()).indexOf(id);
+      };
+      return Array.from(groups.entries()).sort((a, b) => orderIndex(a[0]) - orderIndex(b[0]));
+    }
+
+    function buildMenuMarkup(groups) {
+      if (!groups.length) {
+        return '<div class="preset-menu-empty">Keine Presets verfügbar</div>';
+      }
+      const chunks = [];
+      for (const [categoryId, entries] of groups) {
+        const info = getPresetCategoryInfo(categoryId);
+        const icon = info?.icon
+          ? `<span class="preset-group-icon" aria-hidden="true"><iconify-icon aria-hidden="true" icon="${escapeHtml(info.icon)}"></iconify-icon></span>`
+          : '';
+        const title = escapeHtml(info?.label || categoryId || 'Presets');
+        const options = entries.map(({ item, index }) => {
+          const optionId = `aiPresetOption-${index}`;
+          const nameHtml = escapeHtml(item.name);
+          const descHtml = item.description ? `<span class="preset-option-desc">${escapeHtml(item.description)}</span>` : '';
+          return `<button type="button" class="preset-option" role="option" data-index="${index}" id="${optionId}" tabindex="-1"><span class="preset-option-name">${nameHtml}</span>${descHtml}</button>`;
+        }).join('');
+        chunks.push(`<div class="preset-group" data-category="${escapeHtml(categoryId)}"><div class="preset-group-header">${icon}<span class="preset-group-title">${title}</span></div><div class="preset-group-options">${options}</div></div>`);
+      }
+      return chunks.join('');
+    }
+
+    function updateMenuSelection() {
+      const buttons = menu.querySelectorAll('.preset-option');
+      let activeId = '';
+      buttons.forEach(btn => {
+        const idx = Number(btn.dataset.index);
+        const selected = Number.isInteger(idx) && idx === activeIndex;
+        btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+        btn.classList.toggle('is-active', selected);
+        btn.setAttribute('tabindex', selected ? '0' : '-1');
+        if (selected) activeId = btn.id || '';
+      });
+      if (activeId) menu.setAttribute('aria-activedescendant', activeId);
+      else menu.removeAttribute('aria-activedescendant');
+    }
+
+    function updateActiveDisplay() {
+      if (!activeNameEl || !activeDetailsEl) return;
+      const preset = activeIndex >= 0 ? presetList[activeIndex] : null;
+      if (!preset) {
+        activeNameEl.textContent = 'Preset auswählen';
+        activeDetailsEl.textContent = 'Schnellstart für KI-Aufgaben';
+        toggle.dataset.selected = 'false';
+        return;
+      }
+      activeNameEl.textContent = preset.name;
+      const info = getPresetCategoryInfo(preset.category);
+      activeDetailsEl.textContent = '';
+      if (info?.label) {
+        const cat = document.createElement('span');
+        cat.className = 'preset-active-meta preset-active-category';
+        if (info.icon) {
+          const iconWrap = document.createElement('span');
+          iconWrap.className = 'preset-active-icon';
+          iconWrap.setAttribute('aria-hidden', 'true');
+          const iconEl = document.createElement('iconify-icon');
+          iconEl.setAttribute('aria-hidden', 'true');
+          iconEl.setAttribute('icon', info.icon);
+          iconWrap.appendChild(iconEl);
+          cat.appendChild(iconWrap);
+        }
+        const labelEl = document.createElement('span');
+        labelEl.className = 'preset-active-category-label';
+        labelEl.textContent = info.label;
+        cat.appendChild(labelEl);
+        activeDetailsEl.appendChild(cat);
+      }
+      if (preset.description) {
+        if (activeDetailsEl.childNodes.length) {
+          const separator = document.createElement('span');
+          separator.className = 'preset-active-separator';
+          separator.textContent = '·';
+          activeDetailsEl.appendChild(separator);
+        }
+        const desc = document.createElement('span');
+        desc.className = 'preset-active-meta preset-active-description';
+        desc.textContent = preset.description;
+        activeDetailsEl.appendChild(desc);
+      }
+      toggle.dataset.selected = 'true';
+    }
+
+    function renderMenu({ preserveSelection = true } = {}) {
+      const previousName = preserveSelection && activeIndex >= 0 ? (presetList[activeIndex]?.name || '') : '';
+      const list = ensureDefaults();
+      presetList = list;
+      const groups = groupPresets(list);
+      menu.innerHTML = buildMenuMarkup(groups);
+      if (previousName) {
+        const idx = list.findIndex(p => p.name === previousName);
+        activeIndex = idx >= 0 ? idx : -1;
+      } else if (preserveSelection && activeIndex >= 0 && list[activeIndex]) {
+        // keep current selection
+      } else if (!preserveSelection) {
+        activeIndex = -1;
+      } else if (activeIndex >= list.length) {
+        activeIndex = -1;
+      }
+      updateMenuSelection();
+      updateActiveDisplay();
+    }
+
+    function setActiveIndex(index, { applyPrompt = false } = {}) {
+      if (!presetList[index]) {
+        activeIndex = -1;
+        updateMenuSelection();
+        updateActiveDisplay();
+        return;
+      }
+      activeIndex = index;
+      updateMenuSelection();
+      updateActiveDisplay();
+      if (applyPrompt) {
+        const preset = presetList[index];
+        if (preset && typeof preset.prompt === 'string') {
+          prompt.value = preset.prompt;
+        }
+      }
+    }
+
+    function getMenuItems() {
+      return Array.from(menu.querySelectorAll('.preset-option'));
+    }
+
+    function openMenu() {
+      if (menuOpen) return;
+      renderMenu({ preserveSelection: true });
+      menu.classList.remove('hidden');
+      toggle.setAttribute('aria-expanded', 'true');
+      menuOpen = true;
+      const activeBtn = menu.querySelector('.preset-option.is-active');
+      const target = activeBtn || menu.querySelector('.preset-option');
+      if (target) {
+        target.focus();
+        target.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function closeMenu({ focusToggle = false } = {}) {
+      if (!menuOpen) return;
+      menu.classList.add('hidden');
+      toggle.setAttribute('aria-expanded', 'false');
+      menuOpen = false;
+      if (focusToggle) {
+        try { toggle.focus(); } catch {}
+      }
+    }
+
+    toggle.addEventListener('click', () => {
+      if (menuOpen) closeMenu(); else openMenu();
     });
-    saveBtn?.addEventListener('click', () => {
-      const list = getPresets();
-      const nm = (name?.value || '').trim() || 'Preset';
-      const pr = (prompt?.value || '').trim();
-      if (!pr) return;
-      const exist = list.findIndex(x => x.name === nm);
-      if (exist >= 0) list[exist] = { name: nm, prompt: pr }; else list.push({ name: nm, prompt: pr });
-      setPresets(list);
-      populate();
-      // select this preset
-      const idx = list.findIndex(x => x.name === nm);
-      if (idx >= 0) sel.value = String(idx);
+
+    toggle.addEventListener('keydown', (event) => {
+      if (['ArrowDown', 'ArrowUp', ' ', 'Enter'].includes(event.key)) {
+        event.preventDefault();
+        if (!menuOpen) openMenu();
+        const items = getMenuItems();
+        const activeBtn = menu.querySelector('.preset-option.is-active');
+        const target = activeBtn || items[0];
+        target?.focus();
+      }
     });
-    renameBtn?.addEventListener('click', () => {
-      const list = getPresets();
-      const idx = parseInt(sel.value, 10);
-      if (isNaN(idx)) return;
-      const p = list[idx];
-      const newName = (name?.value || '').trim();
-      if (!p || !newName) return;
-      // avoid duplicate name by renaming existing duplicate
-      const dup = list.findIndex(x => x.name === newName);
-      if (dup >= 0 && dup !== idx) list.splice(dup, 1);
-      list[idx] = { name: newName, prompt: (prompt?.value || '').trim() };
-      setPresets(list);
-      populate();
-      const nidx = list.findIndex(x => x.name === newName);
-      if (nidx >= 0) sel.value = String(nidx);
+
+    menu.addEventListener('click', (event) => {
+      const option = event.target.closest('.preset-option');
+      if (!option) return;
+      event.preventDefault();
+      const idx = Number(option.dataset.index);
+      if (!Number.isInteger(idx)) return;
+      setActiveIndex(idx, { applyPrompt: true });
+      closeMenu({ focusToggle: true });
     });
-    delBtn?.addEventListener('click', () => {
-      const list = getPresets();
-      const idx = parseInt(sel.value, 10);
-      if (isNaN(idx)) return;
-      list.splice(idx, 1);
-      setPresets(list);
-      populate();
-      // clear fields
-      if (name) name.value = '';
-      prompt.value = '';
+
+    menu.addEventListener('keydown', (event) => {
+      const items = getMenuItems();
+      if (!items.length) {
+        if (event.key === 'Escape') closeMenu({ focusToggle: true });
+        return;
+      }
+      const currentIndex = items.indexOf(document.activeElement);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        const next = items[(currentIndex + 1) % items.length];
+        next?.focus();
+      } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+        event.preventDefault();
+        const next = items[(currentIndex - 1 + items.length) % items.length];
+        next?.focus();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        items[0]?.focus();
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        items[items.length - 1]?.focus();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMenu({ focusToggle: true });
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        const option = document.activeElement?.closest('.preset-option');
+        if (option) {
+          event.preventDefault();
+          option.click();
+        }
+      }
     });
-    // removed temperature/max persistence
+
+    menu.addEventListener('focusout', (event) => {
+      if (!menuOpen) return;
+      const related = event.relatedTarget;
+      if (!menu.contains(related)) {
+        closeMenu();
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!menuOpen) return;
+      if (!picker.contains(event.target)) closeMenu();
+    });
+
     document.addEventListener('presets-updated', () => {
-      populate();
-      const list = getPresets();
-      let idx = parseInt(sel.value, 10);
-      if (isNaN(idx) || !list[idx]) {
-        idx = list.length ? 0 : -1;
-        if (idx >= 0) sel.value = String(idx);
-      }
-      const active = idx >= 0 ? list[idx] : null;
-      if (active) {
-        prompt.value = active.prompt || '';
-        if (name) name.value = active.name || '';
-      } else {
-        prompt.value = '';
-        if (name) name.value = '';
-      }
+      renderMenu({ preserveSelection: true });
     });
+
+    aiPresetSettingsBtn?.addEventListener('click', () => { if (menuOpen) closeMenu(); });
+
+    syncInlinePresetPicker = ({ preserveSelection = true } = {}) => {
+      renderMenu({ preserveSelection });
+    };
+
+    renderMenu({ preserveSelection: false });
   }
 
   // Preferences helpers
@@ -9845,74 +10163,116 @@ try {
         return [];
       }
     }
+
     function setPresets(list) {
       const sanitized = normalizePresetList(list);
       try { localStorage.setItem('ai-presets', JSON.stringify(sanitized)); } catch {}
+      return sanitized;
     }
+
     function ensureDefaults() {
       const list = getPresets();
-      const map = new Map(Array.isArray(list) ? list.map(p => [p.name, p]) : []);
+      const map = new Map(Array.isArray(list) ? list.map(p => [p.name, { ...p }]) : []);
       for (const preset of builtInPresets) {
         if (!preset || typeof preset.name !== 'string') continue;
-        const name = preset.name.trim();
-        if (!name) continue;
-        if (!map.has(name)) map.set(name, { ...preset, name });
+        const presetName = preset.name.trim();
+        if (!presetName) continue;
+        const existing = map.get(presetName);
+        if (existing) {
+          map.set(presetName, {
+            ...preset,
+            ...existing,
+            name: presetName,
+            prompt: typeof existing.prompt === 'string' ? existing.prompt : (preset.prompt || ''),
+          });
+        } else {
+          map.set(presetName, { ...preset, name: presetName });
+        }
       }
       const merged = Array.from(map.values());
       setPresets(merged);
       return merged;
     }
+
+    function formatOptionLabel(preset) {
+      const info = getPresetCategoryInfo(preset.category);
+      return `${preset.name}${preset.category ? ` · ${info?.label || preset.category}` : ''}`;
+    }
+
     function populate() {
       const list = ensureDefaults();
-      sel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
+      sel.innerHTML = list.map((p, i) => `<option value="${i}">${escapeHtml(formatOptionLabel(p))}</option>`).join('');
     }
-    function refreshInlineSelect() {
-      const inlineSel = document.getElementById('aiPresetSelect');
-      if (!inlineSel) return;
-      const list = ensureDefaults();
-      inlineSel.innerHTML = list.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
+
+    function refreshInlinePicker() {
+      syncInlinePresetPicker({ preserveSelection: true });
     }
+
+    function loadSelectionFields() {
+      const list = getPresets();
+      let idx = parseInt(sel.value, 10);
+      if (isNaN(idx) || !list[idx]) {
+        idx = list.length ? 0 : -1;
+        if (idx >= 0) sel.value = String(idx);
+      }
+      const active = idx >= 0 ? list[idx] : null;
+      if (active) {
+        prompt.value = active.prompt || '';
+        if (name) name.value = active.name || '';
+        setPresetStatus('Preset geladen', true);
+      } else {
+        prompt.value = '';
+        if (name) name.value = '';
+        setPresetStatus('Keine Presets verfügbar', false);
+      }
+    }
+
     populate();
-    // no model handling inside presets anymore
+    refreshInlinePicker();
+    loadSelectionFields();
 
     sel.addEventListener('change', () => {
       const list = getPresets();
       const idx = parseInt(sel.value, 10);
       const p = list[idx];
       if (p) {
-        prompt.value = p.prompt;
-        name && (name.value = p.name);
+        prompt.value = p.prompt || '';
+        if (name) name.value = p.name || '';
         setPresetStatus('Preset geladen', true);
       }
     });
+
     newBtn?.addEventListener('click', () => {
       if (name) name.value = '';
-      if (prompt) prompt.value = '';
+      prompt.value = '';
       setPresetStatus('Neues Preset – ausfüllen und speichern', true);
     });
+
     dupBtn?.addEventListener('click', () => {
       const list = getPresets();
       const idx = parseInt(sel.value, 10);
-      const base = (!isNaN(idx) && list[idx]) ? list[idx] : { name: (name?.value || 'Preset').trim() || 'Preset', prompt: (prompt?.value || '').trim() };
+      const base = (!isNaN(idx) && list[idx]) ? list[idx] : {
+        name: (name?.value || 'Preset').trim() || 'Preset',
+        prompt: (prompt?.value || '').trim(),
+        category: CUSTOM_PRESET_CATEGORY,
+      };
       let newName = base.name + ' (Kopie)';
       const existingNames = new Set(list.map(p => p.name));
       let n = 2;
-      while (existingNames.has(newName)) { newName = base.name + ` (Kopie ${n++})`; }
-      const copy = { name: newName, prompt: base.prompt || '' };
-      list.push(copy);
-      setPresets(list);
+      while (existingNames.has(newName)) { newName = `${base.name} (Kopie ${n++})`; }
+      const copy = { ...base, name: newName };
+      if (!copy.category) copy.category = CUSTOM_PRESET_CATEGORY;
+      const updated = [...list, copy];
+      const sanitized = setPresets(updated);
       populate();
-      refreshInlineSelect();
-      const newIdx = list.findIndex(p => p.name === newName);
+      refreshInlinePicker();
+      const newIdx = sanitized.findIndex(p => p.name === newName);
       if (newIdx >= 0) sel.value = String(newIdx);
-      // reflect in fields
       if (name) name.value = newName;
-      if (prompt) prompt.value = copy.prompt || '';
+      prompt.value = copy.prompt || '';
       setPresetStatus('Preset dupliziert', true);
     });
-    // no model reload hooks needed
 
-    // Prompt helpers via aktueller Anbieter
     async function getPresetModelForRequest() {
       const provider = getAiProvider();
       if (provider === 'ollama') {
@@ -9929,47 +10289,64 @@ try {
         return { provider, apiKey, model: def };
       }
     }
+
     saveBtn?.addEventListener('click', () => {
       const list = getPresets();
       const nm = (name?.value || '').trim() || 'Preset';
       const pr = (prompt?.value || '').trim();
-      if (!pr) return;
+      if (!pr) {
+        setPresetStatus('Prompt darf nicht leer sein', false);
+        return;
+      }
       const exist = list.findIndex(x => x.name === nm);
-      const payload = { name: nm, prompt: pr };
-      if (exist >= 0) list[exist] = payload; else list.push(payload);
-      setPresets(list);
+      const payload = { ...(exist >= 0 ? list[exist] : {}), name: nm, prompt: pr };
+      if (!payload.category) payload.category = CUSTOM_PRESET_CATEGORY;
+      const updated = exist >= 0
+        ? [...list.slice(0, exist), payload, ...list.slice(exist + 1)]
+        : [...list, payload];
+      const sanitized = setPresets(updated);
       populate();
-      refreshInlineSelect();
-      const idx = list.findIndex(x => x.name === nm);
+      refreshInlinePicker();
+      const idx = sanitized.findIndex(x => x.name === nm);
       if (idx >= 0) sel.value = String(idx);
+      setPresetStatus('Preset gespeichert', true);
     });
+
     renameBtn?.addEventListener('click', () => {
       const list = getPresets();
       const idx = parseInt(sel.value, 10);
       if (isNaN(idx)) return;
-      const p = list[idx];
+      const current = list[idx];
       const newName = (name?.value || '').trim();
-      if (!p || !newName) return;
+      if (!current || !newName) return;
       const dup = list.findIndex(x => x.name === newName);
-      if (dup >= 0 && dup !== idx) list.splice(dup, 1);
-      list[idx] = { name: newName, prompt: (prompt?.value || '').trim() };
-      setPresets(list);
+      const updated = [...list];
+      if (dup >= 0 && dup !== idx) updated.splice(dup, 1);
+      const entry = { ...current, name: newName, prompt: (prompt?.value || '').trim() };
+      if (!entry.category) entry.category = CUSTOM_PRESET_CATEGORY;
+      updated[idx] = entry;
+      const sanitized = setPresets(updated);
       populate();
-      refreshInlineSelect();
-      const nidx = list.findIndex(x => x.name === newName);
+      refreshInlinePicker();
+      const nidx = sanitized.findIndex(x => x.name === newName);
       if (nidx >= 0) sel.value = String(nidx);
+      setPresetStatus('Preset umbenannt', true);
     });
+
     delBtn?.addEventListener('click', () => {
       const list = getPresets();
       const idx = parseInt(sel.value, 10);
       if (isNaN(idx)) return;
-      list.splice(idx, 1);
-      setPresets(list);
+      const updated = [...list];
+      updated.splice(idx, 1);
+      setPresets(updated);
       populate();
-      refreshInlineSelect();
+      refreshInlinePicker();
       if (name) name.value = '';
       prompt.value = '';
+      setPresetStatus('Preset gelöscht', true);
     });
+
     exportBtn?.addEventListener('click', () => {
       const list = getPresets();
       const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
@@ -9978,6 +10355,7 @@ try {
       a.download = 'ai-presets.json';
       document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
     });
+
     importBtn?.addEventListener('click', () => { importFile?.click(); });
     importFile?.addEventListener('change', async () => {
       const f = importFile.files && importFile.files[0];
@@ -9986,18 +10364,23 @@ try {
         const text = await f.text();
         const arr = JSON.parse(text);
         if (!Array.isArray(arr)) throw new Error('Format');
+        const incoming = normalizePresetList(arr);
         const existing = getPresets();
         const map = new Map(existing.map(p => [p.name, { ...p }]));
-        for (const item of arr) {
-          if (!item || typeof item.name !== 'string' || typeof item.prompt !== 'string') continue;
-          map.set(item.name, { name: item.name, prompt: item.prompt });
+        for (const item of incoming) {
+          if (!item || typeof item.name !== 'string') continue;
+          const merged = { ...(map.get(item.name) || {}), ...item, name: item.name };
+          if (!merged.category) merged.category = CUSTOM_PRESET_CATEGORY;
+          map.set(item.name, merged);
         }
-        const merged = Array.from(map.values());
-        setPresets(merged);
+        const mergedList = Array.from(map.values());
+        setPresets(mergedList);
         populate();
-        refreshInlineSelect();
+        refreshInlinePicker();
+        setPresetStatus('Presets importiert', true);
       } catch (e) {
         alert('Import fehlgeschlagen. Bitte gültige JSON-Presets wählen.');
+        setPresetStatus('Import fehlgeschlagen', false);
       } finally {
         importFile.value = '';
       }
@@ -10005,23 +10388,9 @@ try {
 
     document.addEventListener('presets-updated', () => {
       populate();
-      refreshInlineSelect();
-      const list = ensureDefaults();
-      let idx = parseInt(sel.value, 10);
-      if (isNaN(idx) || !list[idx]) {
-        idx = list.length ? 0 : -1;
-        if (idx >= 0) sel.value = String(idx);
-      }
-      const active = idx >= 0 ? list[idx] : null;
-      if (active) {
-        prompt.value = active.prompt || '';
-        if (name) name.value = active.name || '';
-        setPresetStatus('Presets aktualisiert', true);
-      } else {
-        prompt.value = '';
-        if (name) name.value = '';
-        setPresetStatus('Keine Presets verfügbar', false);
-      }
+      refreshInlinePicker();
+      loadSelectionFields();
+      setPresetStatus('Presets aktualisiert', true);
     });
   }
 

@@ -194,9 +194,17 @@
         <button id="aiGenResetBtn" class="secondary has-icon" disabled><iconify-icon aria-hidden="true" icon="mdi:backup-restore"></iconify-icon><span class="btn-label">Zurücksetzen</span></button>
       </div>
       <div class="row">
-        <label>Preset
-          <select id="aiPresetSelect"></select>
-        </label>
+        <div class="preset-picker" id="aiPresetPicker">
+          <span class="preset-picker-label">Preset</span>
+          <button id="aiPresetToggle" class="preset-toggle has-icon" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <span class="preset-toggle-text">
+              <span id="aiPresetActiveName" class="preset-active-name">Preset auswählen</span>
+              <span id="aiPresetActiveDetails" class="preset-active-details">Schnellstart für KI-Aufgaben</span>
+            </span>
+            <iconify-icon aria-hidden="true" icon="lucide:chevron-down"></iconify-icon>
+          </button>
+          <div id="aiPresetMenu" class="preset-menu hidden" role="listbox" aria-label="KI-Presets"></div>
+        </div>
         <button id="aiPresetSettingsBtn" class="secondary has-icon" type="button" title="KI-Presets verwalten">
           <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
           <span class="btn-label">KI-Presets</span>
