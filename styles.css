@@ -312,6 +312,27 @@ button:disabled:hover {
   padding: 16px 20px 40px; overflow: auto; height: 100%;
 }
 
+#preview .embedded-video,
+.markdown-body .embedded-video {
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  margin: 16px 0;
+  border: 0;
+}
+
+#preview iframe.embedded-video,
+.markdown-body iframe.embedded-video {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
+}
+
+#preview video.embedded-video,
+.markdown-body video.embedded-video {
+  height: auto;
+}
+
 .statusbar {
   display: flex; align-items: center; gap: 16px;
   padding: 6px 12px; border-top: 1px solid var(--border);

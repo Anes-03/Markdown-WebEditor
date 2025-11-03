@@ -99,6 +99,8 @@
         </div>
         <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
         <input type="file" id="hiddenImage" accept="image/*" hidden />
+        <input type="file" id="hiddenAudio" accept="audio/*" hidden />
+        <input type="file" id="hiddenVideo" accept="video/*" hidden />
         <input type="file" id="hiddenPdf" accept="application/pdf" hidden />
         <input type="file" id="hiddenDocx" accept="application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" hidden />
       </div>
@@ -176,6 +178,30 @@
       <span class="sep"></span>
       <button data-action="link" class="has-icon" title="Link (Cmd/Ctrl+K)"><iconify-icon aria-hidden="true" icon="lucide:link"></iconify-icon><span class="btn-label">Link</span></button>
       <button data-action="image" class="has-icon" title="Bild einfügen"><iconify-icon aria-hidden="true" icon="lucide:image"></iconify-icon><span class="btn-label">Bild</span></button>
+      <button data-action="audio" class="has-icon" title="Audio einfügen"><iconify-icon aria-hidden="true" icon="lucide:audio-lines"></iconify-icon><span class="btn-label">Audio</span></button>
+      <div class="menu-group">
+        <button
+          id="videoMenuBtn"
+          type="button"
+          class="has-icon"
+          title="Video einfügen"
+          aria-haspopup="true"
+          aria-expanded="false"
+        >
+          <iconify-icon aria-hidden="true" icon="lucide:video"></iconify-icon>
+          <span class="btn-label">Video</span>
+        </button>
+        <div id="videoMenu" class="toolbar-menu hidden" role="menu" aria-label="Video einfügen" aria-hidden="true">
+          <button type="button" class="has-icon" data-video-action="file" role="menuitem">
+            <iconify-icon aria-hidden="true" icon="lucide:upload"></iconify-icon>
+            <span class="btn-label">Eigene Videodatei einfügen</span>
+          </button>
+          <button type="button" class="has-icon" data-video-action="url" role="menuitem">
+            <iconify-icon aria-hidden="true" icon="lucide:clapperboard"></iconify-icon>
+            <span class="btn-label">YouTube/Vimeo- oder Direktlink einbetten</span>
+          </button>
+        </div>
+      </div>
       <button data-action="table" class="has-icon" title="Tabelle"><iconify-icon aria-hidden="true" icon="mdi:table"></iconify-icon><span class="btn-label">Tabelle</span></button>
       <button data-action="mermaid" class="has-icon" title="Diagramm einfügen"><iconify-icon aria-hidden="true" icon="mdi:chart-timeline-variant"></iconify-icon><span class="btn-label">Diagramm</span></button>
       <button data-action="hr" class="has-icon" title="Trennlinie"><iconify-icon aria-hidden="true" icon="lucide:minus"></iconify-icon><span class="btn-label">Linie</span></button>
