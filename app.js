@@ -357,9 +357,15 @@
       title: 'KI-Werkzeuge & Chat',
       description: 'Hol dir Unterstützung beim Schreiben, Kürzen oder Strukturieren.',
       highlights: [
-        'Der Button „Text Generieren“ öffnet den Inline-Generator mit Presets und optionaler Auswahl-Ersetzung.',
-        'Blende den Chat ein, nutze Vorschlagsprompts und teile bei Bedarf den Editor-Kontext für bessere Antworten.',
-        'Verwalte KI-Anbieter, Modelle und API-Keys zentral im Einstellungsbereich.',
+        {
+          text:
+            'Unsere Empfehlung für den Start: Gemini 2.5 Flash bietet viel Kontext und einen kostenlosen Einstieg. Verwalte KI-Anbieter, Modelle und API-Keys im ',
+          linkLabel: 'Einstellungsbereich „KI-Anbieter“',
+          afterText: ' – dort kannst du bei Bedarf auch OpenAI, Anthropic oder andere Dienste hinterlegen.',
+          settingsTab: 'providers',
+        },
+        'Tippe auf „Text Generieren“, um den Inline-Assistenten mit Presets zu öffnen und optional markierten Text zu ersetzen.',
+        'Blende den Chat ein, probiere Vorschlagsprompts aus und teile den Editor-Kontext für präzisere Antworten.',
       ],
     },
     {
@@ -954,10 +960,54 @@
       onboardingList.innerHTML = '';
       if (Array.isArray(step.highlights)) {
         for (const entry of step.highlights) {
-          if (typeof entry !== 'string') continue;
           const li = document.createElement('li');
-          li.textContent = entry;
-          onboardingList.appendChild(li);
+          if (typeof entry === 'string') {
+            li.textContent = entry;
+            onboardingList.appendChild(li);
+            continue;
+          }
+          if (entry && typeof entry === 'object') {
+            let hasContent = false;
+            const prefix = typeof entry.text === 'string' ? entry.text : '';
+            if (prefix) {
+              li.append(document.createTextNode(prefix));
+              hasContent = true;
+            }
+            const settingsTab =
+              typeof entry.settingsTab === 'string' && entry.settingsTab.trim().length
+                ? entry.settingsTab.trim()
+                : '';
+            const href = typeof entry.href === 'string' ? entry.href : '';
+            if (href || settingsTab) {
+              const link = document.createElement('a');
+              link.href = href || '#';
+              if (href) {
+                link.target = typeof entry.target === 'string' ? entry.target : '_blank';
+                link.rel = typeof entry.rel === 'string' ? entry.rel : 'noopener noreferrer';
+              } else {
+                link.target = '_self';
+              }
+              if (settingsTab) {
+                link.dataset.settingsTab = settingsTab;
+                link.dataset.onboardingAction = 'open-settings';
+              }
+              const linkLabel =
+                typeof entry.linkLabel === 'string' && entry.linkLabel.trim().length
+                  ? entry.linkLabel
+                  : href || link.textContent || '';
+              if (linkLabel) link.textContent = linkLabel;
+              li.append(link);
+              hasContent = true;
+            }
+            const suffix = typeof entry.afterText === 'string' ? entry.afterText : '';
+            if (suffix) {
+              li.append(document.createTextNode(suffix));
+              hasContent = true;
+            }
+            if (hasContent) {
+              onboardingList.appendChild(li);
+            }
+          }
         }
       }
     }
@@ -1025,6 +1075,14 @@
   onboardingSkipBtn?.addEventListener('click', () => { closeOnboarding(true); });
   onboardingOverlay?.addEventListener('click', (event) => {
     if (event.target === onboardingOverlay) closeOnboarding(true);
+  });
+  onboardingList?.addEventListener('click', (event) => {
+    const anchor = event.target?.closest?.('a[data-settings-tab]');
+    if (!anchor) return;
+    event.preventDefault();
+    const tab = typeof anchor.dataset.settingsTab === 'string' ? anchor.dataset.settingsTab.trim() : '';
+    closeOnboarding(true);
+    openSettings(tab || 'providers');
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && onboardingOverlay && !onboardingOverlay.classList.contains('hidden')) {
