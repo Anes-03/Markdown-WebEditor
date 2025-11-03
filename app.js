@@ -331,7 +331,7 @@
     },
   };
   const ONBOARDING_STORAGE_KEY = 'md-onboarding-v1';
-  const CANONICAL_SHARE_URL = 'https://markdown-webesitor.252425.xyz/';
+  const CANONICAL_SHARE_URL = 'https://markdown-webeditor.252425.xyz/';
   const CANONICAL_SHARE_TITLE = 'Markdown WebEditor';
   const CANONICAL_SHARE_TEXT = 'Markdown WebEditor – dein leichter Markdown Editor direkt im Browser.';
   const onboardingSteps = [

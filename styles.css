@@ -1070,12 +1070,18 @@ body.template-preview-open { overflow: hidden; }
 .chat-settings input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
 .chat-settings select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
 .chat-settings .row { display: flex; align-items: center; gap: 8px; }
-.settings-panel .row.share-buttons { flex-wrap: wrap; align-items: stretch; gap: 8px; }
+.settings-panel .row.share-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+}
 .settings-panel .row.share-buttons button {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  flex: 1 1 220px;
+  flex: 0 0 auto;
 }
 .settings-panel .row.share-buttons .btn-label { white-space: nowrap; }
 .chat-settings .chk { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; }
