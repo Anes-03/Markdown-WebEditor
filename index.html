@@ -579,18 +579,151 @@ Viel Spaß beim Schreiben! ✨"></textarea>
       
       <section id="chatMessages" class="chat-messages" aria-live="polite"></section>
       <section class="chat-input">
+        <div class="chat-suggestion-toolbar">
+          <nav
+            id="chatSuggestionTabs"
+            class="chat-suggestion-tabs"
+            role="tablist"
+            aria-label="Prompt-Kategorien"
+          >
+            <button
+              type="button"
+              class="active"
+              role="tab"
+              id="chatTabOverview"
+              aria-selected="true"
+              aria-controls="chatCategoryOverview"
+              data-chat-category="overview"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:compass"></iconify-icon>
+              <span>Kontext &amp; Überblick</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="chatTabDepth"
+              aria-selected="false"
+              aria-controls="chatCategoryDepth"
+              data-chat-category="depth"
+              tabindex="-1"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:search"></iconify-icon>
+              <span>Vertiefendes Verständnis</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="chatTabTransfer"
+              aria-selected="false"
+              aria-controls="chatCategoryTransfer"
+              data-chat-category="transfer"
+              tabindex="-1"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:graduation-cap"></iconify-icon>
+              <span>Lernen &amp; Transfer</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="chatTabApplication"
+              aria-selected="false"
+              aria-controls="chatCategoryApplication"
+              data-chat-category="application"
+              tabindex="-1"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:workflow"></iconify-icon>
+              <span>Praxis &amp; Beispiele</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="chatTabReflection"
+              aria-selected="false"
+              aria-controls="chatCategoryReflection"
+              data-chat-category="reflection"
+              tabindex="-1"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:brain-circuit"></iconify-icon>
+              <span>Reflexion &amp; Strategie</span>
+            </button>
+          </nav>
+        </div>
         <ul id="chatSuggestions" class="chat-suggestions" aria-label="Vorgeschlagene Prompts">
-          <li>
-            <button type="button" data-prompt="Fasse die wichtigsten Punkte zusammen. Bitte fasse die Kernaussagen knapp zusammen."><strong>Fasse die wichtigsten Punkte zusammen.</strong> Bitte fasse die Kernaussagen knapp zusammen.</button>
+          <li
+            class="chat-suggestion-category active"
+            id="chatCategoryOverview"
+            role="tabpanel"
+            aria-labelledby="chatTabOverview"
+            aria-hidden="false"
+            data-chat-category="overview"
+          >
+            <h4 class="sr-only">Kontext &amp; Überblick</h4>
+            <div class="chat-suggestion-buttons">
+              <button type="button" data-prompt="Fasse die wichtigsten Punkte zusammen. Bitte fasse die Kernaussagen knapp zusammen."><strong>Fasse die wichtigsten Punkte zusammen.</strong> Bitte fasse die Kernaussagen knapp zusammen.</button>
+              <button type="button" data-prompt="Worum geht es hier? Bitte beschreibe den Kontext in wenigen Sätzen."><strong>Worum geht es hier?</strong> Bitte beschreibe den Kontext in wenigen Sätzen.</button>
+              <button type="button" data-prompt="Welche offenen Fragen gibt es noch? Liste verbleibende Unklarheiten auf."><strong>Welche offenen Fragen gibt es noch?</strong> Liste verbleibende Unklarheiten auf.</button>
+              <button type="button" data-prompt="Welche nächsten Schritte empfiehlst du? Formuliere konkrete To-dos."><strong>Welche nächsten Schritte empfiehlst du?</strong> Formuliere konkrete To-dos.</button>
+            </div>
           </li>
-          <li>
-            <button type="button" data-prompt="Worum geht es hier? Bitte beschreibe den Kontext in wenigen Sätzen."><strong>Worum geht es hier?</strong> Bitte beschreibe den Kontext in wenigen Sätzen.</button>
+          <li
+            class="chat-suggestion-category"
+            id="chatCategoryDepth"
+            role="tabpanel"
+            aria-labelledby="chatTabDepth"
+            aria-hidden="true"
+            data-chat-category="depth"
+          >
+            <h4 class="sr-only">Vertiefendes Verständnis</h4>
+            <div class="chat-suggestion-buttons">
+              <button type="button" data-prompt="Erkläre die wichtigsten Fach- oder Schlüsselbegriffe in diesem Abschnitt. Gib prägnante Definitionen und ergänze, warum sie hier relevant sind."><strong>Wichtige Begriffe klären.</strong> Erkläre prägnant die Schlüsselbegriffe und ihren Kontext.</button>
+              <button type="button" data-prompt="Welche Annahmen oder Voraussetzungen macht der Text? Liste sie auf und beschreibe, wieso sie für das Verständnis bedeutsam sind."><strong>Annahmen identifizieren.</strong> Liste Annahmen oder Voraussetzungen und erläutere ihre Bedeutung.</button>
+              <button type="button" data-prompt="Welche Hintergründe sollte ich kennen, um diesen Inhalt besser zu verstehen? Verweise auf relevante Abschnitte im Editor-Kontext oder auf allgemeines Basiswissen."><strong>Hintergründe sammeln.</strong> Beschreibe, welches Vorwissen und welche Quellen weiterhelfen.</button>
+            </div>
           </li>
-          <li>
-            <button type="button" data-prompt="Welche offenen Fragen gibt es noch? Liste verbleibende Unklarheiten auf."><strong>Welche offenen Fragen gibt es noch?</strong> Liste verbleibende Unklarheiten auf.</button>
+          <li
+            class="chat-suggestion-category"
+            id="chatCategoryTransfer"
+            role="tabpanel"
+            aria-labelledby="chatTabTransfer"
+            aria-hidden="true"
+            data-chat-category="transfer"
+          >
+            <h4 class="sr-only">Lernen &amp; Transfer</h4>
+            <div class="chat-suggestion-buttons">
+              <button type="button" data-prompt="Welche Wissenslücken erkennst du in Bezug auf diesen Inhalt? Erstelle einen kurzen Lernplan mit konkreten Schritten, um sie zu schließen."><strong>Lernplan erstellen.</strong> Zeige Wissenslücken und wie ich sie schließen kann.</button>
+              <button type="button" data-prompt="Formuliere die Kernpunkte als Fragen-Antworten-Liste, damit ich mich selbst abfragen kann."><strong>Selbsttest vorbereiten.</strong> Erstelle eine Fragen-Antworten-Liste zu den Kernpunkten.</button>
+              <button type="button" data-prompt="Vergleiche das behandelte Thema mit verwandten Konzepten. Hebe Gemeinsamkeiten, Unterschiede und typische Einsatzszenarien hervor."><strong>Konzepte vergleichen.</strong> Stelle Gemeinsamkeiten und Unterschiede zu verwandten Themen heraus.</button>
+            </div>
           </li>
-          <li>
-            <button type="button" data-prompt="Welche nächsten Schritte empfiehlst du? Formuliere konkrete To-dos."><strong>Welche nächsten Schritte empfiehlst du?</strong> Formuliere konkrete To-dos.</button>
+          <li
+            class="chat-suggestion-category"
+            id="chatCategoryApplication"
+            role="tabpanel"
+            aria-labelledby="chatTabApplication"
+            aria-hidden="true"
+            data-chat-category="application"
+          >
+            <h4 class="sr-only">Praxis &amp; Beispiele</h4>
+            <div class="chat-suggestion-buttons">
+              <button type="button" data-prompt="Gib mir ein konkretes Beispiel oder eine kurze Fallstudie, die zeigt, wie dieses Wissen praktisch angewendet wird. Verweise, falls sinnvoll, auf Stellen im Editor-Kontext."><strong>Konkretes Beispiel zeigen.</strong> Beschreibe eine Anwendung oder Fallstudie Schritt für Schritt.</button>
+              <button type="button" data-prompt="Welche typischen Fehler passieren bei der Umsetzung dieses Themas? Beschreibe sie und gib Hinweise, wie ich sie vermeiden kann."><strong>Fehlerquellen erkennen.</strong> Zeige typische Stolperfallen und Gegenmaßnahmen.</button>
+              <button type="button" data-prompt="Welche Checkliste kann ich nutzen, um das Gelernte zuverlässig im Alltag umzusetzen? Formuliere sie kompakt."><strong>Checkliste ableiten.</strong> Stelle eine kurze Umsetzungs-Checkliste zusammen.</button>
+            </div>
+          </li>
+          <li
+            class="chat-suggestion-category"
+            id="chatCategoryReflection"
+            role="tabpanel"
+            aria-labelledby="chatTabReflection"
+            aria-hidden="true"
+            data-chat-category="reflection"
+          >
+            <h4 class="sr-only">Reflexion &amp; Strategie</h4>
+            <div class="chat-suggestion-buttons">
+              <button type="button" data-prompt="Welche offenen Punkte sollte ich mir für eine spätere Vertiefung merken? Erstelle eine Prioritätenliste mit kurzen Begründungen."><strong>Prioritäten setzen.</strong> Halte fest, was ich später vertiefen sollte.</button>
+              <button type="button" data-prompt="Wie kann ich meinen Lernfortschritt zu diesem Thema bewerten? Nenne Kriterien und Reflexionsfragen, an denen ich mich orientieren kann."><strong>Lernfortschritt reflektieren.</strong> Gib Kriterien und Fragen zur Selbstbewertung.</button>
+              <button type="button" data-prompt="Welche Strategien helfen mir, dieses Wissen längerfristig zu behalten? Empfiehl Lern- oder Wiederholungsmethoden und begründe kurz."><strong>Langfristig festigen.</strong> Empfiehl passende Wiederholungsstrategien.</button>
+            </div>
           </li>
         </ul>
         <div id="chatAttachments" class="chat-attachments is-empty" aria-live="polite"></div>

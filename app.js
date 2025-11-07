@@ -390,6 +390,7 @@
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const chatSuggestions = document.getElementById('chatSuggestions');
+  const chatSuggestionTabs = document.getElementById('chatSuggestionTabs');
   const chatSendBtn = document.getElementById('chatSendBtn');
   const chatFileBtn = document.getElementById('chatFileBtn');
   const chatFileInput = document.getElementById('chatFileInput');
@@ -9897,6 +9898,75 @@ try {
   });
   chatOverlay?.addEventListener('click', closeChat);
   chatCloseBtn?.addEventListener('click', closeChat);
+  let activeChatSuggestionCategory =
+    chatSuggestions?.querySelector('.chat-suggestion-category.active')?.dataset.chatCategory ||
+    chatSuggestionTabs?.querySelector('button[data-chat-category].active')?.dataset.chatCategory ||
+    '';
+
+  function setChatSuggestionCategory(categoryId) {
+    if (!chatSuggestions || !chatSuggestionTabs) return null;
+    const tabs = Array.from(chatSuggestionTabs.querySelectorAll('button[data-chat-category]'));
+    if (!tabs.length) return null;
+    let targetId = categoryId;
+    let matchedTab = tabs.find((tab) => tab.dataset.chatCategory === targetId) || null;
+    if (!matchedTab) {
+      matchedTab = tabs[0] || null;
+      targetId = matchedTab?.dataset.chatCategory || '';
+    }
+    tabs.forEach((tab) => {
+      const isActive = tab === matchedTab;
+      tab.classList.toggle('active', isActive);
+      tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      tab.setAttribute('tabindex', isActive ? '0' : '-1');
+    });
+    const panels = Array.from(chatSuggestions.querySelectorAll('.chat-suggestion-category'));
+    panels.forEach((panel) => {
+      const isActive = panel.dataset.chatCategory === targetId;
+      panel.classList.toggle('active', isActive);
+      panel.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+    });
+    activeChatSuggestionCategory = targetId;
+    return matchedTab;
+  }
+
+  chatSuggestionTabs?.addEventListener('click', (event) => {
+    const tab = event.target.closest('button[data-chat-category]');
+    if (!tab) return;
+    event.preventDefault();
+    const selected = setChatSuggestionCategory(tab.dataset.chatCategory || '');
+    (selected || tab)?.focus();
+  });
+
+  chatSuggestionTabs?.addEventListener('keydown', (event) => {
+    const { key } = event;
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key)) return;
+    const tabs = Array.from(chatSuggestionTabs.querySelectorAll('button[data-chat-category]'));
+    if (!tabs.length) return;
+    event.preventDefault();
+    const currentIndex = Math.max(
+      0,
+      tabs.findIndex((tab) => tab.dataset.chatCategory === activeChatSuggestionCategory),
+    );
+    let nextIndex = currentIndex;
+    if (key === 'Home') {
+      nextIndex = 0;
+    } else if (key === 'End') {
+      nextIndex = tabs.length - 1;
+    } else if (key === 'ArrowRight') {
+      nextIndex = (currentIndex + 1) % tabs.length;
+    } else if (key === 'ArrowLeft') {
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    }
+    const targetTab = tabs[nextIndex] || tabs[0] || null;
+    if (!targetTab) return;
+    const selected = setChatSuggestionCategory(targetTab.dataset.chatCategory || '');
+    (selected || targetTab)?.focus();
+  });
+
+  if (chatSuggestions && chatSuggestionTabs) {
+    setChatSuggestionCategory(activeChatSuggestionCategory);
+  }
+
   chatSuggestions?.addEventListener('click', (e) => {
     if (chatInput?.disabled) return;
     const btn = e.target.closest('button[data-prompt]');
