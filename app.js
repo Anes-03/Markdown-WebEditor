@@ -391,6 +391,9 @@
   const chatInput = document.getElementById('chatInput');
   const chatSuggestions = document.getElementById('chatSuggestions');
   const chatSendBtn = document.getElementById('chatSendBtn');
+  const chatFileBtn = document.getElementById('chatFileBtn');
+  const chatFileInput = document.getElementById('chatFileInput');
+  const chatAttachments = document.getElementById('chatAttachments');
   const chatAbortBtn = document.getElementById('chatAbortBtn');
   const chatClearBtn = document.getElementById('chatClearBtn');
   const chatStreamToggle = document.getElementById('chatStreamToggle');
@@ -9169,16 +9172,257 @@ try {
     }
   }
 
+  const MAX_CHAT_ATTACHMENTS = 5;
+  const MAX_CHAT_ATTACHMENT_BYTES = 200000;
+  const CHAT_ATTACHMENT_ALLOWED_TYPES = [
+    'application/json',
+    'application/pdf',
+    'application/xml',
+    'application/xhtml+xml',
+    'application/x-yaml',
+    'application/yaml',
+    'text/csv',
+    'text/markdown',
+    'text/yaml',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+  const CHAT_ATTACHMENT_ALLOWED_EXT = [
+    '.txt',
+    '.md',
+    '.markdown',
+    '.json',
+    '.yaml',
+    '.yml',
+    '.csv',
+    '.tsv',
+    '.html',
+    '.htm',
+    '.xml',
+    '.pdf',
+    '.docx',
+  ];
+
   let chatHistory = [];
   let chatAbortController = null;
+  let chatFileAttachments = [];
+  let chatAttachmentIdSeq = 0;
   // removed editor-applied change modes
 
   function setChatBusy(busy) {
     if (chatSendBtn) chatSendBtn.disabled = !!busy;
     if (chatAbortBtn) chatAbortBtn.disabled = !busy;
     if (chatInput) chatInput.disabled = !!busy;
+    if (chatFileBtn) chatFileBtn.disabled = !!busy;
+    if (chatFileInput) chatFileInput.disabled = !!busy;
     if (chatSuggestions) {
       chatSuggestions.querySelectorAll('button').forEach(btn => { btn.disabled = !!busy; });
+    }
+    if (chatAttachments) {
+      chatAttachments.querySelectorAll('button').forEach(btn => { btn.disabled = !!busy; });
+    }
+  }
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    const digits = value >= 10 || unit === 0 ? 0 : 1;
+    return `${value.toFixed(digits)} ${units[unit]}`;
+  }
+
+  function isChatAttachmentSupported(file) {
+    if (!file) return false;
+    const type = (file.type || '').toLowerCase();
+    if (type.startsWith('text/')) return true;
+    if (CHAT_ATTACHMENT_ALLOWED_TYPES.includes(type)) return true;
+    const name = (file.name || '').toLowerCase();
+    return CHAT_ATTACHMENT_ALLOWED_EXT.some(ext => name.endsWith(ext));
+  }
+
+  function normalizeChatAttachmentContent(text, truncated) {
+    const sanitized = (text || '').replace(/\u0000/g, '').replace(/\r\n/g, '\n');
+    if (sanitized.length > MAX_CHAT_ATTACHMENT_BYTES) {
+      return { content: sanitized.slice(0, MAX_CHAT_ATTACHMENT_BYTES), truncated: true };
+    }
+    return { content: sanitized, truncated: !!truncated };
+  }
+
+  async function extractPdfTextForChat(file) {
+    if (!window.pdfjsLib) {
+      throw new Error('PDF-Dateien können nicht verarbeitet werden (pdf.js fehlt).');
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pages = [];
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      const lines = [];
+      let currentLine = [];
+      let currentFontSize = 0;
+      for (const item of content.items) {
+        const raw = (item.str || '').replace(/\u00a0/g, ' ');
+        const text = raw.replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        currentLine.push(text);
+        const fontSize = estimatePdfFontSize(item);
+        if (fontSize > currentFontSize) {
+          currentFontSize = fontSize;
+        }
+        if (item.hasEOL) {
+          const joined = currentLine.join(' ').replace(/\s+/g, ' ').trim();
+          if (joined) {
+            lines.push({ text: joined, fontSize: currentFontSize });
+          }
+          currentLine = [];
+          currentFontSize = 0;
+        }
+      }
+      if (currentLine.length) {
+        const joined = currentLine.join(' ').replace(/\s+/g, ' ').trim();
+        if (joined) {
+          lines.push({ text: joined, fontSize: currentFontSize });
+        }
+      }
+      const decorated = decoratePdfLinesWithHeadings(lines).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+      if (decorated) {
+        pages.push(decorated);
+      }
+    }
+    return pages.join('\n\n');
+  }
+
+  async function extractDocxTextForChat(file) {
+    if (!window.mammoth) {
+      throw new Error('Word-Dateien können nicht verarbeitet werden (mammoth.js fehlt).');
+    }
+    const td = getTurndownService();
+    if (!td) {
+      throw new Error('Word-Dateien können nicht verarbeitet werden (Turndown fehlt).');
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    const mammothOptions = {
+      includeDefaultStyleMap: true,
+      convertImage: () => null,
+      styleMap: [
+        "p[style-name='Title'] => h1:fresh",
+        "p[style-name='Subtitle'] => h2:fresh",
+        "p[style-name='Überschrift 1'] => h1:fresh",
+        "p[style-name='Überschrift 2'] => h2:fresh",
+      ],
+    };
+    const result = await window.mammoth.convertToHtml({ arrayBuffer }, mammothOptions);
+    const rawHtml = result?.value || '';
+    const sanitizedHtml = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, SANITIZE_MARKDOWN_OPTIONS) : rawHtml;
+    const markdown = sanitizedHtml ? td.turndown(sanitizedHtml).trim() : '';
+    return markdown;
+  }
+
+  async function readChatAttachment(file) {
+    const type = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+    if (type === 'application/pdf' || name.endsWith('.pdf')) {
+      const text = await extractPdfTextForChat(file);
+      return normalizeChatAttachmentContent(text, text.length > MAX_CHAT_ATTACHMENT_BYTES);
+    }
+    if (
+      type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      name.endsWith('.docx')
+    ) {
+      const text = await extractDocxTextForChat(file);
+      return normalizeChatAttachmentContent(text, text.length > MAX_CHAT_ATTACHMENT_BYTES);
+    }
+    const slice = file.size > MAX_CHAT_ATTACHMENT_BYTES ? file.slice(0, MAX_CHAT_ATTACHMENT_BYTES) : file;
+    const text = await slice.text();
+    return normalizeChatAttachmentContent(text, file.size > MAX_CHAT_ATTACHMENT_BYTES);
+  }
+
+  function renderChatAttachments() {
+    if (!chatAttachments) return;
+    chatAttachments.innerHTML = '';
+    if (!chatFileAttachments.length) {
+      chatAttachments.classList.add('is-empty');
+      return;
+    }
+    chatAttachments.classList.remove('is-empty');
+    chatFileAttachments.forEach(att => {
+      const item = document.createElement('div');
+      item.className = 'chat-attachment';
+      const label = document.createElement('span');
+      const parts = [`${att.name} (${formatBytes(att.size)}`];
+      if (att.truncated) parts.push('gekürzt');
+      label.textContent = parts.length > 1 ? `${parts.join(', ')})` : `${parts[0]})`;
+      item.appendChild(label);
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'remove-btn';
+      removeBtn.setAttribute('data-role', 'remove-attachment');
+      removeBtn.setAttribute('data-id', String(att.id));
+      removeBtn.setAttribute('aria-label', `Datei „${att.name}“ entfernen`);
+      removeBtn.title = `Datei „${att.name}“ entfernen`;
+      const icon = document.createElement('iconify-icon');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.setAttribute('icon', 'lucide:x');
+      removeBtn.appendChild(icon);
+      item.appendChild(removeBtn);
+      chatAttachments.appendChild(item);
+    });
+  }
+
+  async function addChatAttachments(files) {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+    const added = [];
+    const truncatedNames = [];
+    for (const file of list) {
+      if (!isChatAttachmentSupported(file)) {
+        setStatus(`Datei „${file.name || 'Unbekannt'}“ wird nicht unterstützt.`);
+        continue;
+      }
+      if (chatFileAttachments.length >= MAX_CHAT_ATTACHMENTS) {
+        setStatus(`Maximal ${MAX_CHAT_ATTACHMENTS} Dateien als Chat-Kontext möglich.`);
+        break;
+      }
+      try {
+        const { content, truncated: isTruncated } = await readChatAttachment(file);
+        chatAttachmentIdSeq += 1;
+        chatFileAttachments.push({
+          id: chatAttachmentIdSeq,
+          name: file.name || `Datei ${chatAttachmentIdSeq}`,
+          size: file.size || content.length,
+          content,
+          truncated: !!isTruncated,
+        });
+        added.push(file.name || `Datei ${chatAttachmentIdSeq}`);
+        if (isTruncated) truncatedNames.push(file.name || `Datei ${chatAttachmentIdSeq}`);
+      } catch (err) {
+        console.error(err);
+        const detail = err?.message ? ` (${err.message})` : '';
+        setStatus(`Datei „${file.name || 'Unbekannt'}“ konnte nicht gelesen werden${detail}.`);
+      }
+    }
+    renderChatAttachments();
+    if (added.length) {
+      let msg = added.length === 1 ? `Datei „${added[0]}“ angehängt.` : `${added.length} Dateien angehängt.`;
+      if (truncatedNames.length) {
+        const short = truncatedNames.map(name => `„${name}“`).join(', ');
+        msg += ` Inhalt gekürzt für ${short}.`;
+      }
+      setStatus(msg);
+    }
+  }
+
+  function removeChatAttachment(id) {
+    const before = chatFileAttachments.length;
+    chatFileAttachments = chatFileAttachments.filter(att => att.id !== id);
+    if (chatFileAttachments.length !== before) {
+      renderChatAttachments();
+      setStatus('Datei aus dem Chat-Kontext entfernt.');
     }
   }
 
@@ -9198,6 +9442,19 @@ try {
     const userContext = getUserContext();
     if (userContext) {
       msgs.push({ role: 'system', content: `Berücksichtige diese Nutzer-Präferenzen für Ton, Stil oder Hintergrundinformationen:\n\n${userContext}` });
+    }
+    if (chatFileAttachments.length) {
+      chatFileAttachments.forEach(att => {
+        const headerParts = [`Die Nutzerin hat die Datei „${att.name}“ bereitgestellt. Größe: ${formatBytes(att.size)}.`];
+        if (att.truncated) {
+          headerParts.push(`Der Inhalt wurde auf ${formatBytes(MAX_CHAT_ATTACHMENT_BYTES)} begrenzt.`);
+        }
+        const header = headerParts.join(' ');
+        msgs.push({
+          role: 'system',
+          content: `${header} Nutze den Dateiinhalt als zusätzlichen Kontext.\n\n[Dateiinhalt ${att.name} BEGIN]\n${att.content}\n[Dateiinhalt ${att.name} ENDE]`,
+        });
+      });
     }
     msgs.push(...chatHistory);
     const currentUserMsg = { role: 'user', content: text };
@@ -9655,6 +9912,25 @@ try {
     void sendChat();
   });
   chatSendBtn?.addEventListener('click', sendChat);
+  chatFileBtn?.addEventListener('click', () => { if (!chatFileBtn.disabled) chatFileInput?.click(); });
+  chatFileInput?.addEventListener('change', async (e) => {
+    const target = e.target instanceof HTMLInputElement ? e.target : null;
+    const files = target?.files;
+    try {
+      await addChatAttachments(files);
+    } finally {
+      if (chatFileInput) chatFileInput.value = '';
+    }
+  });
+  chatAttachments?.addEventListener('click', (e) => {
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+    const btn = target.closest('button[data-role="remove-attachment"]');
+    if (!btn || btn.disabled) return;
+    const id = Number.parseInt(btn.getAttribute('data-id') || '', 10);
+    if (!Number.isFinite(id)) return;
+    removeChatAttachment(id);
+  });
   chatAbortBtn?.addEventListener('click', () => { try { chatAbortController?.abort(); } catch {} });
   chatClearBtn?.addEventListener('click', () => { chatMessages.innerHTML = ''; chatHistory = []; stopChatSpeech(); });
   if (chatStreamToggle) {

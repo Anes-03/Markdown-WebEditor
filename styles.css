@@ -1109,6 +1109,12 @@ kbd { display: inline-block; padding: 2px 6px; border: 1px solid var(--border); 
 .think-block > .think-body { padding: 0 8px 8px; }
 .think-block pre { margin: 8px 0; }
 .chat-input { border-top: 1px solid var(--border); padding: 10px 12px; display: grid; gap: 8px; }
+.chat-attachments { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chat-attachments.is-empty { display: none; }
+.chat-attachment { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-elev); color: var(--text); font-size: 12px; }
+.chat-attachment .remove-btn { border: none; background: none; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.chat-attachment .remove-btn:hover { color: var(--text); }
+.chat-attachment .remove-btn[disabled] { opacity: 0.6; cursor: not-allowed; }
 .chat-suggestions {
   list-style: none;
   margin: 0;

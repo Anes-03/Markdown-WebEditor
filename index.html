@@ -593,14 +593,17 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             <button type="button" data-prompt="Welche nächsten Schritte empfiehlst du? Formuliere konkrete To-dos."><strong>Welche nächsten Schritte empfiehlst du?</strong> Formuliere konkrete To-dos.</button>
           </li>
         </ul>
+        <div id="chatAttachments" class="chat-attachments is-empty" aria-live="polite"></div>
         <textarea id="chatInput" rows="2" placeholder="Frage eingeben und Enter senden…"></textarea>
         <div class="row">
           <button id="chatSendBtn" class="has-icon"><iconify-icon aria-hidden="true" icon="lucide:send"></iconify-icon><span class="btn-label">Senden</span></button>
+          <button id="chatFileBtn" class="secondary has-icon" type="button"><iconify-icon aria-hidden="true" icon="mdi:paperclip"></iconify-icon><span class="btn-label">Datei anhängen</span></button>
           <button id="chatAbortBtn" class="secondary has-icon" disabled><iconify-icon aria-hidden="true" icon="mdi:stop-circle-outline"></iconify-icon><span class="btn-label">Abbrechen</span></button>
           <button id="chatClearBtn" class="secondary has-icon"><iconify-icon aria-hidden="true" icon="mdi:eraser"></iconify-icon><span class="btn-label">Leeren</span></button>
           <button id="editorContextBtn" class="secondary has-icon" title="Erlaube Zugriff auf den aktuellen Editor-Inhalt"><iconify-icon aria-hidden="true" icon="mdi:file-document-outline"></iconify-icon><span class="btn-label">Editor-Kontext: EIN</span></button>
           <span id="editorContextInfo" class="muted"></span>
         </div>
+        <input id="chatFileInput" type="file" hidden multiple accept=".txt,.md,.markdown,.json,.yaml,.yml,.csv,.tsv,.html,.htm,.xml,.pdf,.docx,text/*,application/json,application/x-yaml,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
       </section>
     </aside>
 
