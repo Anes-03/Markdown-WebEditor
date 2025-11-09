@@ -9057,6 +9057,15 @@ try {
     copyBtn.title = 'Kopieren';
     copyBtn.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:copy"></iconify-icon>';
     actions.appendChild(copyBtn);
+    if (role === 'assistant') {
+      const insertBtn = document.createElement('button');
+      insertBtn.type = 'button';
+      insertBtn.className = 'insert-btn';
+      insertBtn.title = 'Inhalt in Editor einfügen';
+      insertBtn.setAttribute('aria-label', 'Inhalt in Editor einfügen');
+      insertBtn.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:clipboard-paste"></iconify-icon>';
+      actions.appendChild(insertBtn);
+    }
     const speakBtn = document.createElement('button');
     speakBtn.type = 'button';
     speakBtn.className = 'speak-btn';
@@ -9069,6 +9078,28 @@ try {
     chatMessages.appendChild(el);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return el;
+  }
+
+  function insertChatMessageIntoEditor(text) {
+    if (!editor || typeof text !== 'string') return;
+    if (!text.trim()) return;
+    editor.focus();
+    const selStart = editor.selectionStart ?? editor.value.length;
+    const selEnd = editor.selectionEnd ?? editor.value.length;
+    if (typeof editor.setRangeText === 'function') {
+      editor.setRangeText(text, selStart, selEnd, 'end');
+    } else {
+      const current = editor.value || '';
+      editor.value = current.slice(0, selStart) + text + current.slice(selEnd);
+      const nextPos = selStart + text.length;
+      editor.selectionStart = editor.selectionEnd = nextPos;
+    }
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+    updatePreview();
+    updateCursorInfo();
+    updateWordCount();
+    markDirty(true);
+    setStatus('Chat-Antwort eingefügt.');
   }
 
   // Thinking: convert content to collapsible details (collapsed by default)
@@ -10019,6 +10050,13 @@ try {
       } else {
         speakChatMessageEl(msg, speakBtn);
       }
+      return;
+    }
+    const insertBtn = e.target.closest('button.insert-btn');
+    if (insertBtn) {
+      const msg = insertBtn.closest('.msg');
+      if (!msg) return;
+      insertChatMessageIntoEditor(msg.__raw || msg.textContent || '');
       return;
     }
     const copyBtn = e.target.closest('button.copy-btn');
