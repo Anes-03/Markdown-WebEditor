@@ -493,6 +493,43 @@ Viel Spaß beim Schreiben! ✨"></textarea>
       </div>
     </div>
 
+    <!-- Link dialog -->
+    <div id="linkDialogOverlay" class="modal-overlay hidden" aria-hidden="true">
+      <div id="linkDialog" class="link-dialog" role="dialog" aria-modal="true" aria-labelledby="linkDialogTitle">
+        <form id="linkDialogForm" class="link-dialog-form">
+          <header class="modal-header">
+            <h2 id="linkDialogTitle">Link einfügen</h2>
+            <button type="button" id="linkDialogCloseBtn" class="icon-only" title="Schließen" aria-label="Schließen">
+              <iconify-icon aria-hidden="true" icon="lucide:x"></iconify-icon>
+            </button>
+          </header>
+          <div class="modal-body">
+            <p class="muted">Lege Linktext, URL und optional einen Titel fest. Relative Pfade & Anker sind ebenfalls möglich.</p>
+            <label>
+              Linktext
+              <input id="linkTextInput" type="text" placeholder="z. B. Dokumentation" />
+            </label>
+            <label>
+              URL
+              <input id="linkUrlInput" type="text" inputmode="url" placeholder="https://beispiel.de" required />
+            </label>
+            <label>
+              Titel (optional)
+              <input id="linkTitleInput" type="text" placeholder="Tooltip oder Zusatzinfo" />
+            </label>
+          </div>
+          <footer class="modal-footer">
+            <p id="linkDialogStatus" class="link-dialog-status" role="status" aria-live="polite"></p>
+            <button type="button" id="linkDialogCancelBtn" class="secondary">Abbrechen</button>
+            <button type="submit" id="linkDialogInsertBtn" class="primary has-icon" disabled>
+              <iconify-icon aria-hidden="true" icon="lucide:link-2"></iconify-icon>
+              <span class="btn-label">Einfügen</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
+
     <!-- Mermaid diagram dialog -->
     <div id="mermaidDialogOverlay" class="modal-overlay hidden" aria-hidden="true">
       <div id="mermaidDialog" class="mermaid-dialog" role="dialog" aria-modal="true" aria-labelledby="mermaidDialogTitle">

@@ -553,6 +553,16 @@
   const tableDialogCloseBtn = document.getElementById('tableDialogCloseBtn');
   const tableDialogCancelBtn = document.getElementById('tableDialogCancelBtn');
   const tableBuilderGrid = document.getElementById('tableBuilderGrid');
+  const linkDialogOverlay = document.getElementById('linkDialogOverlay');
+  const linkDialog = document.getElementById('linkDialog');
+  const linkDialogForm = document.getElementById('linkDialogForm');
+  const linkDialogCloseBtn = document.getElementById('linkDialogCloseBtn');
+  const linkDialogCancelBtn = document.getElementById('linkDialogCancelBtn');
+  const linkTextInput = document.getElementById('linkTextInput');
+  const linkUrlInput = document.getElementById('linkUrlInput');
+  const linkTitleInput = document.getElementById('linkTitleInput');
+  const linkDialogInsertBtn = document.getElementById('linkDialogInsertBtn');
+  const linkDialogStatus = document.getElementById('linkDialogStatus');
   const mermaidDialogOverlay = document.getElementById('mermaidDialogOverlay');
   const mermaidDialog = document.getElementById('mermaidDialog');
   const mermaidDialogForm = document.getElementById('mermaidDialogForm');
@@ -620,6 +630,7 @@
   const MAX_AI_SNIPPETS = 20;
   updateWebsiteActionButtons();
   let skipToolbarPostAction = false;
+  let linkInsertSelection = null;
   let tableInsertSelection = null;
   let mermaidConfigured = false;
   let lastMermaidTheme = null;
@@ -6745,14 +6756,154 @@ ${members}` : `${cls.name}`;
   }
 
   function insertLink() {
+    if (isLinkDialogReady()) {
+      linkInsertSelection = {
+        start: editor.selectionStart,
+        end: editor.selectionEnd,
+      };
+      const selected = editor.value.slice(linkInsertSelection.start, linkInsertSelection.end);
+      const trimmed = selected.trim();
+      const selectionLooksUrl = looksLikeUrl(trimmed);
+      if (linkTextInput) linkTextInput.value = selectionLooksUrl ? '' : selected;
+      if (linkUrlInput) linkUrlInput.value = selectionLooksUrl ? trimmed : '';
+      if (linkTitleInput) linkTitleInput.value = '';
+      updateLinkDialogState({ initial: true });
+      openLinkDialog();
+      skipToolbarPostAction = true;
+      return false;
+    }
     const start = editor.selectionStart;
     const end = editor.selectionEnd;
     const selected = editor.value.slice(start, end) || 'Linktext';
-    const url = prompt('URL eingeben:', 'https://');
-    if (!url) return;
+    const url = window.prompt('URL eingeben:', 'https://');
+    if (!url) return false;
     const md = `[${selected}](${url})`;
     editor.setRangeText(md, start, end, 'end');
     editor.focus();
+    return true;
+  }
+
+  function isLinkDialogReady() {
+    return !!(linkDialogOverlay && linkDialog && linkDialogForm && linkUrlInput && linkDialogInsertBtn);
+  }
+
+  function openLinkDialog() {
+    if (!isLinkDialogReady()) return;
+    linkDialogOverlay.classList.remove('hidden');
+    linkDialogOverlay.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => {
+      const focusTarget = linkTextInput && !linkTextInput.value ? linkTextInput : linkUrlInput;
+      try {
+        focusTarget?.focus();
+        if (focusTarget?.select) focusTarget.select();
+      } catch {}
+    }, 0);
+  }
+
+  function closeLinkDialog(options = {}) {
+    if (!isLinkDialogReady()) return;
+    const { restoreFocus = true, clearSelection = true } = options;
+    linkDialogOverlay.classList.add('hidden');
+    linkDialogOverlay.setAttribute('aria-hidden', 'true');
+    if (linkDialogStatus) linkDialogStatus.textContent = '';
+    if (clearSelection) linkInsertSelection = null;
+    if (restoreFocus) {
+      try { editor.focus(); } catch {}
+    }
+  }
+
+  function updateLinkDialogState({ initial = false } = {}) {
+    if (!isLinkDialogReady()) return;
+    const raw = (linkUrlInput?.value || '').trim();
+    const valid = isValidLinkUrl(raw);
+    if (linkDialogInsertBtn) linkDialogInsertBtn.disabled = !valid;
+    if (linkDialogStatus) {
+      if (!raw) {
+        linkDialogStatus.textContent = initial ? '' : 'Bitte gib eine URL ein.';
+      } else if (!valid) {
+        linkDialogStatus.textContent = 'Bitte gib eine vollständige URL ein.';
+      } else {
+        linkDialogStatus.textContent = '';
+      }
+    }
+  }
+
+  function insertLinkFromDialog() {
+    if (!isLinkDialogReady()) return;
+    const rawUrl = (linkUrlInput?.value || '').trim();
+    if (!isValidLinkUrl(rawUrl)) {
+      updateLinkDialogState({ initial: false });
+      try {
+        linkUrlInput?.focus();
+        linkUrlInput?.select();
+      } catch {}
+      return;
+    }
+    const label = (linkTextInput?.value || '').trim() || 'Linktext';
+    const normalizedUrl = normalizeLinkUrl(rawUrl);
+    const title = (linkTitleInput?.value || '').trim();
+    const titleSuffix = title ? ` "${escapeLinkTitle(title)}"` : '';
+    const markdown = `[${label}](${normalizedUrl}${titleSuffix})`;
+    const selection = linkInsertSelection
+      ? { start: linkInsertSelection.start, end: linkInsertSelection.end }
+      : { start: editor.selectionStart, end: editor.selectionEnd };
+    closeLinkDialog({ restoreFocus: false, clearSelection: false });
+    try {
+      editor.focus();
+      editor.setSelectionRange(selection.start, selection.end);
+    } catch {}
+    editor.setRangeText(markdown, selection.start, selection.end, 'end');
+    const cursor = selection.start + markdown.length;
+    try { editor.setSelectionRange(cursor, cursor); } catch {}
+    linkInsertSelection = null;
+    updatePreview();
+    updateCursorInfo();
+    updateWordCount();
+    markDirty(true);
+    editor.focus();
+  }
+
+  function handleLinkDialogKeydown(e) {
+    if (!isLinkDialogReady() || linkDialogOverlay.classList.contains('hidden')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeLinkDialog();
+    }
+  }
+
+  function isValidLinkUrl(value) {
+    if (!value) return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/^https?:$/.test(trimmed) || /^https?:\/{0,2}$/.test(trimmed)) return false;
+    return true;
+  }
+
+  function normalizeLinkUrl(value) {
+    const trimmed = value.trim();
+    if (!trimmed) return trimmed;
+    if (
+      /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ||
+      trimmed.startsWith('/') ||
+      trimmed.startsWith('#') ||
+      trimmed.startsWith('./') ||
+      trimmed.startsWith('../')
+    ) {
+      return trimmed;
+    }
+    if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(trimmed)) {
+      return `https://${trimmed}`;
+    }
+    return trimmed;
+  }
+
+  function escapeLinkTitle(title) {
+    return title.replace(/"/g, '\\"');
+  }
+
+  function looksLikeUrl(value) {
+    if (!value) return false;
+    return /^(https?:\/\/|mailto:|ftp:\/\/)/i.test(value) || /^[a-z0-9.-]+\.[a-z]{2,}/i.test(value);
   }
 
   function insertImageFromURL() {
@@ -7290,6 +7441,20 @@ ${members}` : `${cls.name}`;
     updateWordCount();
     markDirty(true);
   });
+
+  if (isLinkDialogReady()) {
+    linkDialogOverlay.addEventListener('click', (e) => {
+      if (e.target === linkDialogOverlay) closeLinkDialog();
+    });
+    linkDialogOverlay.addEventListener('keydown', handleLinkDialogKeydown);
+    linkDialogCloseBtn?.addEventListener('click', () => closeLinkDialog());
+    linkDialogCancelBtn?.addEventListener('click', () => closeLinkDialog());
+    linkDialogForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      insertLinkFromDialog();
+    });
+    linkUrlInput?.addEventListener('input', () => updateLinkDialogState({ initial: false }));
+  }
 
   if (isTableDialogReady()) {
     tableDialogOverlay.addEventListener('click', (e) => {
@@ -8568,7 +8733,12 @@ document.addEventListener('keydown', (e) => {
   } else if (mod && e.key.toLowerCase() === 'i') {
     e.preventDefault(); toggleWrapSelection(editor, ['*', '*']); updatePreview(); markDirty(true);
   } else if (mod && e.key.toLowerCase() === 'k') {
-    e.preventDefault(); insertLink(); updatePreview(); markDirty(true);
+    e.preventDefault();
+    const inserted = insertLink();
+    if (inserted) {
+      updatePreview();
+      markDirty(true);
+    }
   } else if (mod && e.key.toLowerCase() === 'g') {
     e.preventDefault(); editorGenerateAI();
   } else if (mod && e.key === 'Enter') {
@@ -8610,7 +8780,14 @@ try {
         if (k === 'n') { doNewFile(); return; }
         if (k === 'b') { toggleWrapSelection(editor, ['**', '**']); updatePreview(); markDirty(true); return; }
         if (k === 'i') { toggleWrapSelection(editor, ['*', '*']); updatePreview(); markDirty(true); return; }
-        if (k === 'k') { insertLink(); updatePreview(); markDirty(true); return; }
+        if (k === 'k') {
+          const inserted = insertLink();
+          if (inserted) {
+            updatePreview();
+            markDirty(true);
+          }
+          return;
+        }
     if (k === 'g' || k === 'enter') { editorGenerateAI(); return; }
   }
     }, { capture: true });
