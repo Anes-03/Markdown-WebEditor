@@ -102,6 +102,13 @@
         <input type="file" id="hiddenAudio" accept="audio/*" hidden />
         <input type="file" id="hiddenVideo" accept="video/*" hidden />
         <input type="file" id="hiddenPdf" accept="application/pdf" hidden />
+        <input
+          type="file"
+          id="templateUploadFile"
+          accept=".md,.markdown,.txt,text/markdown,text/plain"
+          multiple
+          hidden
+        />
         <input type="file" id="hiddenDocx" accept="application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" hidden />
       </div>
       <div class="right">
@@ -305,6 +312,10 @@ Viel Spaß beim Schreiben! ✨"></textarea>
           <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
           <span class="btn-label">KI-Vorlage</span>
         </button>
+        <button id="templateUploadBtn" class="has-icon template-upload-btn" type="button">
+          <iconify-icon aria-hidden="true" icon="lucide:upload"></iconify-icon>
+          <span class="btn-label">Vorlage hochladen</span>
+        </button>
         <label class="template-search">
           <iconify-icon aria-hidden="true" icon="lucide:search"></iconify-icon>
           <input id="templateSearch" type="search" placeholder="Vorlagen durchsuchen" aria-label="Vorlagen durchsuchen" />
@@ -359,6 +370,24 @@ Viel Spaß beim Schreiben! ✨"></textarea>
                 <div class="template-preview-actions">
                   <button id="templateFavoriteBtn" class="icon-only" title="Als Favorit markieren" aria-label="Als Favorit markieren">
                     <iconify-icon aria-hidden="true" icon="lucide:star"></iconify-icon>
+                  </button>
+                  <button
+                    id="templateRenameBtn"
+                    class="icon-only template-rename-btn hidden"
+                    type="button"
+                    title="Vorlage umbenennen"
+                    aria-label="Vorlage umbenennen"
+                  >
+                    <iconify-icon aria-hidden="true" icon="lucide:edit-3"></iconify-icon>
+                  </button>
+                  <button
+                    id="templateDeleteBtn"
+                    class="icon-only template-delete-btn hidden"
+                    type="button"
+                    title="Vorlage löschen"
+                    aria-label="Vorlage löschen"
+                  >
+                    <iconify-icon aria-hidden="true" icon="lucide:trash-2"></iconify-icon>
                   </button>
                   <button id="templatePreviewExpandBtn" class="has-icon secondary" type="button">
                     <iconify-icon aria-hidden="true" icon="lucide:expand"></iconify-icon>

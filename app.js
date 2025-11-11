@@ -16,6 +16,7 @@
   const hiddenVideo = document.getElementById('hiddenVideo');
   const hiddenPdf = document.getElementById('hiddenPdf');
   const hiddenDocx = document.getElementById('hiddenDocx');
+  const templateUploadFile = document.getElementById('templateUploadFile');
   const importBtn = document.getElementById('importBtn');
   const importMenu = document.getElementById('importMenu');
   const learningBtn = document.getElementById('learningBtn');
@@ -533,6 +534,9 @@
   const templatePreviewModalClose = document.getElementById('templatePreviewModalClose');
   const templateInsertBtn = document.getElementById('templateInsertBtn');
   const templateFavoriteBtn = document.getElementById('templateFavoriteBtn');
+  const templateRenameBtn = document.getElementById('templateRenameBtn');
+  const templateDeleteBtn = document.getElementById('templateDeleteBtn');
+  const templateUploadBtn = document.getElementById('templateUploadBtn');
   const templateAiGenerateBtn = document.getElementById('templateAiGenerateBtn');
   const templateAiStatusEl = document.getElementById('templateAiStatus');
   const templateAiComposer = document.getElementById('templateAiComposer');
@@ -622,9 +626,12 @@
   let templateActivePreview = null;
   let templateAiComposerOpen = false;
   const TEMPLATE_FAVORITES_KEY = 'mw-template-favorites';
+  const TEMPLATE_USER_STORAGE_KEY = 'mw-user-templates';
   const templateFavorites = new Set();
   const templateData = window.MARKDOWN_TEMPLATES || { categories: [] };
   const templateIndex = new Map();
+  const templateUserIndex = new Map();
+  const templateUserOrder = [];
   const templateAiIndex = new Map();
   const templateAiOrder = [];
   const MAX_AI_SNIPPETS = 20;
@@ -1107,26 +1114,35 @@
 
   function buildTemplateIndex() {
     templateIndex.clear();
-    if (!templateData || !Array.isArray(templateData.categories)) return;
-    templateData.categories.forEach((category) => {
-      if (!category || !Array.isArray(category.snippets)) return;
-      const categoryId = typeof category.id === 'string' ? category.id : String(category.id ?? '');
-      const categoryLabel = category.label || categoryId || 'Allgemein';
-      const categoryIcon = category.icon || 'lucide:folder';
-      category.snippets.forEach((snippet) => {
-        if (!snippet || typeof snippet.id !== 'string') return;
-        const normalized = {
-          id: snippet.id,
-          title: snippet.title || 'Unbenannte Vorlage',
-          description: snippet.description || '',
-          content: snippet.content || '',
-          categoryId,
-          categoryLabel,
-          categoryIcon,
-        };
-        templateIndex.set(normalized.id, normalized);
+    if (templateData && Array.isArray(templateData.categories)) {
+      templateData.categories.forEach((category) => {
+        if (!category || !Array.isArray(category.snippets)) return;
+        const categoryId = typeof category.id === 'string' ? category.id : String(category.id ?? '');
+        const categoryLabel = category.label || categoryId || 'Allgemein';
+        const categoryIcon = category.icon || 'lucide:folder';
+        category.snippets.forEach((snippet) => {
+          if (!snippet || typeof snippet.id !== 'string') return;
+          const normalized = {
+            id: snippet.id,
+            title: snippet.title || 'Unbenannte Vorlage',
+            description: snippet.description || '',
+            content: snippet.content || '',
+            categoryId,
+            categoryLabel,
+            categoryIcon,
+          };
+          templateIndex.set(normalized.id, normalized);
+        });
       });
-    });
+    }
+    if (templateUserOrder.length) {
+      templateUserOrder.forEach((id) => {
+        const userSnippet = templateUserIndex.get(id);
+        if (userSnippet) {
+          templateIndex.set(id, userSnippet);
+        }
+      });
+    }
     if (templateAiOrder.length) {
       templateAiOrder.forEach((id) => {
         const aiSnippet = templateAiIndex.get(id);
@@ -1135,6 +1151,212 @@
         }
       });
     }
+  }
+
+  function persistUserTemplates() {
+    if (!window.localStorage) return;
+    try {
+      const payload = templateUserOrder
+        .map((id) => templateUserIndex.get(id))
+        .filter((snippet) => snippet && typeof snippet.content === 'string')
+        .map((snippet) => ({
+          id: snippet.id,
+          title: snippet.title,
+          description: snippet.description,
+          content: snippet.content,
+          createdAt: snippet.createdAt || Date.now(),
+          sourceName: snippet.sourceName || '',
+        }));
+      window.localStorage.setItem(TEMPLATE_USER_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.warn('Konnte eigene Vorlagen nicht speichern', err);
+    }
+  }
+
+  function generateUserSnippetId() {
+    return `user-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  function createUserTemplateTitleFromFileName(name) {
+    if (!name) return '';
+    const trimmed = name.trim();
+    if (!trimmed) return '';
+    const withoutPath = trimmed.split(/[\\/]/).pop() || trimmed;
+    const withoutExt = withoutPath.replace(/\.[^.]+$/, '');
+    const title = withoutExt.trim();
+    return title || withoutPath;
+  }
+
+  function normalizePersistedUserTemplate(entry) {
+    if (!entry || typeof entry.content !== 'string') return null;
+    const content = normalizeTemplateMarkdown(entry.content);
+    if (!content) return null;
+    let id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : '';
+    if (!id || templateUserIndex.has(id) || templateIndex.has(id)) {
+      id = generateUserSnippetId();
+    }
+    const sourceName = typeof entry.sourceName === 'string' ? entry.sourceName : '';
+    const persistedTitle = typeof entry.title === 'string' ? entry.title.trim() : '';
+    const fallbackTitle = createUserTemplateTitleFromFileName(sourceName);
+    const candidateTitle = deriveMarkdownTitleCandidate(content);
+    const preferredTitle = !isGenericTemplateTitle(candidateTitle) ? candidateTitle : '';
+    const title = persistedTitle || fallbackTitle || preferredTitle || 'Eigene Vorlage';
+    const persistedDescription = typeof entry.description === 'string' ? entry.description.trim() : '';
+    const description = persistedDescription || deriveTemplateDescription(content, title);
+    const createdAt = typeof entry.createdAt === 'number' ? entry.createdAt : Date.now();
+    return {
+      id,
+      title,
+      description,
+      content,
+      categoryId: 'user',
+      categoryLabel: 'Eigene Vorlagen',
+      categoryIcon: 'lucide:user',
+      userGenerated: true,
+      createdAt,
+      sourceName,
+    };
+  }
+
+  function loadUserTemplates() {
+    templateUserIndex.clear();
+    templateUserOrder.length = 0;
+    if (!window.localStorage) return;
+    try {
+      const raw = window.localStorage.getItem(TEMPLATE_USER_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      parsed.forEach((entry) => {
+        const normalized = normalizePersistedUserTemplate(entry);
+        if (!normalized) return;
+        templateUserIndex.set(normalized.id, normalized);
+        templateUserOrder.push(normalized.id);
+      });
+    } catch (err) {
+      console.warn('Konnte eigene Vorlagen nicht laden', err);
+    }
+  }
+
+  function buildUserTemplateSnippet(markdown, fileName) {
+    const clean = normalizeTemplateMarkdown(markdown);
+    if (!clean) throw new Error('Die Vorlage enthält keinen Markdown-Inhalt.');
+    const fallbackTitle = createUserTemplateTitleFromFileName(fileName);
+    const candidateTitle = deriveMarkdownTitleCandidate(clean);
+    const preferredTitle = !isGenericTemplateTitle(candidateTitle) ? candidateTitle : '';
+    const title = fallbackTitle || preferredTitle || 'Eigene Vorlage';
+    const description = deriveTemplateDescription(clean, title);
+    return {
+      id: '',
+      title,
+      description,
+      content: clean,
+      categoryId: 'user',
+      categoryLabel: 'Eigene Vorlagen',
+      categoryIcon: 'lucide:user',
+      userGenerated: true,
+      createdAt: Date.now(),
+      sourceName: fileName || '',
+    };
+  }
+
+  function registerUserTemplate(snippet) {
+    if (!snippet) return null;
+    const id = generateUserSnippetId();
+    const normalized = {
+      ...snippet,
+      id,
+      categoryId: 'user',
+      categoryLabel: 'Eigene Vorlagen',
+      categoryIcon: 'lucide:user',
+      userGenerated: true,
+      createdAt: snippet.createdAt || Date.now(),
+    };
+    templateUserIndex.set(id, normalized);
+    const existingIdx = templateUserOrder.indexOf(id);
+    if (existingIdx !== -1) {
+      templateUserOrder.splice(existingIdx, 1);
+    }
+    templateUserOrder.unshift(id);
+    templateIndex.set(id, normalized);
+    persistUserTemplates();
+    return normalized;
+  }
+
+  function deleteUserTemplate(id) {
+    if (!id || !templateUserIndex.has(id)) return false;
+    templateUserIndex.delete(id);
+    const idx = templateUserOrder.indexOf(id);
+    if (idx !== -1) templateUserOrder.splice(idx, 1);
+    templateIndex.delete(id);
+    let favoritesChanged = false;
+    if (templateFavorites.delete(id)) favoritesChanged = true;
+    if (favoritesChanged) persistTemplateFavorites();
+    if (currentTemplateSelection === id) currentTemplateSelection = null;
+    if (templateActivePreview?.id === id) {
+      templateActivePreview = null;
+    }
+    persistUserTemplates();
+    return true;
+  }
+
+  function normalizeUserTemplateTitleInput(value) {
+    if (typeof value !== 'string') return '';
+    return value.replace(/[\s\u00A0]+/g, ' ').trim();
+  }
+
+  function renameUserTemplate(id, nextTitle) {
+    if (!id || !templateUserIndex.has(id)) return null;
+    const snippet = templateUserIndex.get(id);
+    if (!snippet) return null;
+    const normalizedTitle = normalizeUserTemplateTitleInput(nextTitle);
+    if (!normalizedTitle) return null;
+    const previousTitle = snippet.title || '';
+    if (previousTitle === normalizedTitle) {
+      return null;
+    }
+    snippet.title = normalizedTitle;
+    const autoBefore = deriveTemplateDescription(snippet.content, previousTitle);
+    if (!snippet.description || snippet.description === previousTitle || snippet.description === autoBefore) {
+      snippet.description = deriveTemplateDescription(snippet.content, normalizedTitle);
+    }
+    templateUserIndex.set(id, snippet);
+    templateIndex.set(id, snippet);
+    persistUserTemplates();
+    return snippet;
+  }
+
+  function promptUserTemplateRename(id) {
+    if (!id || !templateUserIndex.has(id)) return;
+    const snippet = templateUserIndex.get(id);
+    if (!snippet) return;
+    const currentTitle = snippet.title || createUserTemplateTitleFromFileName(snippet.sourceName) || 'Eigene Vorlage';
+    const input = window.prompt('Wie soll die Vorlage heißen?', currentTitle);
+    if (input === null) return;
+    const normalized = normalizeUserTemplateTitleInput(input);
+    if (!normalized) {
+      setStatus('Der Vorlagenname darf nicht leer sein.');
+      return;
+    }
+    if (normalized.length > 120) {
+      setStatus('Der Vorlagenname darf höchstens 120 Zeichen enthalten.');
+      return;
+    }
+    const updated = renameUserTemplate(id, normalized);
+    if (!updated) {
+      setStatus('Vorlagenname unverändert.');
+      return;
+    }
+    renderTemplateCategories();
+    renderTemplateList();
+    if (currentTemplateSelection === id) {
+      renderTemplatePreview(updated);
+    }
+    if (templateActivePreview?.id === id) {
+      templateActivePreview = updated;
+      updateTemplatePreviewModalContent(updated);
+    }
+    setStatus(`Vorlage heißt jetzt „${updated.title}“.`);
   }
 
   function loadTemplateFavorites() {
@@ -1185,6 +1407,8 @@
       snippets = snippets.filter((snippet) => templateFavorites.has(snippet.id));
     } else if (currentTemplateCategory === 'ai') {
       snippets = templateAiOrder.map((id) => templateIndex.get(id)).filter(Boolean);
+    } else if (currentTemplateCategory === 'user') {
+      snippets = templateUserOrder.map((id) => templateIndex.get(id)).filter(Boolean);
     } else if (currentTemplateCategory !== 'all') {
       snippets = snippets.filter((snippet) => snippet.categoryId === currentTemplateCategory);
     }
@@ -1287,6 +1511,9 @@
     if (templateAiOrder.length) {
       categories.push({ id: 'ai', label: 'KI-Vorlagen', icon: 'lucide:sparkles' });
     }
+    if (templateUserOrder.length) {
+      categories.push({ id: 'user', label: 'Eigene Vorlagen', icon: 'lucide:user' });
+    }
     if (Array.isArray(templateData?.categories)) {
       templateData.categories.forEach((category) => {
         if (!category || typeof category.id !== 'string') return;
@@ -1372,25 +1599,37 @@
     favIcon.setAttribute('aria-hidden', 'true');
     favIcon.setAttribute('icon', 'lucide:star');
     favoriteBtn.appendChild(favIcon);
-    const fav = !isAiSnippet && templateFavorites.has(snippet.id);
+    const fav = templateFavorites.has(snippet.id);
     favoriteBtn.classList.toggle('active', fav);
     favoriteBtn.setAttribute('aria-pressed', fav ? 'true' : 'false');
-    if (isAiSnippet) {
-      favoriteBtn.classList.add('is-disabled');
-      favoriteBtn.setAttribute('disabled', 'disabled');
-      favoriteBtn.setAttribute('aria-hidden', 'true');
-      favoriteBtn.setAttribute('tabindex', '-1');
-      favoriteBtn.setAttribute('title', 'Favoriten nicht verfügbar');
-      favoriteBtn.setAttribute('aria-label', 'Favoriten nicht verfügbar');
-    } else {
-      favoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
-      favoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
-      favoriteBtn.addEventListener('click', (event) => {
+    const favoriteLabel = isAiSnippet ? 'KI-Vorlage' : snippet.userGenerated ? 'Eigene Vorlage' : 'Vorlage';
+    favoriteBtn.setAttribute('title', fav ? `${favoriteLabel} aus Favoriten entfernen` : `${favoriteLabel} als Favorit markieren`);
+    favoriteBtn.setAttribute(
+      'aria-label',
+      fav ? `${favoriteLabel} aus Favoriten entfernen` : `${favoriteLabel} als Favorit markieren`,
+    );
+    favoriteBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleTemplateFavorite(snippet.id);
+      renderTemplateCategories();
+      renderTemplateList();
+    });
+    let renameBtn = null;
+    if (snippet.userGenerated) {
+      renameBtn = document.createElement('button');
+      renameBtn.type = 'button';
+      renameBtn.className = 'icon-only template-item-rename';
+      renameBtn.setAttribute('title', 'Vorlage umbenennen');
+      renameBtn.setAttribute('aria-label', 'Vorlage umbenennen');
+      const renameIcon = document.createElement('iconify-icon');
+      renameIcon.setAttribute('aria-hidden', 'true');
+      renameIcon.setAttribute('icon', 'lucide:edit-3');
+      renameBtn.appendChild(renameIcon);
+      renameBtn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        toggleTemplateFavorite(snippet.id);
-        renderTemplateCategories();
-        renderTemplateList();
+        promptUserTemplateRename(snippet.id);
       });
     }
     if (isAiSnippet) {
@@ -1398,6 +1637,9 @@
       badge.className = 'template-item-badge';
       badge.innerHTML = '<iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon> KI';
       header.appendChild(badge);
+    }
+    if (renameBtn) {
+      header.appendChild(renameBtn);
     }
     header.appendChild(favoriteBtn);
     item.appendChild(header);
@@ -1442,11 +1684,26 @@
       templateFavoriteBtn.removeAttribute('aria-pressed');
       templateFavoriteBtn.setAttribute('title', 'Als Favorit markieren');
       templateFavoriteBtn.setAttribute('aria-label', 'Als Favorit markieren');
+      if (templateRenameBtn) {
+        templateRenameBtn.classList.add('hidden');
+        templateRenameBtn.setAttribute('aria-hidden', 'true');
+        templateRenameBtn.setAttribute('disabled', 'disabled');
+        templateRenameBtn.removeAttribute('data-template-id');
+      }
+      if (templateDeleteBtn) {
+        templateDeleteBtn.classList.add('hidden');
+        templateDeleteBtn.setAttribute('aria-hidden', 'true');
+        templateDeleteBtn.setAttribute('disabled', 'disabled');
+        templateDeleteBtn.removeAttribute('data-template-id');
+        templateDeleteBtn.removeAttribute('data-template-ai');
+      }
       templatePreviewExpandBtn?.setAttribute('disabled', 'disabled');
       updateTemplatePreviewModalContent(null);
       return;
     }
     const isAiSnippet = !!snippet.aiGenerated;
+    const isUserSnippet = !!snippet.userGenerated;
+    const canDelete = isAiSnippet || isUserSnippet;
     const hasContent = typeof snippet.content === 'string' && snippet.content.trim().length > 0;
     templateActivePreview = snippet;
     templatePreviewEmpty.classList.add('hidden');
@@ -1454,6 +1711,7 @@
     templatePreviewTitle.textContent = snippet.title;
     templatePreviewDescription.textContent = snippet.description || '';
     templatePreviewSample.textContent = applyTemplatePlaceholders(snippet.content || '');
+    try { templatePreviewSample.scrollTop = 0; } catch {}
     if (hasContent) {
       templateInsertBtn.removeAttribute('disabled');
       templatePreviewExpandBtn?.removeAttribute('disabled');
@@ -1466,23 +1724,65 @@
       templateInsertBtn.setAttribute('data-template-ai', 'true');
       templateInsertBtn.setAttribute('data-template-id', snippet.id || 'ai-generated');
       setTemplateAiStatus(snippet.aiStatusMessage || '', { error: !!snippet.aiStatusError });
-      templateFavoriteBtn.setAttribute('disabled', 'disabled');
-      templateFavoriteBtn.classList.remove('active');
-      templateFavoriteBtn.removeAttribute('data-template-id');
-      templateFavoriteBtn.removeAttribute('aria-pressed');
-      templateFavoriteBtn.setAttribute('title', 'Favoriten nicht verfügbar');
-      templateFavoriteBtn.setAttribute('aria-label', 'Favoriten nicht verfügbar');
     } else {
       templateInsertBtn.removeAttribute('data-template-ai');
       templateInsertBtn.setAttribute('data-template-id', snippet.id);
       setTemplateAiStatus('');
+    }
+    if (snippet.id) {
       templateFavoriteBtn.removeAttribute('disabled');
       templateFavoriteBtn.setAttribute('data-template-id', snippet.id);
       const fav = templateFavorites.has(snippet.id);
+      const favoriteLabel = isAiSnippet ? 'KI-Vorlage' : isUserSnippet ? 'Eigene Vorlage' : 'Vorlage';
       templateFavoriteBtn.classList.toggle('active', fav);
       templateFavoriteBtn.setAttribute('aria-pressed', fav ? 'true' : 'false');
-      templateFavoriteBtn.setAttribute('title', fav ? 'Favorit entfernen' : 'Als Favorit markieren');
-      templateFavoriteBtn.setAttribute('aria-label', fav ? 'Vorlage aus Favoriten entfernen' : 'Vorlage als Favorit markieren');
+      templateFavoriteBtn.setAttribute(
+        'title',
+        fav ? `${favoriteLabel} aus Favoriten entfernen` : `${favoriteLabel} als Favorit markieren`,
+      );
+      templateFavoriteBtn.setAttribute(
+        'aria-label',
+        fav ? `${favoriteLabel} aus Favoriten entfernen` : `${favoriteLabel} als Favorit markieren`,
+      );
+    } else {
+      templateFavoriteBtn.classList.remove('active');
+      templateFavoriteBtn.setAttribute('disabled', 'disabled');
+      templateFavoriteBtn.removeAttribute('data-template-id');
+      templateFavoriteBtn.removeAttribute('aria-pressed');
+      templateFavoriteBtn.setAttribute('title', 'Als Favorit markieren');
+      templateFavoriteBtn.setAttribute('aria-label', 'Als Favorit markieren');
+    }
+    if (templateRenameBtn) {
+      if (isUserSnippet && snippet.id) {
+        templateRenameBtn.classList.remove('hidden');
+        templateRenameBtn.removeAttribute('disabled');
+        templateRenameBtn.setAttribute('aria-hidden', 'false');
+        templateRenameBtn.setAttribute('data-template-id', snippet.id);
+        templateRenameBtn.setAttribute('title', 'Vorlage umbenennen');
+        templateRenameBtn.setAttribute('aria-label', 'Vorlage umbenennen');
+      } else {
+        templateRenameBtn.classList.add('hidden');
+        templateRenameBtn.setAttribute('aria-hidden', 'true');
+        templateRenameBtn.setAttribute('disabled', 'disabled');
+        templateRenameBtn.removeAttribute('data-template-id');
+      }
+    }
+    if (templateDeleteBtn) {
+      if (canDelete && snippet.id) {
+        templateDeleteBtn.classList.remove('hidden');
+        templateDeleteBtn.removeAttribute('disabled');
+        templateDeleteBtn.setAttribute('aria-hidden', 'false');
+        templateDeleteBtn.setAttribute('data-template-id', snippet.id);
+        templateDeleteBtn.setAttribute('data-template-ai', isAiSnippet ? 'true' : 'false');
+        templateDeleteBtn.setAttribute('title', isAiSnippet ? 'KI-Vorlage löschen' : 'Eigene Vorlage löschen');
+        templateDeleteBtn.setAttribute('aria-label', isAiSnippet ? 'KI-Vorlage löschen' : 'Eigene Vorlage löschen');
+      } else {
+        templateDeleteBtn.classList.add('hidden');
+        templateDeleteBtn.setAttribute('aria-hidden', 'true');
+        templateDeleteBtn.setAttribute('disabled', 'disabled');
+        templateDeleteBtn.removeAttribute('data-template-id');
+        templateDeleteBtn.removeAttribute('data-template-ai');
+      }
     }
     updateTemplatePreviewModalContent(snippet);
   }
@@ -1592,13 +1892,11 @@
   function normalizeTemplateMarkdown(text) {
     if (!text) return '';
     let trimmed = String(text).trim();
-    const fenced = trimmed.match(/```(?:markdown|md)?\s*([\s\S]+?)```/i);
+    const fenced = trimmed.match(/^```(?:markdown|md)?\s*(?:\r?\n)?([\s\S]*?)\s*```$/i);
     if (fenced && fenced[1]) {
       trimmed = fenced[1].trim();
     }
-    if (trimmed.startsWith('```') && trimmed.endsWith('```')) {
-      trimmed = trimmed.replace(/^```(?:markdown|md)?/i, '').replace(/```$/i, '').trim();
-    }
+    trimmed = trimmed.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     return trimmed;
   }
 
@@ -1629,6 +1927,146 @@
     }
     const fallback = topic ? `Automatisch generierte Vorlage für ${topic}.` : 'Automatisch generierte Vorlage.';
     return fallback;
+  }
+
+  function extractSecondaryHeading(markdown) {
+    if (!markdown) return '';
+    const match = markdown.match(/^#{2,6}\s+(.+)/m);
+    return match ? match[1].trim() : '';
+  }
+
+  function deriveMarkdownTitleCandidate(markdown) {
+    if (!markdown) return '';
+    const primary = extractTitle(markdown);
+    if (primary) return primary;
+    const setext = markdown.match(/^([^\n]+)\n={2,}$/m) || markdown.match(/^([^\n]+)\n-{2,}$/m);
+    if (setext && setext[1]) {
+      return setext[1].trim();
+    }
+    const secondary = extractSecondaryHeading(markdown);
+    if (secondary) return secondary;
+    const paragraph = extractFirstMarkdownParagraph(markdown);
+    if (!paragraph) return '';
+    const cleaned = paragraph.replace(/[:.!?]+$/g, '').trim();
+    if (!cleaned) return '';
+    return cleaned.length > 80 ? `${cleaned.slice(0, 77)}…` : cleaned;
+  }
+
+  function isGenericTemplateTitle(title) {
+    if (!title) return true;
+    const normalized = title.trim().toLowerCase();
+    if (!normalized) return true;
+    if (
+      /^(vorlage|template|markdown|dokument|untitled|untitled document|untitled template|neues dokument|neue vorlage)$/i.test(
+        normalized,
+      )
+    ) {
+      return true;
+    }
+    if (/^vorlage\s+\d+$/i.test(normalized)) {
+      return true;
+    }
+    return false;
+  }
+
+  const TEMPLATE_TYPE_RULES = [
+    { label: 'Projektplan', patterns: [/projektplan/i] },
+    { label: 'Aktionsplan', patterns: [/aktionsplan/i] },
+    { label: 'Kommunikationsplan', patterns: [/kommunikationsplan/i] },
+    { label: 'Redaktionsplan', patterns: [/redaktionsplan/i] },
+    { label: 'Marketingplan', patterns: [/marketingplan/i] },
+    { label: 'Checkliste', patterns: [/checklist(e|)/i, /todo-liste/i] },
+    { label: 'Agenda', patterns: [/agenda/i] },
+    { label: 'Protokoll', patterns: [/protokoll/i, /meeting\s*-?notizen/i, /meeting\s*-?notes/i] },
+    { label: 'Briefing', patterns: [/briefing/i] },
+    { label: 'Leitfaden', patterns: [/leitfaden/i, /guide/i] },
+    { label: 'Strategie', patterns: [/strategie/i, /strategy/i] },
+    { label: 'Roadmap', patterns: [/roadmap/i] },
+    { label: 'Playbook', patterns: [/playbook/i] },
+    { label: 'Konzept', patterns: [/konzept/i, /concept/i] },
+    { label: 'Bericht', patterns: [/bericht/i, /report/i] },
+    { label: 'Handbuch', patterns: [/handbuch/i, /manual/i, /handbook/i] },
+    { label: 'Anleitung', patterns: [/anleitung/i, /how[-\s]?to/i, /schritt[-\s]?für[-\s]?schritt/i] },
+    { label: 'Canvas', patterns: [/canvas/i] },
+    { label: 'Vorlage', patterns: [/vorlage/i, /template/i] },
+    { label: 'Plan', patterns: [/\bplan\b/i] },
+  ];
+
+  const TEMPLATE_DESCRIPTOR_SUFFIXES = ['Toolkit', 'Playbook', 'Kompass', 'Fahrplan', 'Blueprint', 'Navigator', 'Baukasten', 'Masterplan'];
+
+  function findTemplateTypeRule(label) {
+    if (!label) return null;
+    return TEMPLATE_TYPE_RULES.find((rule) => rule.label === label) || null;
+  }
+
+  function detectTemplateTypeFromText(text) {
+    if (!text) return null;
+    for (const rule of TEMPLATE_TYPE_RULES) {
+      if (!rule?.patterns?.length) continue;
+      if (rule.patterns.some((pattern) => pattern.test(text))) {
+        return rule;
+      }
+    }
+    return null;
+  }
+
+  function detectTemplateTypeFromStructure(markdown) {
+    if (!markdown) return null;
+    if (/- \[[ xX]?\]/.test(markdown)) {
+      return findTemplateTypeRule('Checkliste');
+    }
+    return null;
+  }
+
+  function removeTemplateTypeFromText(text, rule) {
+    if (!text) return '';
+    if (!rule?.patterns?.length) return text;
+    let result = text;
+    rule.patterns.forEach((pattern) => {
+      if (!(pattern instanceof RegExp)) return;
+      const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+      const replacer = new RegExp(pattern.source, flags);
+      result = result.replace(replacer, ' ');
+    });
+    result = result.replace(/\s{2,}/g, ' ');
+    result = result.replace(/^[\s:;,\-–—]+/, '').replace(/[\s:;,\-–—]+$/, '');
+    return result.trim();
+  }
+
+  function cleanTemplateFocusText(text) {
+    if (!text) return '';
+    let cleaned = text.replace(/[\r\n]+/g, ' ');
+    cleaned = cleaned.replace(/[–—]+/g, ' ');
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+    if (!cleaned) return '';
+    let prev = '';
+    while (cleaned && cleaned !== prev) {
+      prev = cleaned;
+      cleaned = cleaned
+        .replace(/^(für\s+(die|den|das|ein|eine|einen)\s+)/i, '')
+        .replace(/^(für|zur|zum|über|als|mit|in|auf|von|vom|beim)\s+/i, '')
+        .replace(/^(den|die|das|dem|der|ein|eine|einen|einem|einer)\s+/i, '');
+    }
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+    cleaned = cleaned.replace(/^(thema|projekt)\s+/i, '').trim();
+    cleaned = cleaned.replace(/\s+(leitfaden|checkliste|plan|strategie|vorlage|playbook|roadmap)$/i, '').trim();
+    return cleaned.trim();
+  }
+
+  function composeTemplateTitle(focus, descriptor) {
+    const trimmedFocus = (focus || '').replace(/[\s–—-]+$/, '').trim();
+    const trimmedDescriptor = (descriptor || '').trim();
+    if (trimmedFocus && trimmedDescriptor) {
+      const focusLower = trimmedFocus.toLowerCase();
+      const descLower = trimmedDescriptor.toLowerCase();
+      if (focusLower.includes(descLower)) {
+        return trimmedFocus;
+      }
+      return `${trimmedFocus} – ${trimmedDescriptor}`;
+    }
+    if (trimmedFocus) return trimmedFocus;
+    if (trimmedDescriptor) return trimmedDescriptor;
+    return '';
   }
 
   function sanitizeTopicForTitle(topic) {
@@ -1676,29 +2114,82 @@
     return hash;
   }
 
-  function createSmartTemplateTitle(topic) {
-    const cleaned = sanitizeTopicForTitle(topic);
-    const base = cleaned ? toTitleCase(cleaned) : 'Individuelle KI-Vorlage';
-    if (!cleaned) return base;
-    const suffixes = ['Kompass', 'Fahrplan', 'Blueprint', 'Navigator', 'Playbook', 'Toolkit', 'Baukasten', 'Masterplan'];
-    const hash = Math.abs(hashString(base));
-    const suffix = suffixes[hash % suffixes.length];
-    const lowered = base.toLowerCase();
-    if (!suffix || lowered.includes(suffix.toLowerCase())) {
-      return base;
+  function chooseTemplateDescriptor(focus, typeRule) {
+    if (typeRule?.label) {
+      if (typeRule.label === 'Vorlage') return 'Vorlage';
+      return typeRule.label;
     }
-    if (base.endsWith('–') || base.endsWith('-')) {
-      return `${base} ${suffix}`;
+    const base = typeof focus === 'string' && focus.trim() ? focus.trim() : '';
+    if (base) {
+      const hash = Math.abs(hashString(base));
+      return TEMPLATE_DESCRIPTOR_SUFFIXES[hash % TEMPLATE_DESCRIPTOR_SUFFIXES.length] || 'Vorlage';
     }
-    return `${base} – ${suffix}`;
+    return 'Vorlage';
+  }
+
+  function createSmartTemplateTitle(topic, markdown) {
+    const sanitizedTopic = sanitizeTopicForTitle(topic);
+    const markdownCandidate = deriveMarkdownTitleCandidate(markdown);
+    let typeRule = detectTemplateTypeFromText(markdownCandidate) || detectTemplateTypeFromText(sanitizedTopic);
+    if (!typeRule) {
+      typeRule = detectTemplateTypeFromStructure(markdown);
+    }
+    let focusSource = '';
+    if (typeRule) {
+      focusSource =
+        removeTemplateTypeFromText(sanitizedTopic, typeRule) ||
+        removeTemplateTypeFromText(markdownCandidate, typeRule) ||
+        sanitizedTopic ||
+        markdownCandidate;
+    } else {
+      focusSource = sanitizedTopic || markdownCandidate;
+    }
+    focusSource = cleanTemplateFocusText(focusSource);
+    if (!focusSource && markdownCandidate && !isGenericTemplateTitle(markdownCandidate)) {
+      focusSource = cleanTemplateFocusText(removeTemplateTypeFromText(markdownCandidate, typeRule) || markdownCandidate);
+    }
+    if (!focusSource && sanitizedTopic) {
+      focusSource = cleanTemplateFocusText(removeTemplateTypeFromText(sanitizedTopic, typeRule) || sanitizedTopic);
+    }
+    let focus = toTitleCase(focusSource);
+    if (focus && /^[0-9]+$/.test(focus.replace(/\s+/g, ''))) {
+      focus = '';
+    }
+    if (focus && focus.replace(/[^a-z0-9äöüß]/gi, '').length < 3) {
+      focus = '';
+    }
+    if (focus.length > 90) {
+      focus = `${focus.slice(0, 87)}…`;
+    }
+    const fallbackFocus =
+      focus ||
+      toTitleCase(cleanTemplateFocusText(markdownCandidate)) ||
+      toTitleCase(cleanTemplateFocusText(sanitizedTopic));
+    const descriptor = chooseTemplateDescriptor(fallbackFocus || sanitizedTopic || markdownCandidate, typeRule);
+    let title = composeTemplateTitle(focus || fallbackFocus, descriptor);
+    if (!title || isGenericTemplateTitle(title)) {
+      const secondaryFocus = toTitleCase(cleanTemplateFocusText(sanitizedTopic || markdownCandidate));
+      if (secondaryFocus && secondaryFocus !== focus && secondaryFocus !== fallbackFocus) {
+        title = composeTemplateTitle(secondaryFocus, descriptor);
+      }
+    }
+    if (!title || isGenericTemplateTitle(title)) {
+      if (fallbackFocus) {
+        title = composeTemplateTitle(fallbackFocus, descriptor === 'Vorlage' ? 'Vorlage' : descriptor);
+      }
+    }
+    if (!title || isGenericTemplateTitle(title)) {
+      title = 'Individuelle KI-Vorlage';
+    }
+    return title;
   }
 
   function buildTemplateAiSnippet(markdown, topic) {
     const clean = normalizeTemplateMarkdown(markdown);
     if (!clean) throw new Error('Die KI hat keinen Markdown-Inhalt zurückgegeben.');
-    const fallbackTitle = createSmartTemplateTitle(topic);
-    const derivedTitle = extractTitle(clean);
-    const title = derivedTitle || fallbackTitle;
+    const candidateTitle = deriveMarkdownTitleCandidate(clean);
+    const fallbackTitle = createSmartTemplateTitle(topic, clean);
+    const title = candidateTitle && !isGenericTemplateTitle(candidateTitle) ? candidateTitle : fallbackTitle;
     const description = deriveTemplateDescription(clean, topic);
     return {
       id: '',
@@ -1718,9 +2209,17 @@
   function registerTemplateAiSnippet(snippet) {
     if (!snippet) return null;
     const id = generateAiSnippetId();
+    const rawTitle = typeof snippet.title === 'string' ? snippet.title.trim() : '';
+    const promptTopic = typeof snippet.sourcePrompt === 'string' ? snippet.sourcePrompt : '';
+    const fallbackTitle = createSmartTemplateTitle(promptTopic, snippet.content || '');
+    const title = rawTitle || fallbackTitle || 'KI-Vorlage';
+    const rawDescription = typeof snippet.description === 'string' ? snippet.description.trim() : '';
+    const description = rawDescription || deriveTemplateDescription(snippet.content || '', promptTopic || fallbackTitle);
     const normalized = {
       ...snippet,
       id,
+      title,
+      description,
       categoryId: 'ai',
       categoryLabel: 'KI-Vorlagen',
       categoryIcon: 'lucide:sparkles',
@@ -1750,6 +2249,63 @@
     return normalized;
   }
 
+  function deleteAiTemplate(id) {
+    if (!id || !templateAiIndex.has(id)) return false;
+    templateAiIndex.delete(id);
+    const orderIdx = templateAiOrder.indexOf(id);
+    if (orderIdx !== -1) templateAiOrder.splice(orderIdx, 1);
+    templateIndex.delete(id);
+    let favoritesChanged = false;
+    if (templateFavorites.delete(id)) favoritesChanged = true;
+    if (favoritesChanged) persistTemplateFavorites();
+    if (currentTemplateSelection === id) currentTemplateSelection = null;
+    if (templateActivePreview?.id === id) {
+      templateActivePreview = null;
+    }
+    if (templateAiDraft?.id === id) {
+      templateAiDraft = null;
+    }
+    setTemplateAiStatus('');
+    return true;
+  }
+
+  async function importUserTemplateFile(file) {
+    if (!file) return null;
+    const text = await file.text();
+    const snippet = buildUserTemplateSnippet(text, file.name || '');
+    return registerUserTemplate(snippet);
+  }
+
+  async function handleTemplateUploadFiles(files) {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+    let successCount = 0;
+    let hadError = false;
+    for (const file of list) {
+      try {
+        const registered = await importUserTemplateFile(file);
+        if (!registered) continue;
+        currentTemplateSelection = registered.id;
+        renderTemplateCategories();
+        renderTemplateList();
+        setStatus(`Vorlage „${registered.title}“ importiert.`);
+        successCount += 1;
+      } catch (err) {
+        console.error('Eigene Vorlage konnte nicht importiert werden', err);
+        const name = file?.name || 'Datei';
+        setStatus(`Vorlage „${name}“ konnte nicht importiert werden: ${err?.message || err}`);
+        hadError = true;
+      }
+    }
+    if (successCount > 1) {
+      setStatus(
+        hadError
+          ? `${successCount} Vorlagen importiert, einige konnten nicht verarbeitet werden.`
+          : `${successCount} Vorlagen importiert.`,
+      );
+    }
+  }
+
   function formatAiTopic(topic) {
     const clean = (topic || '').replace(/[\r\n]+/g, ' ').trim();
     if (!clean) return '';
@@ -1767,6 +2323,7 @@
     templatePreviewModalTitle.textContent = snippet.title || '';
     templatePreviewModalDescription.textContent = snippet.description || '';
     templatePreviewModalBody.textContent = applyTemplatePlaceholders(snippet.content || '');
+    try { templatePreviewModalBody.scrollTop = 0; } catch {}
   }
 
   function openTemplatePreviewModal(snippet) {
@@ -8169,6 +8726,7 @@ ${members}` : `${cls.name}`;
     markDirty(false);
   });
 
+  loadUserTemplates();
   buildTemplateIndex();
   loadTemplateFavorites();
   templateInsertBtn?.setAttribute('disabled', 'disabled');
@@ -8222,6 +8780,63 @@ ${members}` : `${cls.name}`;
     const id = templateFavoriteBtn.getAttribute('data-template-id');
     if (!id) return;
     toggleTemplateFavorite(id);
+    renderTemplateCategories();
+    renderTemplateList();
+  });
+  templateRenameBtn?.addEventListener('click', () => {
+    const id = templateRenameBtn.getAttribute('data-template-id');
+    if (!id) return;
+    promptUserTemplateRename(id);
+  });
+  templateUploadBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (supportsFSA()) {
+      try {
+        const handles = await window.showOpenFilePicker({
+          multiple: true,
+          types: [
+            {
+              description: 'Markdown oder Text',
+              accept: {
+                'text/markdown': ['.md', '.markdown'],
+                'text/plain': ['.txt'],
+              },
+            },
+          ],
+        });
+        if (!handles || !handles.length) return;
+        const files = await Promise.all(handles.map((handle) => handle.getFile()));
+        await handleTemplateUploadFiles(files);
+      } catch (err) {
+        if (err?.name === 'AbortError' || err?.name === 'NotFoundError') return;
+        console.error('Eigene Vorlagen konnten nicht geöffnet werden', err);
+        setStatus('Eigene Vorlagen konnten nicht geöffnet werden.');
+      }
+    } else if (templateUploadFile) {
+      templateUploadFile.value = '';
+      templateUploadFile.click();
+    }
+  });
+  templateUploadFile?.addEventListener('change', async () => {
+    const files = templateUploadFile.files ? Array.from(templateUploadFile.files) : [];
+    templateUploadFile.value = '';
+    if (!files.length) return;
+    await handleTemplateUploadFiles(files);
+  });
+  templateDeleteBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const id = templateDeleteBtn.getAttribute('data-template-id');
+    if (!id) return;
+    const isAi = templateDeleteBtn.getAttribute('data-template-ai') === 'true';
+    const snippet = templateIndex.get(id) || null;
+    const title = snippet?.title || 'Vorlage';
+    const confirmed = window.confirm(
+      isAi ? `Soll die KI-Vorlage „${title}“ gelöscht werden?` : `Soll die eigene Vorlage „${title}“ gelöscht werden?`,
+    );
+    if (!confirmed) return;
+    const removed = isAi ? deleteAiTemplate(id) : deleteUserTemplate(id);
+    if (!removed) return;
+    setStatus(`Vorlage „${title}“ gelöscht.`);
     renderTemplateCategories();
     renderTemplateList();
   });
