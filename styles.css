@@ -462,6 +462,14 @@ button:disabled:hover {
 .markdown-body pre, .markdown-body code { background: var(--bg-elev); }
 .markdown-body pre { border: 1px solid var(--border); padding: 12px; border-radius: 6px; overflow: auto; }
 .markdown-body blockquote { color: var(--muted); border-left: 4px solid var(--border); margin: 0; padding: 0 12px; }
+.markdown-body .md-align-left,
+.markdown-body .md-align-center,
+.markdown-body .md-align-right {
+  margin: 16px 0;
+}
+.markdown-body .md-align-left { text-align: left; }
+.markdown-body .md-align-center { text-align: center; }
+.markdown-body .md-align-right { text-align: right; }
 .markdown-body table { border-collapse: collapse; width: 100%; }
 .markdown-body th, .markdown-body td { border: 1px solid var(--border); padding: 6px 8px; }
 .markdown-body .mermaid {

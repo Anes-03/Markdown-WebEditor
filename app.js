@@ -3888,6 +3888,7 @@ ${trimmed}
     const html = marked.parse(resolvedMarkdown);
     const safe = DOMPurify.sanitize(html, SANITIZE_MARKDOWN_OPTIONS);
     preview.innerHTML = safe;
+    renderAlignmentBlocks(preview);
     applyEmbeddedMediaToPreview(preview);
     // re-highlight just in case
     preview.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
@@ -7723,6 +7724,54 @@ ${members}` : `${cls.name}`;
     prefixLines(editor, '> ');
   }
 
+  function insertAlignmentBlock(alignment) {
+    const classMap = {
+      left: 'md-align-left',
+      center: 'md-align-center',
+      right: 'md-align-right',
+    };
+    const className = classMap[alignment];
+    if (!className) return;
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const selected = editor.value.slice(start, end);
+    const before = editor.value.slice(0, start);
+    const after = editor.value.slice(end);
+    const needsLeadingNewline = before && !before.endsWith('\n');
+    const needsTrailingNewline = after && !after.startsWith('\n');
+    const placeholder = 'Text hier ausrichten';
+    const content = selected || placeholder;
+    const block =
+      `${needsLeadingNewline ? '\n' : ''}` +
+      `<div class="${className}">\n${content}\n</div>` +
+      `${needsTrailingNewline ? '\n' : ''}`;
+    editor.setRangeText(block, start, end, 'end');
+    if (!selected) {
+      const placeholderStart = block.indexOf(placeholder);
+      if (placeholderStart !== -1) {
+        const selectionStart = start + placeholderStart;
+        const selectionEnd = selectionStart + placeholder.length;
+        try {
+          editor.setSelectionRange(selectionStart, selectionEnd);
+        } catch {}
+      }
+    }
+    editor.focus();
+  }
+
+  function renderAlignmentBlocks(root) {
+    if (!root) return;
+    const blocks = root.querySelectorAll('.md-align-left, .md-align-center, .md-align-right');
+    blocks.forEach((block) => {
+      if (!block || block.children.length) return;
+      const raw = block.textContent;
+      if (!raw || !raw.trim()) return;
+      const rendered = marked.parse(raw);
+      const safe = DOMPurify.sanitize(rendered, SANITIZE_MARKDOWN_OPTIONS);
+      block.innerHTML = safe;
+    });
+  }
+
   // Images, audio & video via file input, paste, drag & drop
   function chooseImageFile() {
     hiddenImage.value = '';
@@ -8024,6 +8073,9 @@ ${members}` : `${cls.name}`;
       case 'ol': insertList(true); break;
       case 'task': insertTaskList(); break;
       case 'quote': insertQuote(); break;
+      case 'align-left': insertAlignmentBlock('left'); break;
+      case 'align-center': insertAlignmentBlock('center'); break;
+      case 'align-right': insertAlignmentBlock('right'); break;
       case 'link': insertLink(); break;
       case 'image': chooseImageFile(); break;
       case 'audio': chooseAudioFile(); break;
