@@ -65,6 +65,10 @@
   const readAloudIcon = readAloudBtn?.querySelector('iconify-icon') || null;
   const readAloudLabel = readAloudBtn?.querySelector('.btn-label') || null;
   const workspace = document.getElementById('workspace');
+  const colorMenu = document.getElementById('colorMenu');
+  const colorMenuLabel = document.getElementById('colorMenuLabel');
+  const colorCustomBtn = document.getElementById('colorCustomBtn');
+  const colorMenuCustomInput = document.getElementById('colorMenuCustomInput');
 
   const SANITIZE_MARKDOWN_OPTIONS = {
     USE_PROFILES: { html: true },
@@ -83,6 +87,7 @@
       'title',
       'open',
       'data-media-ref',
+      'style',
     ],
     ADD_URI_SAFE_LIST: ['media', 'data'],
   };
@@ -90,6 +95,7 @@
   const MEDIA_AUTOSAVE_KEY = 'md-autosave-media';
   const MEDIA_PLACEHOLDER_PREFIX = 'media://';
   const embeddedMediaStore = new Map();
+  const INLINE_COLOR_STYLE_PROPS = new Set(['color', 'background', 'background-color']);
 
   if (window.DOMPurify?.addHook) {
     window.DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
@@ -99,6 +105,16 @@
         data.attrValue.startsWith(MEDIA_PLACEHOLDER_PREFIX)
       ) {
         data.keepAttr = true;
+        return;
+      }
+      if (data.attrName === 'style' && typeof data.attrValue === 'string' && data.attrValue) {
+        const filtered = filterInlineColorStyles(data.attrValue);
+        if (filtered) {
+          data.attrValue = filtered;
+          data.keepAttr = true;
+        } else {
+          data.keepAttr = false;
+        }
       }
     });
   }
@@ -680,6 +696,17 @@
   const MAX_AI_SNIPPETS = 20;
   updateWebsiteActionButtons();
   let skipToolbarPostAction = false;
+  const COLOR_MENU_LABELS = {
+    'text-color': 'Textfarbe wählen',
+    'text-highlight': 'Markierung wählen',
+  };
+  /** @type {{ type: 'text-color' | 'text-highlight', start: number, end: number } | null} */
+  let pendingColorSelection = null;
+  let colorMenuVisible = false;
+  /** @type {'text-color' | 'text-highlight' | null} */
+  let colorMenuType = null;
+  /** @type {HTMLButtonElement | null} */
+  let colorMenuAnchor = null;
   let linkInsertSelection = null;
   let tableInsertSelection = null;
   let mermaidConfigured = false;
@@ -3952,6 +3979,11 @@ ${trimmed}
     }
   }
   window.addEventListener('resize', adjustLayout);
+  window.addEventListener('resize', () => {
+    if (colorMenuVisible && colorMenuAnchor) {
+      positionColorMenu(colorMenuAnchor);
+    }
+  });
 
   function updateCursorInfo() {
     const text = editor.value;
@@ -4580,6 +4612,33 @@ ${trimmed}
     return filterFileNameChars(name).replace(/\s+/g, ' ').trim().replace(/\s/g, '-');
   }
 
+  function normalizeHexColor(input) {
+    if (typeof input !== 'string') return '';
+    const trimmed = input.trim();
+    const match = trimmed.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+    if (!match) return '';
+    const hex = match[1];
+    const expanded = hex.length === 3 ? hex.split('').map((char) => char + char).join('') : hex;
+    return `#${expanded.toLowerCase()}`;
+  }
+
+  function filterInlineColorStyles(styleValue) {
+    if (!styleValue || typeof styleValue !== 'string') return '';
+    const chunks = styleValue.split(';');
+    const sanitized = [];
+    for (const chunk of chunks) {
+      if (!chunk.trim()) continue;
+      const [propRaw, valueRaw] = chunk.split(':');
+      if (!propRaw || !valueRaw) continue;
+      const prop = propRaw.trim().toLowerCase();
+      if (!INLINE_COLOR_STYLE_PROPS.has(prop)) continue;
+      const color = normalizeHexColor(valueRaw.trim());
+      if (!color) continue;
+      sanitized.push(`${prop}: ${color}`);
+    }
+    return sanitized.join('; ');
+  }
+
   // Toolbar helpers
   function replaceSelection(textarea, before, after, placeholder) {
     const start = textarea.selectionStart;
@@ -4634,6 +4693,135 @@ ${trimmed}
     const newLine = hashes + stripped;
     editor.setRangeText(newLine, lineStart, endPos, 'end');
     editor.focus();
+  }
+
+  function captureInlineColorSelection(type) {
+    const start = editor.selectionStart ?? 0;
+    const end = editor.selectionEnd ?? 0;
+    if (start === end) {
+      setStatus('Bitte Text markieren, um eine Farbe anzuwenden.');
+      editor.focus();
+      return false;
+    }
+    pendingColorSelection = { type, start, end };
+    return true;
+  }
+
+  function applyInlineColorSelection(type, colorValue) {
+    if (!pendingColorSelection || pendingColorSelection.type !== type) return;
+    const normalized = normalizeHexColor(colorValue);
+    if (!normalized) {
+      pendingColorSelection = null;
+      setStatus('Ungültige Farbe ausgewählt.');
+      return;
+    }
+    const { start, end } = pendingColorSelection;
+    const selected = editor.value.slice(start, end);
+    pendingColorSelection = null;
+    if (!selected) {
+      setStatus('Bitte Text markieren, um eine Farbe anzuwenden.');
+      return;
+    }
+    const styleProp = type === 'text-highlight' ? 'background-color' : 'color';
+    const styleAttr = `${styleProp}: ${normalized};`;
+    const span = `<span style="${styleAttr}">${selected}</span>`;
+    editor.setRangeText(span, start, end, 'end');
+    const cursor = start + span.length;
+    editor.selectionStart = cursor;
+    editor.selectionEnd = cursor;
+    editor.focus();
+    updatePreview();
+    updateCursorInfo();
+    updateWordCount();
+    markDirty(true);
+    setStatus(type === 'text-highlight' ? 'Text markiert' : 'Textfarbe gesetzt');
+  }
+
+  function openColorMenu(anchor, type) {
+    if (!colorMenu || !toolbar) return;
+    if (colorMenuVisible && colorMenuAnchor === anchor && colorMenuType === type) {
+      closeColorMenu();
+      return;
+    }
+    closeColorMenu({ keepPendingSelection: true });
+    colorMenuVisible = true;
+    colorMenuType = type;
+    colorMenuAnchor = anchor;
+    if (colorMenuLabel && COLOR_MENU_LABELS[type]) {
+      colorMenuLabel.textContent = COLOR_MENU_LABELS[type];
+    }
+    colorMenu.classList.remove('hidden');
+    colorMenu.setAttribute('aria-hidden', 'false');
+    anchor?.setAttribute('aria-expanded', 'true');
+    positionColorMenu(anchor);
+    document.addEventListener('pointerdown', handleColorMenuPointerDown, true);
+    document.addEventListener('keydown', handleColorMenuKeydown);
+  }
+
+  function closeColorMenu(options = {}) {
+    if (!colorMenuVisible || !colorMenu) {
+      if (!options.keepPendingSelection) pendingColorSelection = null;
+      return;
+    }
+    colorMenuVisible = false;
+    colorMenuType = null;
+    colorMenu.classList.add('hidden');
+    colorMenu.setAttribute('aria-hidden', 'true');
+    if (colorMenuAnchor) {
+      colorMenuAnchor.setAttribute('aria-expanded', 'false');
+    }
+    colorMenuAnchor = null;
+    if (colorMenuCustomInput) {
+      delete colorMenuCustomInput.dataset.colorType;
+    }
+    document.removeEventListener('pointerdown', handleColorMenuPointerDown, true);
+    document.removeEventListener('keydown', handleColorMenuKeydown);
+    if (!options.keepPendingSelection) pendingColorSelection = null;
+  }
+
+  function positionColorMenu(anchor) {
+    if (!colorMenu || !anchor) return;
+    const top = anchor.offsetTop + anchor.offsetHeight + 6;
+    const toolbarWidth = toolbar ? toolbar.clientWidth : (colorMenu.offsetParent?.clientWidth || window.innerWidth);
+    const menuWidth = colorMenu.offsetWidth || 0;
+    let left = anchor.offsetLeft;
+    if (left + menuWidth > toolbarWidth) {
+      left = Math.max(0, toolbarWidth - menuWidth);
+    }
+    colorMenu.style.top = `${top}px`;
+    colorMenu.style.left = `${left}px`;
+  }
+
+  function handleColorMenuPointerDown(e) {
+    if (!colorMenuVisible || !colorMenu) return;
+    const target = e.target;
+    if (colorMenu.contains(target)) return;
+    if (colorMenuAnchor && colorMenuAnchor.contains(target)) return;
+    closeColorMenu();
+  }
+
+  function handleColorMenuKeydown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeColorMenu();
+    }
+  }
+
+  function openToolbarColorPicker(input) {
+    if (!input) return;
+    try {
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+        return;
+      }
+    } catch (err) {
+      console.warn('showPicker konnte nicht geöffnet werden', err);
+    }
+    try {
+      input.click();
+    } catch (err) {
+      console.warn('Color-Picker konnte nicht geöffnet werden', err);
+    }
   }
 
   function insertCodeBlock() {
@@ -8055,6 +8243,9 @@ ${members}` : `${cls.name}`;
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
+    if (action !== 'text-color' && action !== 'text-highlight') {
+      closeColorMenu();
+    }
     switch (action) {
       case 'undo': try { editor.focus(); document.execCommand('undo'); } catch {} break;
       case 'redo': try { editor.focus(); document.execCommand('redo'); } catch {} break;
@@ -8082,6 +8273,16 @@ ${members}` : `${cls.name}`;
       case 'audio': chooseAudioFile(); break;
       case 'table': insertTable(); break;
       case 'hr': insertHr(); break;
+      case 'text-color':
+        if (captureInlineColorSelection('text-color')) {
+          openColorMenu(btn, 'text-color');
+        }
+        return;
+      case 'text-highlight':
+        if (captureInlineColorSelection('text-highlight')) {
+          openColorMenu(btn, 'text-highlight');
+        }
+        return;
       default: break;
     }
     if (skipToolbarPostAction) {
@@ -8093,6 +8294,30 @@ ${members}` : `${cls.name}`;
     updateWordCount();
     markDirty(true);
   });
+
+  colorMenu?.addEventListener('click', (e) => {
+    const swatch = e.target.closest('.color-swatch[data-color]');
+    if (!swatch || !colorMenuType) return;
+    applyInlineColorSelection(colorMenuType, swatch.dataset.color);
+    closeColorMenu({ keepPendingSelection: true });
+  });
+
+  colorCustomBtn?.addEventListener('click', () => {
+    if (!colorMenuType || !colorMenuCustomInput) return;
+    colorMenuCustomInput.dataset.colorType = colorMenuType;
+    openToolbarColorPicker(colorMenuCustomInput);
+  });
+
+  const handleCustomColorChange = () => {
+    if (!colorMenuCustomInput) return;
+    const type = colorMenuCustomInput.dataset.colorType;
+    if (!type) return;
+    applyInlineColorSelection(type, colorMenuCustomInput.value);
+    closeColorMenu({ keepPendingSelection: true });
+  };
+
+  colorMenuCustomInput?.addEventListener('input', handleCustomColorChange);
+  colorMenuCustomInput?.addEventListener('change', handleCustomColorChange);
 
   if (isLinkDialogReady()) {
     linkDialogOverlay.addEventListener('click', (e) => {

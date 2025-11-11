@@ -180,6 +180,14 @@
       <button data-action="bold" class="has-icon" title="Fett (Cmd/Ctrl+B)"><iconify-icon aria-hidden="true" icon="lucide:bold"></iconify-icon><span class="btn-label">Fett</span></button>
       <button data-action="italic" class="has-icon" title="Kursiv (Cmd/Ctrl+I)"><iconify-icon aria-hidden="true" icon="lucide:italic"></iconify-icon><span class="btn-label">Kursiv</span></button>
       <button data-action="strike" class="has-icon" title="Durchgestrichen"><iconify-icon aria-hidden="true" icon="lucide:strikethrough"></iconify-icon><span class="btn-label">Strike</span></button>
+      <button data-action="text-color" class="has-icon" title="Textfarbe anpassen" aria-haspopup="true" aria-expanded="false">
+        <iconify-icon aria-hidden="true" icon="lucide:palette"></iconify-icon>
+        <span class="btn-label">Farbe</span>
+      </button>
+      <button data-action="text-highlight" class="has-icon" title="Text hervorheben" aria-haspopup="true" aria-expanded="false">
+        <iconify-icon aria-hidden="true" icon="lucide:highlighter"></iconify-icon>
+        <span class="btn-label">Markieren</span>
+      </button>
       <span class="sep"></span>
       <button data-action="align-left" class="has-icon" title="Text linksbündig"><iconify-icon aria-hidden="true" icon="lucide:align-left"></iconify-icon><span class="btn-label">Links</span></button>
       <button data-action="align-center" class="has-icon" title="Text zentriert"><iconify-icon aria-hidden="true" icon="lucide:align-center"></iconify-icon><span class="btn-label">Zentriert</span></button>
@@ -223,6 +231,34 @@
       <button data-action="mermaid" class="has-icon" title="Diagramm einfügen"><iconify-icon aria-hidden="true" icon="mdi:chart-timeline-variant"></iconify-icon><span class="btn-label">Diagramm</span></button>
       <button data-action="hr" class="has-icon" title="Trennlinie"><iconify-icon aria-hidden="true" icon="lucide:minus"></iconify-icon><span class="btn-label">Linie</span></button>
       <span class="sep"></span>
+      <div
+        id="colorMenu"
+        class="toolbar-menu color-menu hidden"
+        role="menu"
+        aria-label="Farbauswahl"
+        aria-hidden="true"
+      >
+        <div id="colorMenuLabel" class="color-menu-label">Farbe wählen</div>
+        <div class="color-swatches" role="none">
+          <button type="button" class="color-swatch" data-color="#000000" style="--swatch-color:#000000" role="menuitem" title="Schwarz" aria-label="Schwarz"></button>
+          <button type="button" class="color-swatch" data-color="#1f2933" style="--swatch-color:#1f2933" role="menuitem" title="Dunkelgrau" aria-label="Dunkelgrau"></button>
+          <button type="button" class="color-swatch" data-color="#ef4444" style="--swatch-color:#ef4444" role="menuitem" title="Rot" aria-label="Rot"></button>
+          <button type="button" class="color-swatch" data-color="#f97316" style="--swatch-color:#f97316" role="menuitem" title="Orange" aria-label="Orange"></button>
+          <button type="button" class="color-swatch" data-color="#facc15" style="--swatch-color:#facc15" role="menuitem" title="Gelb" aria-label="Gelb"></button>
+          <button type="button" class="color-swatch" data-color="#22c55e" style="--swatch-color:#22c55e" role="menuitem" title="Grün" aria-label="Grün"></button>
+          <button type="button" class="color-swatch" data-color="#0ea5e9" style="--swatch-color:#0ea5e9" role="menuitem" title="Blau" aria-label="Blau"></button>
+          <button type="button" class="color-swatch" data-color="#6366f1" style="--swatch-color:#6366f1" role="menuitem" title="Indigo" aria-label="Indigo"></button>
+          <button type="button" class="color-swatch" data-color="#ec4899" style="--swatch-color:#ec4899" role="menuitem" title="Pink" aria-label="Pink"></button>
+          <button type="button" class="color-swatch" data-color="#6b7280" style="--swatch-color:#6b7280" role="menuitem" title="Grau" aria-label="Grau"></button>
+          <button type="button" class="color-swatch" data-color="#ffffff" style="--swatch-color:#ffffff" role="menuitem" title="Weiß" aria-label="Weiß"></button>
+          <button type="button" class="color-swatch" data-color="#fff59d" style="--swatch-color:#fff59d" role="menuitem" title="Gelb (hell)" aria-label="Gelb (hell)"></button>
+        </div>
+        <button id="colorCustomBtn" type="button" class="has-icon" role="menuitem">
+          <iconify-icon aria-hidden="true" icon="lucide:dropper"></iconify-icon>
+          <span class="btn-label">Benutzerdefiniert…</span>
+        </button>
+        <input type="color" id="colorMenuCustomInput" class="toolbar-color-picker" aria-label="Eigene Farbe wählen" value="#1f2933" />
+      </div>
     </div>
 
     <!-- Inline AI generation panel -->

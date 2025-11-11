@@ -221,6 +221,7 @@ button:disabled:hover {
   border-bottom: 1px solid var(--border);
   background: var(--bg-elev);
   justify-content: center; /* center buttons horizontally */
+  position: relative;
 }
 .sticky-tools .toolbar {
   position: sticky;
@@ -233,6 +234,63 @@ button:disabled:hover {
 .toolbar .has-icon { justify-content: center; }
 /* align icons nicely on the text baseline */
 .toolbar iconify-icon { line-height: 1; vertical-align: middle; }
+.toolbar-color-picker {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.color-menu { min-width: 260px; gap: 8px; }
+.color-menu-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 4px 6px;
+}
+.color-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 32px);
+  gap: 6px;
+  padding: 0 6px 8px;
+}
+.color-menu .color-swatch {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--swatch-color, transparent);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.color-menu .color-swatch:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.color-menu .color-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.color-menu .color-swatch[data-color="#ffffff"] {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.color-menu #colorCustomBtn {
+  margin-top: 4px;
+}
 
 /* Inline AI panel */
 .sticky-tools .ai-inline { padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--bg-elev); position: sticky; top: calc(var(--header-h) + var(--toolbar-only-h, 44px)); z-index: 39; }
