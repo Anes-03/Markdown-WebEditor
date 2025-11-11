@@ -232,6 +232,24 @@
       prompt: 'Übersetze den Text ins Deutsche. Nur Übersetzung ausgeben.',
     },
     {
+      name: 'DE → FR',
+      category: 'translate',
+      description: 'Übersetzt den Text ins Französische.',
+      prompt: 'Übersetze den Text ins Französische. Nur die Übersetzung ausgeben.',
+    },
+    {
+      name: 'DE → ES',
+      category: 'translate',
+      description: 'Übersetzt den Text ins Spanische.',
+      prompt: 'Übersetze den Text ins Spanische. Nur die Übersetzung ausgeben.',
+    },
+    {
+      name: 'DE → IT',
+      category: 'translate',
+      description: 'Übersetzt den Text ins Italienische.',
+      prompt: 'Übersetze den Text ins Italienische. Nur die Übersetzung ausgeben.',
+    },
+    {
       name: 'Flowchart erstellen',
       category: 'visuals',
       description: 'Visualisiert Kernaussagen als Mermaid-Flowchart.',
@@ -248,6 +266,30 @@
       category: 'visuals',
       description: 'Verdichtet Themen zu einer Mermaid-Mindmap.',
       prompt: 'Identifiziere das Hauptthema und die wichtigsten Unterthemen des Textes. Gib ausschließlich ein Markdown-Fragment mit einem ```mermaid```-Block vom Typ "mindmap" zurück. Verwende klare, kurze Stichworte, gruppiere verwandte Ideen unter gemeinsamen Ästen und beschränke dich auf höchstens drei Ebenen. Keine zusätzliche Erklärung außerhalb des Codeblocks.',
+    },
+    {
+      name: 'Gantt-Diagramm erstellen',
+      category: 'visuals',
+      description: 'Plant Phasen und Aufgaben als Mermaid-Gantt.',
+      prompt: 'Leite aus dem Text Phasen oder Aufgaben inklusive Reihenfolge und Dauer ab. Gib ausschließlich ein Markdown-Fragment mit einem ```mermaid```-Block vom Typ "gantt" zurück. Definiere einen Titel, sinnvolle Sektionen und maximal 6 Aufgaben mit Start-/Enddaten (YYYY-MM-DD) oder Dauerangaben. Nutze kurze Labels und keine Erklärung außerhalb des Codeblocks.',
+    },
+    {
+      name: 'Zustandsdiagramm erstellen',
+      category: 'visuals',
+      description: 'Zeigt Zustände und Übergänge als State-Diagramm.',
+      prompt: 'Identifiziere zentrale Zustände und Übergänge des beschriebenen Systems. Gib ausschließlich ein Markdown-Fragment mit einem ```mermaid```-Block vom Typ "stateDiagram-v2" zurück. Definiere sprechende Zustandsnamen, maximal 8 Übergänge und nutze kurze Beschriftungen für Transitionen. Keine zusätzlichen Erklärungen außerhalb des Codeblocks.',
+    },
+    {
+      name: 'Klassendiagramm erstellen',
+      category: 'visuals',
+      description: 'Modelliert Strukturen als Mermaid-Klassendiagramm.',
+      prompt: 'Extrahiere die relevanten Domänenobjekte, deren Attribute sowie Beziehungen aus dem Text. Gib ausschließlich ein Markdown-Fragment mit einem ```mermaid```-Block vom Typ "classDiagram" zurück. Beschreibe höchstens sechs Klassen mit 1–4 Attributen/Funktionen und benutze klare Beziehungstypen (z. B. <--, <..). Keine Erklärung außerhalb des Codeblocks.',
+    },
+    {
+      name: 'ER-Diagramm erstellen',
+      category: 'visuals',
+      description: 'Zeichnet Entitäten und Relationen als Mermaid-ER.',
+      prompt: 'Leite wichtige Entitäten und ihre Beziehungen aus dem Text ab. Gib ausschließlich ein Markdown-Fragment mit einem ```mermaid```-Block vom Typ "erDiagram" zurück. Nutze kurze Bezeichner, beschreibe Kardinalitäten (z. B. ||--o{) und beschränke dich auf höchstens sechs Entitäten. Keine zusätzliche Erklärung außerhalb des Codeblocks.',
     },
   ];
   const BUILT_IN_PRESET_NAMES = new Set(BUILT_IN_PRESETS.map(p => p.name.trim()));
