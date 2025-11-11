@@ -200,6 +200,38 @@ window.MARKDOWN_TEMPLATES = Object.freeze({
 ## Unterstützungsbedarf
 - Coaching oder Mentoring
 - Tools/Training`
+        },
+        {
+          id: 'quick-team-flow',
+          title: 'Team Flow Canvas',
+          description: 'Erfasst Ziele, Zuständigkeiten und visualisiert den Ablaufschritt.',
+          content: `# {{title}}
+
+**Datum:** {{date}}
+**Owner:** 
+
+## Ziel & Scope
+- Wichtigstes Ergebnis
+- Relevante Kennzahl
+
+## Ablaufübersicht
+\`\`\`mermaid
+flowchart LR
+    Intake([Anfrage eingeht]) --> Triage{Priorität klar?}
+    Triage -- Nein --> Klarstellen[/Infos sammeln/]
+    Triage -- Ja --> Umsetzung[Bearbeitung starten]
+    Umsetzung --> Review{Qualität ok?}
+    Review -- Nein --> Umsetzung
+    Review -- Ja --> Übergabe([Ergebnis teilen])
+\`\`\`
+
+## Verantwortlichkeiten
+- Schritt – Rolle – Backup
+- Eskalationspfad
+
+## Risiken & Nächste Schritte
+- Risiko – Gegenmaßnahme
+- Follow-up Termine`
         }
       ]
     },
@@ -364,6 +396,39 @@ curl -X GET "https://api.example.com/{{endpoint}}" \
 ## Wiederherstellung & Follow-up
 - Abschlusskriterien
 - Postmortem-Link`
+        },
+        {
+          id: 'doc-service-blueprint',
+          title: 'Service Blueprint',
+          description: 'Verknüpft Kundenerlebnis, Frontstage- und Backend-Schritte in einer Darstellung.',
+          content: `# {{title}}
+
+**Service/Produkt:**
+**Letzte Prüfung:** {{date}}
+
+## Touchpoints
+- Wichtigster Einstiegskanal
+- Erwartung der Nutzer:innen
+
+## Blueprint
+\`\`\`mermaid
+sequenceDiagram
+    participant Kunde
+    participant Frontstage
+    participant Backstage
+    participant Systeme
+    Kunde->>Frontstage: Anfrage stellen
+    Frontstage->>Backstage: Ticket übergeben
+    Backstage->>Systeme: Prozess auslösen
+    Systeme-->>Backstage: Status melden
+    Backstage-->>Frontstage: Ergebnis bereitstellen
+    Frontstage-->>Kunde: Lösung kommunizieren
+    Note over Backstage,Systeme: KPIs und Logs prüfen
+\`\`\`
+
+## Verbesserungen
+- Painpoints und Ideen
+- Verantwortliche & Termin`
         },
         {
           id: 'doc-style-guide',
@@ -634,6 +699,41 @@ Viel Freude beim Lesen!`
 ## Review
 - Ansprechpartner:in für Freigaben
 - Aktualisierungsfrequenz`
+        },
+        {
+          id: 'creative-story-map',
+          title: 'Story Navigator',
+          description: 'Mindmap für Figuren, Konflikte und Motive einer Erzählung.',
+          content: `# {{title}}
+
+**Genre/Thema:**
+**Letzte Überarbeitung:** {{date}}
+
+## Story Map
+\`\`\`mermaid
+mindmap
+  root((Story))
+    Akt_1
+      Auslöser
+      Versprechen
+    Akt_2
+      Konflikt
+      Wendepunkt
+    Akt_3
+      Finale
+      Auflösung
+    Figuren
+      Protagonist
+      Antagonist
+      Verbündete
+    Motive
+      Thema
+      Symbolik
+\`\`\`
+
+## Notizen
+- Emotionale Beats
+- Offene Fragen`
         }
       ]
     },
@@ -890,6 +990,39 @@ Viel Freude beim Lesen!`
 ## Risiken & Vereinbarungen
 - Erwartete Herausforderungen
 - Team-Commitments`
+        },
+        {
+          id: 'school-learning-path',
+          title: 'Lernpfad Canvas',
+          description: 'Planungsbogen mit Lernzielen, Ressourcen und visualisiertem Ablauf.',
+          content: `# {{title}}
+
+**Modul/Fach:**
+**Prüfung:** {{date}}
+
+## Lernschwerpunkte
+- Thema 1 – erwartete Tiefe
+- Thema 2 – erwartete Tiefe
+
+## Ablauf
+\`\`\`mermaid
+flowchart TD
+    Start([Startschuss]) --> Planung{Themen priorisiert?}
+    Planung -- Nein --> Recherche[/Material sammeln/]
+    Planung -- Ja --> Sprint_1[Woche 1 Fokus]
+    Sprint_1 --> Sprint_2[Woche 2 Fokus]
+    Sprint_2 --> Review{Klausurfragen geübt?}
+    Review -- Nein --> Sprint_1
+    Review -- Ja --> Ruhe([Wiederholung & Pause])
+\`\`\`
+
+## Ressourcen
+- Bücher, Skripte, Kurse
+- Lernpartner:innen
+
+## Reflexion
+- Lernfortschritt bewerten
+- Anpassungen fürs nächste Intervall`
         }
       ]
     },
@@ -1129,6 +1262,151 @@ Mit freundlichen Grüßen
 ## Vereinbarte Schritte
 - [ ] Maßnahme – Owner – Termin
 - [ ] Follow-up – Datum`
+        }
+      ]
+    },
+    {
+      id: 'reports',
+      label: 'Geschäftsberichte',
+      icon: 'lucide:bar-chart-3',
+      snippets: [
+        {
+          id: 'reports-quarterly-brief',
+          title: 'Quartalsbericht mit Flowchart',
+          description: 'Executive Summary plus Prozessfluss für die wichtigsten Initiativen.',
+          content: `# {{title}}
+
+**Zeitraum:** {{date}}
+**Verantwortlich:** 
+
+## Executive Summary
+- Wichtigste Erkenntnis oder Risiko
+- Relevanter Kontext für Stakeholder
+
+## KPI-Überblick
+| Kennzahl | Ist | Ziel | Trend |
+| --- | --- | --- | --- |
+| Umsatz | | | |
+| NPS | | | |
+| Kostenquote | | | |
+
+## Initiativen-Flow
+\`\`\`mermaid
+flowchart LR
+    Intake([Idee eingereicht]) --> Bewertung{Business Case ok?}
+    Bewertung -- Nein --> Parken[/Backlog/]
+    Bewertung -- Ja --> Umsetzung[Team aktiviert]
+    Umsetzung --> Testen{Qualität gegeben?}
+    Testen -- Nein --> Umsetzung
+    Testen -- Ja --> Rollout([Go-Live])
+    Rollout --> Impact[Messbare Wirkung]
+\`\`\`
+
+## Maßnahmen
+- Nächste Schritte & Owner
+- Kommunikationsplan`
+        },
+        {
+          id: 'reports-handoff-sequence',
+          title: 'Übergabebericht mit Sequence Diagram',
+          description: 'Dokumentiert Verantwortliche, Risiken und den genauen Kommunikationsfluss.',
+          content: `# {{title}}
+
+**Projekt/Service:** 
+**Stand:** {{date}}
+
+## Stakeholder
+- Rolle – Kontakt – Verantwortungsbereich
+- Rolle – Kontakt – Verantwortungsbereich
+
+## Ablauf
+\`\`\`mermaid
+sequenceDiagram
+    participant Kunde
+    participant Account
+    participant Delivery
+    participant Support
+    Kunde->>Account: Bedarf melden
+    Account->>Delivery: Scope briefen
+    Delivery-->>Account: Aufwand & Termin
+    Account->>Kunde: Freigabe einholen
+    Delivery->>Support: Übergabe inkl. Doku
+    Support-->>Kunde: Betriebsstart bestätigen
+    Note over Delivery,Support: Checkliste abhaken
+\`\`\`
+
+## Risiken & To-dos
+- Offene Punkte
+- Monitoring oder KPIs`
+        },
+        {
+          id: 'reports-cx-journey',
+          title: 'Customer Journey Snapshot',
+          description: 'Kombiniert qualitative Erkenntnisse mit einem Journey-Diagramm.',
+          content: `# {{title}}
+
+**Persona:** 
+**Review-Datum:** {{date}}
+
+## Highlights & Pain Points
+- Positiv: 
+- Schmerzpunkt:
+
+## Journey
+\`\`\`mermaid
+journey
+    title Kundenreise
+    section Awareness
+      Bedarf erkennen: 3: Kunde
+      Recherche starten: 4: Marketing
+    section Consideration
+      Demo anfordern: 5: Vertrieb
+      Angebot prüfen: 2: Kunde
+    section Adoption
+      Onboarding planen: 4: Delivery
+      Schulung durchführen: 3: Training
+    section Retention
+      Erfolg messen: 4: Kunde
+      Upsell prüfen: 3: Account
+\`\`\`
+
+## Maßnahmen
+- Verbesserungsidee
+- Verantwortlich & Termin`
+        },
+        {
+          id: 'reports-initiative-mindmap',
+          title: 'Strategie-Mindmap',
+          description: 'Mindmap für Geschäftsberichte mit Fokus auf Ziele, Programme und Risiken.',
+          content: `# {{title}}
+
+**Strategiezyklus:** {{date}}
+
+## Überblick
+- Ausgangslage
+- Wichtige Treiber
+
+## Mindmap
+\`\`\`mermaid
+mindmap
+  root((Strategie))
+    Ziele
+      Wachstum
+      Effizienz
+    Programme
+      Digitalisierung
+      Kundenerlebnis
+    Ressourcen
+      Budget
+      Teams
+    Risiken
+      Markt
+      Compliance
+\`\`\`
+
+## Nächste Schritte
+- Entscheidungsbedarf
+- Kommunikationsplan`
         }
       ]
     }
