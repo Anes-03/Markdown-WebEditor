@@ -60,42 +60,47 @@
             <button type="button" class="has-icon" data-export="website" role="menuitem"><iconify-icon aria-hidden="true" icon="lucide:globe"></iconify-icon><span class="btn-label">Website erstellen</span></button>
           </div>
         </div>
-        <div class="menu-group">
-          <button
-            id="learningBtn"
-            type="button"
-            class="has-icon"
-            title="Lerninhalte generieren"
-            aria-haspopup="true"
-            aria-expanded="false"
-          >
-            <iconify-icon aria-hidden="true" icon="mdi:school-outline"></iconify-icon>
-            <span class="btn-label">Lernen</span>
-          </button>
-          <div
-            id="learningMenu"
-            class="toolbar-menu hidden"
-            role="menu"
-            aria-label="Lerninhalte generieren"
-            aria-hidden="true"
-          >
-            <button type="button" class="has-icon" data-learning="flashcards" role="menuitem">
-              <iconify-icon aria-hidden="true" icon="mdi:cards-outline"></iconify-icon>
-              <span class="btn-label">Karteikarten</span>
+        <button id="printBtn" class="has-icon" title="Datei drucken (Cmd/Ctrl+P)"><iconify-icon aria-hidden="true" icon="lucide:printer"></iconify-icon><span class="btn-label">Drucken</span></button>
+        <div class="ai-actions" role="group" aria-label="Lernen und KI">
+          <div class="menu-group">
+            <button
+              id="learningBtn"
+              type="button"
+              class="has-icon"
+              title="Lerninhalte generieren"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <iconify-icon aria-hidden="true" icon="mdi:school-outline"></iconify-icon>
+              <span class="btn-label">Lernen</span>
             </button>
-            <button type="button" class="has-icon" data-learning="cloze" role="menuitem">
-              <iconify-icon aria-hidden="true" icon="mdi:form-textbox"></iconify-icon>
-              <span class="btn-label">Lückentext</span>
-            </button>
-            <button type="button" class="has-icon" data-learning="quiz-mc" role="menuitem">
-              <iconify-icon aria-hidden="true" icon="mdi:format-list-bulleted"></iconify-icon>
-              <span class="btn-label">Quiz (Multiple Choice)</span>
-            </button>
-            <button type="button" class="has-icon" data-learning="quiz-free" role="menuitem">
-              <iconify-icon aria-hidden="true" icon="mdi:pencil-outline"></iconify-icon>
-              <span class="btn-label">Quiz (Freitext)</span>
-            </button>
+            <div
+              id="learningMenu"
+              class="toolbar-menu hidden"
+              role="menu"
+              aria-label="Lerninhalte generieren"
+              aria-hidden="true"
+            >
+              <button type="button" class="has-icon" data-learning="flashcards" role="menuitem">
+                <iconify-icon aria-hidden="true" icon="mdi:cards-outline"></iconify-icon>
+                <span class="btn-label">Karteikarten</span>
+              </button>
+              <button type="button" class="has-icon" data-learning="cloze" role="menuitem">
+                <iconify-icon aria-hidden="true" icon="mdi:form-textbox"></iconify-icon>
+                <span class="btn-label">Lückentext</span>
+              </button>
+              <button type="button" class="has-icon" data-learning="quiz-mc" role="menuitem">
+                <iconify-icon aria-hidden="true" icon="mdi:format-list-bulleted"></iconify-icon>
+                <span class="btn-label">Quiz (Multiple Choice)</span>
+              </button>
+              <button type="button" class="has-icon" data-learning="quiz-free" role="menuitem">
+                <iconify-icon aria-hidden="true" icon="mdi:pencil-outline"></iconify-icon>
+                <span class="btn-label">Quiz (Freitext)</span>
+              </button>
+            </div>
           </div>
+          <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Text Generieren</span></button>
+          <button id="chatToggleBtn" class="has-icon" title="Chat ein-/ausblenden"><iconify-icon aria-hidden="true" icon="lucide:message-circle"></iconify-icon><span class="btn-label">Chat</span></button>
         </div>
         <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
         <input type="file" id="hiddenImage" accept="image/*" hidden />
@@ -218,8 +223,6 @@
       <button data-action="mermaid" class="has-icon" title="Diagramm einfügen"><iconify-icon aria-hidden="true" icon="mdi:chart-timeline-variant"></iconify-icon><span class="btn-label">Diagramm</span></button>
       <button data-action="hr" class="has-icon" title="Trennlinie"><iconify-icon aria-hidden="true" icon="lucide:minus"></iconify-icon><span class="btn-label">Linie</span></button>
       <span class="sep"></span>
-      <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Text Generieren</span></button>
-      <button id="chatToggleBtn" class="has-icon" title="Chat ein-/ausblenden"><iconify-icon aria-hidden="true" icon="lucide:message-circle"></iconify-icon><span class="btn-label">Chat</span></button>
     </div>
 
     <!-- Inline AI generation panel -->

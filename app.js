@@ -54,6 +54,7 @@
   const saveAsBtn = document.getElementById('saveAsBtn');
   const exportBtn = document.getElementById('exportBtn');
   const exportMenu = document.getElementById('exportMenu');
+  const printBtn = document.getElementById('printBtn');
   const undoBtn = document.getElementById('undoBtn');
   const redoBtn = document.getElementById('redoBtn');
 
@@ -9163,6 +9164,17 @@ ${members}` : `${cls.name}`;
     closeExportMenu();
   });
 
+  printBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeExportMenu();
+    try {
+      doPrintDocument();
+    } catch (err) {
+      console.error('Drucken fehlgeschlagen', err);
+      window.print();
+    }
+  });
+
   if (learningBtn && learningMenu) {
     learningBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -9377,17 +9389,25 @@ ${members}` : `${cls.name}`;
     markDirty(false);
   }
 
-  function doExportHtml() {
-    const md = getResolvedMarkdown();
-    const html = marked.parse(md);
-    const safe = DOMPurify.sanitize(html, SANITIZE_MARKDOWN_OPTIONS);
-    const title = extractTitle(md) || (currentFileName ? currentFileName.replace(/\.[^.]+$/, '') : 'Export');
-    const doc = `<!DOCTYPE html>
+  function buildStandaloneMarkdownDocument({ title, contentHtml, injectPrintScript = false }) {
+    const safeTitle = escapeHtml(title || 'Export');
+    const printScript = injectPrintScript
+      ? `<script>
+window.addEventListener('DOMContentLoaded', function () {
+  window.focus();
+  setTimeout(function () {
+    try { window.print(); } catch {}
+    setTimeout(function () { try { window.close(); } catch {} }, 400);
+  }, 100);
+});
+</script>`
+      : '';
+    return `<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(title)}</title>
+  <title>${safeTitle}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github.min.css">
   <style>
     :root { --bg:#fff; --text:#1f2328; --border:#d0d7de; }
@@ -9402,16 +9422,29 @@ ${members}` : `${cls.name}`;
     .markdown-body .embedded-video { width:100%; max-width:100%; display:block; margin:16px 0; border:0; }
     .markdown-body iframe.embedded-video { aspect-ratio:16/9; height:auto; border:0; }
     .markdown-body video.embedded-video { height:auto; }
+    @media print {
+      body { background: #fff; color: #000; }
+      .container { margin: 10mm auto; }
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"></script>
   <script>window.addEventListener('DOMContentLoaded',()=>document.querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el)));</script>
 </head>
 <body>
   <div class="container">
-    <article class="markdown-body">${safe}</article>
+    <article class="markdown-body">${contentHtml || ''}</article>
   </div>
+  ${printScript}
 </body>
 </html>`;
+  }
+
+  function doExportHtml() {
+    const md = getResolvedMarkdown();
+    const html = marked.parse(md);
+    const safe = DOMPurify.sanitize(html, SANITIZE_MARKDOWN_OPTIONS);
+    const title = extractTitle(md) || (currentFileName ? currentFileName.replace(/\.[^.]+$/, '') : 'Export');
+    const doc = buildStandaloneMarkdownDocument({ title, contentHtml: safe });
     const blob = new Blob([doc], { type: 'text/html' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -9419,6 +9452,52 @@ ${members}` : `${cls.name}`;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }
+
+  function doPrintDocument() {
+    const md = getResolvedMarkdown();
+    const html = marked.parse(md);
+    const safe = DOMPurify.sanitize(html, SANITIZE_MARKDOWN_OPTIONS);
+    const title = extractTitle(md) || (currentFileName ? currentFileName.replace(/\.[^.]+$/, '') : 'Markdown WebEditor');
+    const doc = buildStandaloneMarkdownDocument({ title, contentHtml: safe, injectPrintScript: true });
+    const printWindow = window.open('', '_blank', 'noopener');
+    if (printWindow && printWindow.document) {
+      try {
+        printWindow.document.open();
+        printWindow.document.write(doc);
+        printWindow.document.close();
+        return;
+      } catch (err) {
+        console.error('Druckfenster konnte nicht beschrieben werden', err);
+      }
+    }
+    const frame = document.createElement('iframe');
+    frame.style.position = 'fixed';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    frame.style.clipPath = 'inset(100%)';
+    frame.style.clip = 'rect(0, 0, 0, 0)';
+    frame.style.opacity = '0';
+    frame.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(frame);
+    const docRef = frame.contentDocument || frame.contentWindow?.document;
+    if (!docRef) {
+      window.print();
+      frame.remove();
+      return;
+    }
+    docRef.open();
+    docRef.write(doc);
+    docRef.close();
+    setTimeout(() => {
+      try {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+      } finally {
+        setTimeout(() => frame.remove(), 1500);
+      }
+    }, 150);
   }
 
   function extractTitle(md) {
@@ -9450,6 +9529,9 @@ document.addEventListener('keydown', (e) => {
     }
   } else if (mod && e.key.toLowerCase() === 'g') {
     e.preventDefault(); editorGenerateAI();
+  } else if (mod && e.key.toLowerCase() === 'p') {
+    e.preventDefault();
+    doPrintDocument();
   } else if (mod && e.key === 'Enter') {
     // Alternative Trigger für KI‑Generierung
     e.preventDefault(); editorGenerateAI();
@@ -9478,7 +9560,7 @@ try {
       const mod = e.metaKey || e.ctrlKey;
       const k = (e.key || '').toLowerCase();
   // Nur für unsere bekannten Kürzel eingreifen (keine rohe Enter-Taste!)
-  if (mod && (k === 's' || k === 'o' || k === 'n' || k === 'b' || k === 'i' || k === 'k' || k === 'g' || k === 'enter')) {
+  if (mod && (k === 's' || k === 'o' || k === 'n' || k === 'b' || k === 'i' || k === 'k' || k === 'g' || k === 'p' || k === 'enter')) {
         // Verhindere doppelte Ausführung
         e.preventDefault();
         e.stopPropagation();
@@ -9497,7 +9579,8 @@ try {
           }
           return;
         }
-    if (k === 'g' || k === 'enter') { editorGenerateAI(); return; }
+        if (k === 'g' || k === 'enter') { editorGenerateAI(); return; }
+        if (k === 'p') { doPrintDocument(); return; }
   }
     }, { capture: true });
     window.__mdKeyHandlerInstalled = true;
