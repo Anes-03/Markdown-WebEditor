@@ -38,9 +38,9 @@
         <span class="title" id="appTitle">Markdown WebEditor</span>
         <button id="undoBtn" class="has-icon" title="Rückgängig (Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:undo-2"></iconify-icon><span class="btn-label">Rückgängig</span></button>
         <button id="redoBtn" class="has-icon" title="Wiederholen (Shift+Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:redo-2"></iconify-icon><span class="btn-label">Wiederholen</span></button>
-        <button id="templatesToggleBtn" class="has-icon" title="Vorlagen anzeigen" aria-haspopup="true" aria-expanded="false"><iconify-icon aria-hidden="true" icon="lucide:layout-template"></iconify-icon><span class="btn-label">Vorlagen</span></button>
       </div>
       <div class="center file-actions" role="toolbar" aria-label="Datei Aktionen">
+        <button id="templatesToggleBtn" class="has-icon" title="Vorlagen anzeigen" aria-haspopup="true" aria-expanded="false"><iconify-icon aria-hidden="true" icon="lucide:layout-template"></iconify-icon><span class="btn-label">Vorlagen</span></button>
         <button id="newBtn" class="has-icon" title="Neu (Cmd/Ctrl+N)"><iconify-icon aria-hidden="true" icon="lucide:file-plus"></iconify-icon><span class="btn-label">Neu</span></button>
         <button id="openBtn" class="has-icon" title="Öffnen (Cmd/Ctrl+O)"><iconify-icon aria-hidden="true" icon="lucide:folder-open"></iconify-icon><span class="btn-label">Öffnen</span></button>
         <button id="saveBtn" class="has-icon" title="Speichern (Cmd/Ctrl+S)"><iconify-icon aria-hidden="true" icon="lucide:save"></iconify-icon><span class="btn-label">Speichern</span></button>
@@ -99,7 +99,7 @@
               </button>
             </div>
           </div>
-          <button id="aiGenerateBtn" class="has-icon" title="KI: Text generieren (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Text Generieren</span></button>
+          <button id="aiGenerateBtn" class="has-icon" title="KI: Assistent (Cmd/Ctrl+G)"><iconify-icon aria-hidden="true" icon="mdi:robot-outline"></iconify-icon><span class="btn-label">Assistent</span></button>
           <button id="chatToggleBtn" class="has-icon" title="Chat ein-/ausblenden"><iconify-icon aria-hidden="true" icon="lucide:message-circle"></iconify-icon><span class="btn-label">Chat</span></button>
         </div>
         <input type="file" id="hiddenFile" accept=".md,.markdown,text/markdown" hidden />
@@ -1012,7 +1012,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
           </div>
         </section>
         <section class="chat-settings settings-tab hidden" data-tab="presets" role="tabpanel" aria-label="KI-Presets">
-          <p class="muted">Presets sind gespeicherte Aufforderungen für die KI-Generieren-Funktion. Damit kannst du wiederkehrende Aufgaben mit einem Klick auslösen.</p>
+          <p class="muted">Presets sind gespeicherte Aufforderungen für die Assistent-Funktion. Damit kannst du wiederkehrende Aufgaben mit einem Klick auslösen.</p>
           <div class="settings-group">
             <h4>Preset</h4>
             <label>

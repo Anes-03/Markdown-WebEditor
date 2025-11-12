@@ -424,7 +424,7 @@
           afterText: ' – dort kannst du bei Bedarf auch OpenAI, Anthropic oder andere Dienste hinterlegen.',
           settingsTab: 'providers',
         },
-        'Tippe auf „Text Generieren“, um den Inline-Assistenten mit Presets zu öffnen und optional markierten Text zu ersetzen.',
+        'Tippe auf „Assistent“, um den Inline-Assistenten mit Presets zu öffnen und optional markierten Text zu ersetzen.',
         'Blende den Chat ein, probiere Vorschlagsprompts aus und teile den Editor-Kontext für präzisere Antworten.',
       ],
     },
@@ -3482,10 +3482,10 @@ ${trimmed}
         const iconEl = btn.querySelector('iconify-icon');
         const labelEl = btn.querySelector('.btn-label');
         if (iconEl) iconEl.setAttribute('icon', running ? 'mdi:stop-circle-outline' : 'mdi:robot-outline');
-        if (labelEl) labelEl.textContent = running ? 'Abbrechen' : 'Text Generieren';
-        else btn.textContent = running ? 'Abbrechen' : 'Text Generieren';
+        if (labelEl) labelEl.textContent = running ? 'Abbrechen' : 'Assistent';
+        else btn.textContent = running ? 'Abbrechen' : 'Assistent';
       } catch {
-        btn.textContent = running ? 'Abbrechen' : 'Text Generieren';
+        btn.textContent = running ? 'Abbrechen' : 'Assistent';
       }
       btn.disabled = false;
     };
