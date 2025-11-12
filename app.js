@@ -389,6 +389,24 @@
         return `${base}\n\nAnforderungen:\n- Gestalte die Oberfläche als geführte Lernsession mit Einleitung, Frage-Navigation und Abschlussreflexion. Jede Frage gehört in ein eigenes <article class="quiz-question">.\n- Platziere pro Frage ein großzügiges <textarea> mit Zeichenzähler sowie Kontroll-Buttons „Notiz speichern“ und „Lösung ansehen“.\n- Nutze Vanilla-JavaScript, um Nutzereingaben temporär zu speichern, den Zeichenzähler live zu aktualisieren und pro Frage ein Selbst-Check-Rating (z. B. 1–5 Sterne) zu ermöglichen.\n- Verstecke Musterlösungen standardmäßig und blende sie erst nach Klick auf „Lösung ansehen“ ein. Ergänze Hinweise, Bewertungskriterien und markierte Schlüsselbegriffe.\n- Führe einen Fortschrittsstatus über alle Fragen hinweg und zeige am Ende eine Zusammenfassung mit den eigenen Notizen und Selbstbewertungen (ohne Server, rein clientseitig).\n- Achte auf zugängliche Labels, Tastaturbedienbarkeit und klare Fokuszustände. Verzichte auf externe Ressourcen.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne Abhängigkeiten.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
       },
     },
+    'learning-game': {
+      key: 'learning-game',
+      label: 'Lernspiel',
+      modalTitle: 'Spielerisches Lernabenteuer',
+      badge: 'Lernspiel',
+      statusGenerating: 'Die KI entwirft ein spielerisches Lernabenteuer…',
+      statusReady: 'Fertig! Die Vorschau zeigt ein spielerisches Lernabenteuer.',
+      statusReadyFallback: 'Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.',
+      fallbackTitle: 'Spielerisches Lernabenteuer',
+      loadingMessage: 'Die KI baut gerade einen gamifizierten Lernmodus. Bitte kurz warten.',
+      downloadBase: 'Spielerisches Lernabenteuer',
+      buildUserInstruction(hasContent, markdown) {
+        const base = hasContent
+          ? `Analysiere den folgenden Markdown-Inhalt und destilliere daraus Kernaussagen, Herausforderungen oder Leitfragen. Verwandle sie in eine gamifizierte Lernreise mit Missionen und kleinen Minispielen.\n\n[MARKDOWN]\n${markdown}`
+          : 'Erstelle ein deutschsprachiges Lernspiel mit Missionen und Minichallenges, das ein frei wählbares Bildungsthema spielerisch vermittelt.';
+        return `${base}\n\nAnforderungen:\n- Gestalte das Layout wie eine Missionszentrale mit Kopfbereich (Level, Story, Energiepunkte) sowie einem Fortschrittsbalken und Badge-Übersicht.\n- Lege mindestens drei Missionen an, jede in einem eigenen <section class="mission-card"> mit Titel, Story-Snippet, Zielbeschreibung und Belohnungssymbolen.\n- Jede Mission enthält eine interaktive Challenge (z. B. Drag-and-drop-Zuordnungen, Multiple-Choice-Duelle, Blitz-Abfragen mit Countdown oder Schieberegler für Einschätzungen). Nutze Vanilla-JavaScript, um Eingaben zu prüfen, Punkte zu vergeben und Feedback einzublenden.\n- Verwende ein JavaScript-Array, das alle Missionen mit Status (lock/unlock), Lösung, Punkten und Hinweistexten beschreibt. Aktiviere Missionen sequenziell und aktualisiere Fortschritt sowie XP dynamisch.\n- Zeige Gamification-Elemente wie Combo-Anzeige, Sammelobjekte oder Abzeichen (z. B. Bronze/Silber/Gold) und animiere Statuswechsel dezent per CSS (transition/transform) mit sichtbaren Fokuszuständen.\n- Ergänze eine Seitenleiste oder ein Panel „Quest-Log“, das Hinweise, freigeschaltete Abzeichen und die nächste Aufgabe zusammenfasst. Biete Buttons für „Hinweis anzeigen“, „Mission wiederholen“ und „Abschlussbericht teilen“.\n- Nach Abschluss aller Missionen erscheint ein Abschlussbildschirm mit Gesamtbewertung, Belohnungssymbol und einem Button zum Neustart (Missionen mischen) – alles rein clientseitig.\n- Achte auf semantische HTML-Strukturen, aria-Attribute für Statusmeldungen und vollständige Tastaturbedienbarkeit. Keine externen Bibliotheken oder Assets.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
+      },
+    },
   };
   const ONBOARDING_STORAGE_KEY = 'md-onboarding-v1';
   const CANONICAL_SHARE_URL = 'https://markdown-webeditor.252425.xyz/';
