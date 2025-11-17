@@ -33,11 +33,13 @@
   </head>
   <body>
     <header class="app-header">
-      <div class="left">
+      <div class="branding">
         <img class="logo-img" src="Logo.png" alt="Markdown WebEditor Logo" />
         <span class="title" id="appTitle">Markdown WebEditor</span>
-        <button id="undoBtn" class="has-icon" title="Rückgängig (Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:undo-2"></iconify-icon><span class="btn-label">Rückgängig</span></button>
-        <button id="redoBtn" class="has-icon" title="Wiederholen (Shift+Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:redo-2"></iconify-icon><span class="btn-label">Wiederholen</span></button>
+      </div>
+      <div class="left">
+        <button id="undoBtn" class="has-icon" title="Rückgängig (Cmd/Ctrl+Z)" aria-label="Rückgängig (Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:undo-2"></iconify-icon><span class="btn-label">Rückgängig</span></button>
+        <button id="redoBtn" class="has-icon" title="Wiederholen (Shift+Cmd/Ctrl+Z)" aria-label="Wiederholen (Shift+Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:redo-2"></iconify-icon><span class="btn-label">Wiederholen</span></button>
       </div>
       <div class="center file-actions" role="toolbar" aria-label="Datei Aktionen">
         <button id="templatesToggleBtn" class="has-icon" title="Vorlagen anzeigen" aria-haspopup="true" aria-expanded="false"><iconify-icon aria-hidden="true" icon="lucide:layout-template"></iconify-icon><span class="btn-label">Vorlagen</span></button>
