@@ -2,6 +2,8 @@
 (function () {
   'use strict';
 
+  const DEFAULT_APP_TITLE = 'Markdown WebEditor — 252425 Homelab';
+
   // Elements
   const editor = document.getElementById('editor');
   const preview = document.getElementById('preview');
@@ -9,6 +11,7 @@
   const cursorPosEl = document.getElementById('cursorPos');
   const wordCountEl = document.getElementById('wordCount');
   const fileNameEl = document.getElementById('fileName');
+  const statusFileNameEl = document.getElementById('statusFileName');
   const appTitleEl = document.getElementById('appTitle');
   const hiddenFile = document.getElementById('hiddenFile');
   const hiddenImage = document.getElementById('hiddenImage');
@@ -3688,9 +3691,11 @@ ${trimmed}
 
   function setFileName(name) {
     currentFileName = name || '';
-    fileNameEl.textContent = name ? `Datei: ${name}` : '';
-    document.title = name ? `${name} — Markdown WebEditor` : 'Markdown WebEditor';
-    appTitleEl.textContent = name ? name : 'Markdown WebEditor';
+    const label = name ? `Datei: ${name}` : '';
+    if (fileNameEl) fileNameEl.textContent = label;
+    if (statusFileNameEl) statusFileNameEl.textContent = label;
+    document.title = name ? `${name} — ${DEFAULT_APP_TITLE}` : DEFAULT_APP_TITLE;
+    if (appTitleEl) appTitleEl.textContent = DEFAULT_APP_TITLE;
   }
 
   function markDirty(isDirty = true) {

@@ -168,6 +168,23 @@ body.onboarding-open { overflow: hidden; }
   pointer-events: none;
 }
 .title { font-weight: 600; }
+.file-name {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.primary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  flex-wrap: nowrap;
+  margin-right: 16px;
+}
+.primary-actions .menu-group { margin: 0; }
 
 @media (max-width: 1200px) {
   .app-header {
@@ -197,6 +214,7 @@ body.onboarding-open { overflow: hidden; }
     -webkit-overflow-scrolling: touch;
   }
   .center.file-actions > * { flex: 0 0 auto; min-width: auto; }
+  .center.file-actions .primary-actions { padding: 5px 8px; flex: 0 0 auto; margin-right: 8px; }
   .center.file-actions .btn-label,
   .center.file-actions .ai-actions .btn-label { display: none; }
   .file-actions .ai-actions { margin-left: 0; gap: 6px; }
@@ -212,6 +230,7 @@ body.onboarding-open { overflow: hidden; }
   .center.file-actions button,
   .center.file-actions .menu-group > button { padding: 5px; }
   .app-header .branding { flex-direction: column; text-align: center; }
+  .center.file-actions .primary-actions { gap: 6px; padding: 4px 6px; margin-right: 6px; }
 }
 
 /* Buttons with icons */

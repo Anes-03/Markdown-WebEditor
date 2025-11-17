@@ -35,7 +35,8 @@
     <header class="app-header">
       <div class="branding">
         <img class="logo-img" src="Logo.png" alt="Markdown WebEditor Logo" />
-        <span class="title" id="appTitle">Markdown WebEditor</span>
+        <span class="title" id="appTitle">Markdown WebEditor &mdash; 252425 Homelab</span>
+        <span class="file-name" id="fileName" aria-live="polite"></span>
       </div>
       <div class="left">
         <button id="undoBtn" class="has-icon" title="Rückgängig (Cmd/Ctrl+Z)" aria-label="Rückgängig (Cmd/Ctrl+Z)"><iconify-icon aria-hidden="true" icon="lucide:undo-2"></iconify-icon><span class="btn-label">Rückgängig</span></button>
@@ -324,7 +325,7 @@ Viel Spaß beim Schreiben! ✨"></textarea>
       <span id="status">Bereit</span>
       <span id="cursorPos"></span>
       <span id="wordCount"></span>
-      <span id="fileName"></span>
+      <span id="statusFileName" class="muted"></span>
     </footer>
 
     <!-- Onboarding Tutorial -->
