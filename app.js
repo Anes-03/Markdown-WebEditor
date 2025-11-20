@@ -125,6 +125,7 @@
   const themeSelect = null; // removed select dropdown
   const themeCycleBtn = document.getElementById('themeCycleBtn');
   const themeMenu = document.getElementById('themeMenu');
+  let snowToggleBtn = null;
   const fullscreenToggleBtn = document.getElementById('fullscreenToggleBtn');
   // Inline AI elements
   const aiInline = document.getElementById('aiInline');
@@ -135,6 +136,174 @@
   const aiGenResetBtn = document.getElementById('aiGenResetBtn');
   const aiGenInfo = document.getElementById('aiGenInfo');
   const aiPresetSettingsBtn = document.getElementById('aiPresetSettingsBtn');
+
+  const SNOW_STORAGE_KEY = 'md-snow-enabled';
+  const SNOW_FLAKE_COUNT = 140;
+  const snowState = {
+    enabled: false,
+    flakes: [],
+    raf: null,
+    lastFrame: 0,
+    width: 0,
+    height: 0,
+    color: 'rgba(120, 150, 255, 0.85)',
+    resizeBound: false,
+    phraseDetected: false,
+  };
+  let snowCanvas = null;
+  let snowCtx = null;
+
+  function ensureSnowCanvas() {
+    if (snowCanvas) return snowCanvas;
+    snowCanvas = document.createElement('canvas');
+    snowCanvas.id = 'snowCanvas';
+    snowCanvas.className = 'snow-canvas hidden';
+    snowCanvas.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(snowCanvas);
+    snowCtx = snowCanvas.getContext('2d');
+    resizeSnowCanvas();
+    seedSnowflakes();
+    if (!snowState.resizeBound) {
+      snowState.resizeBound = true;
+      window.addEventListener('resize', () => {
+        resizeSnowCanvas();
+      });
+    }
+    return snowCanvas;
+  }
+
+  function resizeSnowCanvas() {
+    if (!snowCanvas) return;
+    const width = window.innerWidth || document.documentElement.clientWidth || 0;
+    const height = window.innerHeight || document.documentElement.clientHeight || 0;
+    const prevWidth = snowState.width || width;
+    const prevHeight = snowState.height || height;
+    snowCanvas.width = width;
+    snowCanvas.height = height;
+    snowCanvas.style.width = `${width}px`;
+    snowCanvas.style.height = `${height}px`;
+    snowState.width = width;
+    snowState.height = height;
+    if (!snowState.flakes.length) {
+      seedSnowflakes();
+      return;
+    }
+    if (prevWidth !== width || prevHeight !== height) {
+      const ratioX = prevWidth ? width / prevWidth : 1;
+      const ratioY = prevHeight ? height / prevHeight : 1;
+      snowState.flakes.forEach((flake) => {
+        flake.x *= ratioX;
+        flake.y *= ratioY;
+      });
+    }
+  }
+
+  function createSnowflake(width, height) {
+    const radius = 0.8 + Math.random() * 2.4;
+    return {
+      x: Math.random() * width,
+      y: Math.random() * height,
+      radius,
+      speed: 20 + Math.random() * 60,
+      drift: 10 + Math.random() * 25,
+      driftSpeed: 0.5 + Math.random(),
+      phase: Math.random() * Math.PI * 2,
+    };
+  }
+
+  function seedSnowflakes(count) {
+    if (!snowCanvas) return;
+    const width = snowState.width || snowCanvas.width || window.innerWidth || 0;
+    const height = snowState.height || snowCanvas.height || window.innerHeight || 0;
+    const target = count || SNOW_FLAKE_COUNT;
+    snowState.flakes = Array.from({ length: target }, () => createSnowflake(width, height));
+  }
+
+  function drawSnowFrame(timestamp) {
+    if (!snowState.enabled || !snowCtx || !snowCanvas) return;
+    const width = snowState.width || snowCanvas.width;
+    const height = snowState.height || snowCanvas.height;
+    const now = typeof timestamp === 'number' ? timestamp : window.performance.now();
+    const delta = snowState.lastFrame ? Math.min((now - snowState.lastFrame) / 1000, 0.05) : 0;
+    snowState.lastFrame = now;
+    snowCtx.clearRect(0, 0, width, height);
+    snowCtx.fillStyle = snowState.color;
+    snowCtx.shadowBlur = 4;
+    snowCtx.shadowColor = snowState.color;
+    snowCtx.beginPath();
+    snowState.flakes.forEach((flake) => {
+      flake.y += flake.speed * delta;
+      flake.phase += flake.driftSpeed * delta;
+      flake.x += Math.cos(flake.phase) * flake.drift * delta;
+      if (flake.y > height + flake.radius) {
+        flake.y = -flake.radius;
+        flake.x = Math.random() * width;
+      }
+      if (flake.x > width + flake.radius) flake.x = -flake.radius;
+      if (flake.x < -flake.radius) flake.x = width + flake.radius;
+      snowCtx.moveTo(flake.x, flake.y);
+      snowCtx.arc(flake.x, flake.y, flake.radius, 0, Math.PI * 2);
+    });
+    snowCtx.fill();
+    snowState.raf = window.requestAnimationFrame(drawSnowFrame);
+  }
+
+  function startSnowAnimation() {
+    ensureSnowCanvas();
+    resizeSnowCanvas();
+    if (!snowState.flakes.length) seedSnowflakes();
+    if (snowCanvas) snowCanvas.classList.remove('hidden');
+    if (!snowState.raf) {
+      snowState.lastFrame = 0;
+      snowState.raf = window.requestAnimationFrame(drawSnowFrame);
+    }
+  }
+
+  function stopSnowAnimation() {
+    if (snowState.raf) {
+      window.cancelAnimationFrame(snowState.raf);
+      snowState.raf = null;
+    }
+    snowState.lastFrame = 0;
+    if (snowCanvas) snowCanvas.classList.add('hidden');
+  }
+
+  function updateSnowToggleUI() {
+    if (!snowToggleBtn) return;
+    snowToggleBtn.classList.toggle('checked', !!snowState.enabled);
+    snowToggleBtn.setAttribute('aria-checked', snowState.enabled ? 'true' : 'false');
+  }
+
+  function setSnowEnabled(enabled, opts) {
+    const persist = !opts || opts.persist !== false;
+    if (snowState.enabled === enabled) return;
+    snowState.enabled = enabled;
+    if (enabled) startSnowAnimation();
+    else stopSnowAnimation();
+    if (persist) {
+      try { localStorage.setItem(SNOW_STORAGE_KEY, enabled ? 'true' : 'false'); } catch {}
+    }
+    updateSnowToggleUI();
+  }
+
+  function updateSnowTint(isDarkTheme) {
+    snowState.color = isDarkTheme ? 'rgba(255, 255, 255, 0.92)' : 'rgba(120, 150, 255, 0.85)';
+  }
+
+  function checkSnowTriggerFromEditor() {
+    const raw = editor?.value || '';
+    const normalized = raw.normalize ? raw.normalize('NFKD') : raw;
+    const lower = normalized.toLowerCase();
+    const collapsed = lower.replace(/\s+/g, ' ');
+    const squashed = lower.replace(/\s+/g, '');
+    const hasPhrase = collapsed.includes('let it snow') || squashed.includes('letitsnow');
+    if (hasPhrase && !snowState.phraseDetected) {
+      snowState.phraseDetected = true;
+      setSnowEnabled(true);
+    } else if (!hasPhrase && snowState.phraseDetected) {
+      snowState.phraseDetected = false;
+    }
+  }
 
   const PRESET_CATEGORIES = {
     summary: { id: 'summary', label: 'Zusammenfassen & Länge', icon: 'lucide:file-text' },
@@ -8567,6 +8736,7 @@ ${members}` : `${cls.name}`;
 
     // Update syntax highlighting theme based on effective dark/light
     const darkish = !!isDark(effectiveId);
+    updateSnowTint(darkish);
     hljsThemeLink.href = darkish
       ? 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github-dark.min.css'
       : 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/styles/github.min.css';
@@ -8590,12 +8760,29 @@ ${members}` : `${cls.name}`;
   }
   function initThemeMenu() {
     if (!themeMenu) return;
-    themeMenu.innerHTML = themes.map(t => `
+    const themeButtons = themes.map(t => `
       <button type="button" class="theme-item has-icon" data-theme="${t.id}" role="menuitem">
         <iconify-icon aria-hidden="true" icon="${iconForTheme(t.id)}"></iconify-icon>
         <span class="btn-label">${t.label}</span>
       </button>`).join('');
+    const snowToggle = `
+      <div class="theme-menu-divider" role="separator"></div>
+      <button type="button" class="theme-item has-icon theme-snow-toggle" data-snow-toggle="true" role="menuitemcheckbox" aria-checked="false">
+        <iconify-icon aria-hidden="true" icon="lucide:snowflake"></iconify-icon>
+        <span class="btn-label">Schneefall</span>
+        <span class="theme-check" aria-hidden="true">
+          <iconify-icon icon="lucide:check"></iconify-icon>
+        </span>
+      </button>`;
+    themeMenu.innerHTML = themeButtons + snowToggle;
+    snowToggleBtn = themeMenu.querySelector('[data-snow-toggle="true"]');
+    updateSnowToggleUI();
     themeMenu.addEventListener('click', (e) => {
+      const snowBtn = e.target.closest('button[data-snow-toggle="true"]');
+      if (snowBtn) {
+        setSnowEnabled(!snowState.enabled);
+        return;
+      }
       const btn = e.target.closest('button[data-theme]');
       if (!btn) return;
       const id = btn.dataset.theme;
@@ -11949,7 +12136,18 @@ try {
   });
 
   // Editor events
-  editor.addEventListener('input', () => { updatePreview(); updateWordCount(); autosave(); markDirty(true); updateEditorContextInfo(); updateDiffPreview(); });
+  editor.addEventListener('input', () => {
+    try {
+      updatePreview();
+      updateWordCount();
+      autosave();
+      markDirty(true);
+      updateEditorContextInfo();
+      updateDiffPreview();
+    } finally {
+      try { checkSnowTriggerFromEditor(); } catch {}
+    }
+  });
   editor.addEventListener('click', updateCursorInfo);
   editor.addEventListener('keyup', () => { updateCursorInfo(); updateEditorContextInfo(); });
   // In reader mode, clicking preview focuses the hidden editor for typing
@@ -11964,6 +12162,15 @@ try {
     if (dirty) { e.preventDefault(); e.returnValue = ''; }
     stopSpeech();
   });
+
+  // Restore snowfall preference before applying theme so overlay is ready
+  (function initSnowPreference() {
+    ensureSnowCanvas();
+    try {
+      const stored = localStorage.getItem(SNOW_STORAGE_KEY);
+      if (stored === 'true') setSnowEnabled(true, { persist: false });
+    } catch {}
+  })();
 
   // Init theme
   (function initTheme() {
@@ -11997,6 +12204,7 @@ try {
   updateWordCount();
   updateCursorInfo();
   loadAutosaveIfAny();
+  checkSnowTriggerFromEditor();
   markDirty(false);
   versionState.autoIntervalMs = getStoredAutoSnapshotInterval();
   adjustLayout();

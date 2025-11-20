@@ -287,6 +287,9 @@ button:disabled:hover {
 .theme-menu button { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; border: 1px solid transparent; background: transparent; text-align: left; }
 .theme-menu button:hover { background: var(--btn-bg-hover); border-color: var(--border); }
 .theme-menu .current { outline: 2px solid var(--accent); }
+.theme-menu-divider { margin: 6px 0; border-top: 1px solid var(--border); }
+.theme-menu .theme-check { margin-left: auto; display: inline-flex; align-items: center; font-weight: 600; color: var(--accent); opacity: 0; transition: opacity 0.2s ease; }
+.theme-menu button.checked .theme-check { opacity: 1; }
 
 .menu-group,
 .import-group,
@@ -329,6 +332,9 @@ button:disabled:hover {
   overflow: hidden;
   white-space: nowrap;
 }
+
+.snow-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 50; }
+.snow-canvas.hidden { display: none; }
 
 .color-menu { min-width: 260px; gap: 8px; }
 .color-menu-label {
