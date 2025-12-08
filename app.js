@@ -10727,7 +10727,11 @@ try {
     const m = effectiveChatModel();
     const provider = getAiProvider();
     const provLabel = PROVIDER_LABELS[provider] || provider;
-    chatModelBadge.textContent = m ? `Modell: ${m} (${provLabel})` : 'Modell: (keins)';
+    const label = m ? `Modell: ${m} (${provLabel})` : 'Modell: (keins)';
+    chatModelBadge.textContent = label;
+    const actionHint = `${label} – Anbieter-Einstellungen öffnen`;
+    chatModelBadge.setAttribute('aria-label', actionHint);
+    chatModelBadge.setAttribute('title', actionHint);
   }
 
   function appendChatMessage(role, content) {
@@ -11782,6 +11786,15 @@ try {
   chatInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
   });
+  chatModelBadge?.addEventListener('click', () => {
+    openProviderSettingsFromChat();
+  });
+  chatModelBadge?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openProviderSettingsFromChat();
+    }
+  });
   openaiSaveBtn?.addEventListener('click', saveOpenAiSettings);
   openaiTestBtn?.addEventListener('click', testOpenAi);
   claudeSaveBtn?.addEventListener('click', saveClaudeSettings);
@@ -11789,6 +11802,11 @@ try {
   ollamaSaveBtn?.addEventListener('click', saveOllamaSettings);
   ollamaTestBtn?.addEventListener('click', testOllama);
   // Settings handlers
+  function openProviderSettingsFromChat() {
+    openSettings('providers');
+    const tab = document.querySelector('.settings-nav .nav-item[data-tab="providers"]');
+    tab?.focus({ preventScroll: true });
+  }
   function openSettings(initialTab = 'general') {
     settingsPanel?.classList.remove('hidden');
     settingsOverlay?.classList.remove('hidden');
