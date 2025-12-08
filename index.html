@@ -873,7 +873,6 @@ Viel Spaß beim Schreiben! ✨"></textarea>
           <button class="nav-item has-icon" data-tab="user-context" role="tab" aria-selected="false">
             <iconify-icon aria-hidden="true" icon="lucide:user-circle"></iconify-icon>
             <span class="btn-label">Mein Kontext</span>
-            <span class="settings-badge settings-badge-experimental">Experimentell</span>
           </button>
           <button class="nav-item has-icon" data-tab="presets" role="tab" aria-selected="false">
             <iconify-icon aria-hidden="true" icon="lucide:sparkles"></iconify-icon>
@@ -882,6 +881,10 @@ Viel Spaß beim Schreiben! ✨"></textarea>
           <button class="nav-item has-icon" data-tab="providers" role="tab" aria-selected="false">
             <iconify-icon aria-hidden="true" icon="lucide:server"></iconify-icon>
             <span class="btn-label">KI‑Anbieter</span>
+          </button>
+          <button class="nav-item has-icon" data-tab="blog" role="tab" aria-selected="false">
+            <iconify-icon aria-hidden="true" icon="lucide:rss"></iconify-icon>
+            <span class="btn-label">Blog</span>
           </button>
           <button class="nav-item has-icon" data-tab="info" role="tab" aria-selected="false">
             <iconify-icon aria-hidden="true" icon="lucide:info"></iconify-icon>
@@ -1177,6 +1180,22 @@ Viel Spaß beim Schreiben! ✨"></textarea>
             </div>
 
           </section>
+        <section class="chat-settings settings-tab hidden" data-tab="blog" role="tabpanel" aria-label="Blog &amp; Neuigkeiten">
+          <div class="settings-group">
+            <div class="blog-feed-header">
+              <h4>Blog-Feed</h4>
+              <button id="blogFeedRefreshBtn" class="updates-reload has-icon" type="button">
+                <iconify-icon aria-hidden="true" icon="lucide:refresh-cw"></iconify-icon>
+                <span class="btn-label">Neu laden</span>
+              </button>
+            </div>
+            <div id="blogFeedStatus" class="muted" aria-live="polite">Noch kein Feed geladen.</div>
+            <div id="blogFeedTimestamp" class="muted" aria-live="polite"></div>
+          </div>
+          <div class="settings-group">
+            <ul id="blogFeedList" class="blog-feed-list"></ul>
+          </div>
+        </section>
         <section class="chat-settings settings-tab hidden" data-tab="info" role="tabpanel" aria-label="Info">
           <div class="info-panel">
             <img id="infoAvatar" class="info-avatar" alt="GitHub Avatar" src="" />

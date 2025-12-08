@@ -584,6 +584,9 @@
   const CANONICAL_SHARE_URL = 'https://markdown-webeditor.252425.xyz/';
   const CANONICAL_SHARE_TITLE = 'Markdown WebEditor';
   const CANONICAL_SHARE_TEXT = 'Markdown WebEditor – dein leichter Markdown Editor direkt im Browser.';
+  const BLOG_FEED_URL = 'https://blog.252425.xyz/feed.xml';
+  const BLOG_FEED_MAX_ITEMS = 6;
+  const BLOG_FEED_KEYWORD_PATTERN = /markdown[\s-]?webeditor/i;
   const onboardingSteps = [
     {
       title: 'Willkommen im Markdown WebEditor',
@@ -762,6 +765,10 @@
   const settingsShareMastodonBtn = document.getElementById('settingsShareMastodonBtn');
   const settingsShareEmailBtn = document.getElementById('settingsShareEmailBtn');
   const settingsOnboardingRestartBtn = document.getElementById('settingsOnboardingRestartBtn');
+  const blogFeedRefreshBtn = document.getElementById('blogFeedRefreshBtn');
+  const blogFeedStatus = document.getElementById('blogFeedStatus');
+  const blogFeedList = document.getElementById('blogFeedList');
+  const blogFeedTimestamp = document.getElementById('blogFeedTimestamp');
 
   const templatesToggleBtn = document.getElementById('templatesToggleBtn');
   const templatesPanel = document.getElementById('templatesPanel');
@@ -847,6 +854,10 @@
   let videoMenuVisible = false;
   let updatesLoading = false;
   let updatesLoadedOnce = false;
+  let blogFeedLoading = false;
+  let blogFeedLoadedOnce = false;
+  const blogFeedImageCache = new Map();
+  let blogFeedLastUpdated = null;
   let websiteModalOpen = false;
   let websiteAbortController = null;
   let websiteLastFocus = null;
@@ -3488,6 +3499,218 @@ ${trimmed}
         updatesReloadBtn.disabled = false;
         updatesReloadBtn.removeAttribute('aria-busy');
         updatesReloadBtn.removeAttribute('aria-disabled');
+      }
+    }
+  }
+
+  function parseFeedEntries(xmlText, feedUrl) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, 'application/xml');
+    if (doc.querySelector('parsererror')) {
+      throw new Error('Ungültiges RSS/Atom-Dokument');
+    }
+    const entries = [];
+    const nodes = doc.querySelectorAll('item, entry');
+    nodes.forEach((node) => {
+      const title = (node.querySelector('title')?.textContent || '').trim() || '(Ohne Titel)';
+      const atomLink = node.querySelector('link[href]');
+      const linkText = (node.querySelector('link')?.textContent || '').trim();
+      const link = (() => {
+        const href = (atomLink?.getAttribute('href') || linkText || '').trim();
+        if (!href) return '';
+        try { return new URL(href, feedUrl || window.location.href).toString(); }
+        catch { return href; }
+      })();
+      const rawContent =
+        node.querySelector('content\\:encoded')?.textContent ||
+        node.querySelector('content')?.textContent ||
+        node.querySelector('description')?.textContent ||
+        node.querySelector('summary')?.textContent ||
+        '';
+      const summary = buildFeedExcerpt(rawContent);
+      const dateText =
+        node.querySelector('pubDate')?.textContent ||
+        node.querySelector('updated')?.textContent ||
+        node.querySelector('published')?.textContent ||
+        '';
+      const published = (() => {
+        if (!dateText) return null;
+        const dt = new Date(dateText);
+        return Number.isNaN(dt.getTime()) ? null : dt;
+      })();
+      entries.push({ title, link, summary, published });
+    });
+    return entries;
+  }
+
+  function buildFeedExcerpt(html) {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const text = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= 220) return text;
+    return `${text.slice(0, 217)}…`;
+  }
+
+  function renderBlogFeedItems(entries) {
+    if (!blogFeedList) return;
+    blogFeedList.innerHTML = '';
+    if (!entries.length) {
+      const li = document.createElement('li');
+      li.className = 'blog-feed-empty';
+      li.textContent = 'Keine passenden Artikel gefunden.';
+      blogFeedList.appendChild(li);
+      return;
+    }
+    const fragment = document.createDocumentFragment();
+    for (const entry of entries) {
+      const li = document.createElement('li');
+      li.className = 'blog-feed-item';
+
+      if (entry.image) {
+        const fig = document.createElement('div');
+        fig.className = 'blog-feed-thumb';
+        const img = document.createElement('img');
+        img.src = entry.image;
+        img.alt = entry.title || 'Vorschaubild';
+        img.loading = 'lazy';
+        fig.appendChild(img);
+        li.appendChild(fig);
+      }
+
+      const h = document.createElement('h5');
+      h.textContent = entry.title || '(Ohne Titel)';
+      if (entry.link) {
+        const a = document.createElement('a');
+        a.className = 'blog-feed-link';
+        a.href = entry.link;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.appendChild(h);
+        li.appendChild(a);
+      } else {
+        li.appendChild(h);
+      }
+
+      if (entry.summary) {
+        const p = document.createElement('p');
+        p.className = 'blog-feed-excerpt';
+        p.textContent = entry.summary;
+        li.appendChild(p);
+      }
+
+      const metaParts = [];
+      if (entry.published instanceof Date) {
+        metaParts.push(formatCommitDate(entry.published));
+      }
+      if (entry.link) {
+        try {
+          const host = new URL(entry.link).hostname.replace(/^www\./, '');
+          if (host) metaParts.push(host);
+        } catch {}
+      }
+      if (metaParts.length) {
+        const meta = document.createElement('div');
+        meta.className = 'blog-feed-meta';
+        meta.textContent = metaParts.join(' • ');
+        li.appendChild(meta);
+      }
+
+      fragment.appendChild(li);
+    }
+    blogFeedList.appendChild(fragment);
+  }
+
+  function matchesBlogKeyword(entry) {
+    const text = `${entry.title || ''} ${entry.summary || ''}`;
+    return BLOG_FEED_KEYWORD_PATTERN.test(text.toLowerCase());
+  }
+
+  function setBlogFeedTimestamp(date) {
+    blogFeedLastUpdated = date instanceof Date ? date : null;
+    if (!blogFeedTimestamp) return;
+    if (!blogFeedLastUpdated) {
+      blogFeedTimestamp.textContent = '';
+      return;
+    }
+    blogFeedTimestamp.textContent = `Stand: ${formatCommitDate(blogFeedLastUpdated)}`;
+  }
+
+  async function fetchEntryImage(link) {
+    if (!link || typeof fetch !== 'function') return '';
+    try {
+      const res = await fetch(link, { method: 'GET', mode: 'cors' });
+      if (!res.ok) return '';
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const og = doc.querySelector('meta[property="og:image"][content]');
+      const firstImg = doc.querySelector('img[src]');
+      const raw = (og?.getAttribute('content') || firstImg?.getAttribute('src') || '').trim();
+      if (!raw) return '';
+      try { return new URL(raw, link).toString(); } catch { return raw; }
+    } catch (err) {
+      console.error('Konnte Artikelbild nicht laden', err);
+      return '';
+    }
+  }
+
+  async function loadBlogFeed() {
+    if (!blogFeedList || !blogFeedStatus) return;
+    if (typeof fetch !== 'function') {
+      blogFeedStatus.textContent = 'RSS-Feeds können in diesem Browser nicht geladen werden.';
+      return;
+    }
+    const feedUrl = BLOG_FEED_URL;
+    if (blogFeedLoading) return;
+    blogFeedLoading = true;
+    blogFeedLoadedOnce = true;
+    if (blogFeedRefreshBtn) {
+      blogFeedRefreshBtn.disabled = true;
+      blogFeedRefreshBtn.setAttribute('aria-busy', 'true');
+      blogFeedRefreshBtn.setAttribute('aria-disabled', 'true');
+    }
+      blogFeedStatus.textContent = 'Lade Blog-Artikel…';
+      setBlogFeedTimestamp(null);
+      blogFeedList.innerHTML = '';
+      try {
+        const res = await fetch(feedUrl, {
+          method: 'GET',
+          mode: 'cors',
+        headers: { Accept: 'application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7' },
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const xmlText = await res.text();
+      const entries = parseFeedEntries(xmlText, feedUrl);
+      const filtered = entries.filter(matchesBlogKeyword);
+      if (!filtered.length) {
+        blogFeedStatus.textContent =
+          'Keine Artikel gefunden. Bitte „Markdown WebEditor“ im Titel oder Text erwähnen.';
+        renderBlogFeedItems([]);
+        return;
+      }
+      const limited = filtered.slice(0, BLOG_FEED_MAX_ITEMS);
+      const withImages = await Promise.all(limited.map(async (entry) => {
+        if (entry.link && blogFeedImageCache.has(entry.link)) {
+          return { ...entry, image: blogFeedImageCache.get(entry.link) };
+        }
+        const image = entry.link ? await fetchEntryImage(entry.link) : '';
+        if (entry.link) blogFeedImageCache.set(entry.link, image);
+        return { ...entry, image };
+      }));
+      renderBlogFeedItems(withImages);
+      const label = limited.length === 1 ? '1 Artikel angezeigt' : `${limited.length} Artikel angezeigt`;
+      blogFeedStatus.textContent = label;
+      setBlogFeedTimestamp(new Date());
+    } catch (err) {
+      console.error('RSS-Feed konnte nicht geladen werden', err);
+      blogFeedStatus.textContent = 'Feed konnte nicht geladen werden. Prüfe URL oder CORS-Einstellungen.';
+      renderBlogFeedItems([]);
+    } finally {
+      blogFeedLoading = false;
+      if (blogFeedRefreshBtn) {
+        blogFeedRefreshBtn.disabled = false;
+        blogFeedRefreshBtn.removeAttribute('aria-busy');
+        blogFeedRefreshBtn.removeAttribute('aria-disabled');
       }
     }
   }
@@ -11581,6 +11804,8 @@ try {
     }
   });
 
+  blogFeedRefreshBtn?.addEventListener('click', () => { void loadBlogFeed(); });
+
   settingsShareCopyBtn?.addEventListener('click', () => { void copyShareLinkToClipboard(); });
 
   if (settingsShareNativeBtn) {
@@ -12067,6 +12292,9 @@ try {
     });
     if (id === 'info') {
       loadInfoTab();
+    }
+    if (id === 'blog') {
+      if (!blogFeedLoadedOnce) void loadBlogFeed();
     }
     if (id === 'updates' && !updatesLoadedOnce) {
       loadRepoUpdates();
