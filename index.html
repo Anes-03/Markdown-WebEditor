@@ -124,10 +124,53 @@
         <input type="file" id="hiddenDocx" accept="application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" hidden />
       </div>
       <div class="right">
-        <div class="view-toggle" role="group" aria-label="Ansicht">
-          <button id="editViewBtn" class="has-icon active" title="Editor-Ansicht"><iconify-icon aria-hidden="true" icon="lucide:edit-3"></iconify-icon><span class="btn-label">Editor</span></button>
-          <button id="splitViewBtn" class="has-icon" title="Geteilte Ansicht"><iconify-icon aria-hidden="true" icon="lucide:columns-2"></iconify-icon><span class="btn-label">Split</span></button>
-          <button id="readerViewBtn" class="has-icon" title="Leser-Ansicht"><iconify-icon aria-hidden="true" icon="lucide:book-open"></iconify-icon><span class="btn-label">Reader</span></button>
+        <div class="view-toggle menu-group" role="group" aria-label="Ansicht">
+          <button
+            id="viewMenuBtn"
+            type="button"
+            class="has-icon"
+            title="Ansicht wählen"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            <iconify-icon aria-hidden="true" icon="lucide:layout-dashboard"></iconify-icon>
+            <span class="btn-label">Ansicht</span>
+          </button>
+          <div id="viewMenu" class="toolbar-menu hidden" role="menu" aria-label="Ansicht wählen" aria-hidden="true">
+            <button
+              id="editViewBtn"
+              type="button"
+              class="has-icon active"
+              data-view="edit"
+              role="menuitemradio"
+              aria-checked="true"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:edit-3"></iconify-icon>
+              <span class="btn-label">Editor</span>
+            </button>
+            <button
+              id="splitViewBtn"
+              type="button"
+              class="has-icon"
+              data-view="split"
+              role="menuitemradio"
+              aria-checked="false"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:columns-2"></iconify-icon>
+              <span class="btn-label">Split</span>
+            </button>
+            <button
+              id="readerViewBtn"
+              type="button"
+              class="has-icon"
+              data-view="reader"
+              role="menuitemradio"
+              aria-checked="false"
+            >
+              <iconify-icon aria-hidden="true" icon="lucide:book-open"></iconify-icon>
+              <span class="btn-label">Reader</span>
+            </button>
+          </div>
         </div>
         <button
           id="readAloudBtn"

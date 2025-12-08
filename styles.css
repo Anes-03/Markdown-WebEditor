@@ -272,6 +272,7 @@ button:disabled:hover {
 }
 
 .view-toggle button { padding: 6px 8px; }
+.view-toggle .toolbar-menu { left: auto; right: 0; }
 .file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .ai-actions { display: inline-flex; align-items: center; gap: 8px; }
 .file-actions .ai-actions { margin-left: 40px; }

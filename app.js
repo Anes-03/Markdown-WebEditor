@@ -64,6 +64,8 @@
   const editViewBtn = document.getElementById('editViewBtn');
   const splitViewBtn = document.getElementById('splitViewBtn');
   const readerViewBtn = document.getElementById('readerViewBtn');
+  const viewMenuBtn = document.getElementById('viewMenuBtn');
+  const viewMenu = document.getElementById('viewMenu');
   const readAloudBtn = document.getElementById('readAloudBtn');
   const readAloudIcon = readAloudBtn?.querySelector('iconify-icon') || null;
   const readAloudLabel = readAloudBtn?.querySelector('.btn-label') || null;
@@ -851,6 +853,7 @@
   let exportMenuVisible = false;
   let learningMenuVisible = false;
   let headingMenuVisible = false;
+  let viewMenuVisible = false;
   let videoMenuVisible = false;
   let updatesLoading = false;
   let updatesLoadedOnce = false;
@@ -1215,6 +1218,18 @@
 
   function closeLearningMenu() {
     setLearningMenuVisible(false);
+  }
+
+  function setViewMenuVisible(visible) {
+    viewMenuVisible = !!visible;
+    if (!viewMenu || !viewMenuBtn) return;
+    viewMenu.classList.toggle('hidden', !viewMenuVisible);
+    viewMenuBtn.setAttribute('aria-expanded', viewMenuVisible ? 'true' : 'false');
+    viewMenu.setAttribute('aria-hidden', viewMenuVisible ? 'false' : 'true');
+  }
+
+  function closeViewMenu() {
+    setViewMenuVisible(false);
   }
 
   function setVideoMenuVisible(visible) {
@@ -8848,9 +8863,12 @@ ${members}` : `${cls.name}`;
   // View switching
   function setView(mode) {
     // mode: edit | split | reader
-    editViewBtn.classList.toggle('active', mode === 'edit');
-    splitViewBtn.classList.toggle('active', mode === 'split');
-    readerViewBtn.classList.toggle('active', mode === 'reader');
+    editViewBtn?.classList.toggle('active', mode === 'edit');
+    splitViewBtn?.classList.toggle('active', mode === 'split');
+    readerViewBtn?.classList.toggle('active', mode === 'reader');
+    editViewBtn?.setAttribute('aria-checked', mode === 'edit' ? 'true' : 'false');
+    splitViewBtn?.setAttribute('aria-checked', mode === 'split' ? 'true' : 'false');
+    readerViewBtn?.setAttribute('aria-checked', mode === 'reader' ? 'true' : 'false');
     workspace.classList.remove('layout-edit', 'layout-reader');
     if (mode === 'edit') workspace.classList.add('layout-edit');
     if (mode === 'reader') workspace.classList.add('layout-reader');
@@ -9044,6 +9062,10 @@ ${members}` : `${cls.name}`;
     if (learningMenuVisible && learningMenu && learningBtn) {
       const withinLearning = learningMenu.contains(e.target) || learningBtn.contains(e.target);
       if (!withinLearning) closeLearningMenu();
+    }
+    if (viewMenuVisible && viewMenu && viewMenuBtn) {
+      const withinView = viewMenu.contains(e.target) || viewMenuBtn.contains(e.target);
+      if (!withinView) closeViewMenu();
     }
     if (headingMenuVisible && headingMenu && headingMoreBtn) {
       const withinHeading = headingMenu.contains(e.target) || headingMoreBtn.contains(e.target);
@@ -9887,6 +9909,55 @@ ${members}` : `${cls.name}`;
     if (!next) return;
     if (learningMenu.contains(next) || learningBtn?.contains(next)) return;
     closeLearningMenu();
+  });
+
+  if (viewMenuBtn && viewMenu) {
+    viewMenuBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setViewMenuVisible(!viewMenuVisible);
+      if (viewMenuVisible) {
+        const active = viewMenu.querySelector('button.active') || viewMenu.querySelector('button[data-view]');
+        active?.focus({ preventScroll: true });
+      }
+    });
+
+    viewMenuBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        setViewMenuVisible(true);
+        const active = viewMenu.querySelector('button.active') || viewMenu.querySelector('button[data-view]');
+        active?.focus({ preventScroll: true });
+      } else if (e.key === 'Escape' && viewMenuVisible) {
+        e.preventDefault();
+        closeViewMenu();
+      }
+    });
+  }
+
+  viewMenu?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    e.preventDefault();
+    closeViewMenu();
+    const mode = btn.dataset.view;
+    if (mode) setView(mode);
+  });
+
+  viewMenu?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeViewMenu();
+      viewMenuBtn?.focus();
+    }
+  });
+
+  viewMenu?.addEventListener('focusout', (e) => {
+    if (!viewMenuVisible) return;
+    const next = e.relatedTarget;
+    if (!next) return;
+    if (viewMenu.contains(next) || viewMenuBtn?.contains(next)) return;
+    closeViewMenu();
   });
 
   websiteOverlay?.addEventListener('click', (e) => {
