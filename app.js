@@ -399,6 +399,12 @@
       prompt: 'Erzeuge aus dem Text eine konsistente Markdown-Tabelle mit sinnvollen Spalten. Keine Erklärungen, nur Tabelle.',
     },
     {
+      name: 'Begriff/Definition-Tabelle',
+      category: 'structure',
+      description: 'Erstellt eine 2-Spalten-Tabelle mit Begriff und Definition.',
+      prompt: 'Konvertiere den Text in eine Markdown-Tabelle mit genau zwei Spalten: Begriff | Definition. Jede Zeile enthält ein Begriff-Definition-Paar. Wenn der Text bereits Paare enthält (z. B. "Begriff: Definition" oder "Begriff – Definition"), nutze diese. Falls nicht, extrahiere zentrale Begriffe und formuliere kurze Definitionen. Gib ausschließlich die Tabelle aus.',
+    },
+    {
       name: 'Zitat',
       category: 'structure',
       description: 'Wandelt Text in ein Blockzitat.',
@@ -525,6 +531,24 @@
           ? `Analysiere den folgenden Markdown-Inhalt und extrahiere zentrale Begriffe, Fakten oder Zusammenhänge. Forme daraus einen interaktiven Lückentext mit 8–12 Lücken.\n\n[MARKDOWN]\n${markdown}`
           : 'Erstelle einen deutschsprachigen interaktiven Lückentext mit 8–12 Lücken zu einem allgemeinbildenden Thema deiner Wahl.';
         return `${base}\n\nAnforderungen:\n- Gestalte eine Lernoberfläche mit Kopfbereich (Titel, kurzer Überblick, Fortschrittsanzeige) und einem Abschnitt für den eigentlichen Lückentext.\n- Bilde den Lückentext als Absätze, in denen einzelne Schlüsselwörter durch <input type="text" class="cloze-input"> ersetzt werden. Kennzeichne jede Lücke mit einer laufenden Nummer.\n- Lege alle Lösungen und akzeptierten Alternativen in einem eingebetteten JavaScript-Array ab. Verwende ein Skript, das Nutzerantworten prüft, Feedback anzeigt und den Fortschritt aktualisiert.\n- Ergänze Buttons zum Überprüfen einzelner Lücken sowie zum Anzeigen aller Lösungen. Nach vollständiger Lösung soll eine Zusammenfassung mit korrekt/inkorrekt-Statistik erscheinen.\n- Achte auf Tastaturbedienbarkeit, aussagekräftige aria-Labels und sichtbare Fokuszustände. Verzichte auf externe Bibliotheken.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne Abhängigkeiten.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
+      },
+    },
+    'term-definition': {
+      key: 'term-definition',
+      label: 'Begriff/Definition',
+      modalTitle: 'Begriff/Definition-Training',
+      badge: 'Begriff/Definition',
+      statusGenerating: 'Die KI erstellt ein Begriff/Definition-Training…',
+      statusReady: 'Fertig! Die Vorschau zeigt ein interaktives Begriff/Definition-Training.',
+      statusReadyFallback: 'Fertig! Vorschau über Blob-URL geladen, da iframe.srcdoc nicht verfügbar ist.',
+      fallbackTitle: 'Begriff/Definition-Training',
+      loadingMessage: 'Die KI generiert gerade ein Begriff/Definition-Training. Bitte kurz warten.',
+      downloadBase: 'Begriff-Definition-Training',
+      buildUserInstruction(hasContent, markdown) {
+        const base = hasContent
+          ? `Analysiere den folgenden Markdown-Inhalt und extrahiere 10–16 Begriff-Definition-Paare. Nutze die Oberbegriffe „Begriff“ und „Definition“.\n\n[MARKDOWN]\n${markdown}`
+          : 'Erstelle ein deutschsprachiges Begriff/Definition-Training mit 10–16 Einträgen zu einem frei wählbaren Lerngebiet.';
+        return `${base}\n\nAnforderungen:\n- Gestalte eine aufgeräumte Lernoberfläche mit Kopfbereich (Titel, kurzer Hinweis, Fortschritt), einem zentralen Kartenbereich und einer Statusleiste für Feedback.\n- Zeige immer nur einen Eintrag. Der Prompt soll wahlweise den „Begriff“ oder die „Definition“ anzeigen. Ergänze eine Umschaltoption (z. B. Radio-Buttons oder Select) für die Abfragerichtung: „Begriff → Definition“ und „Definition → Begriff“.\n- Platziere ein Texteingabefeld für die Antwort sowie einen Button „Antwort prüfen“. Optional: Button „Lösung zeigen“ und „Nächster Begriff“.\n- Hinterlege alle Begriffe in einem JavaScript-Array von Objekten (z. B. { term, definition, accept: [] }). Akzeptiere alternative Antworten über ein Array, falls im Markdown Synonyme/Varianten vorkommen.\n- Implementiere eine Vergleichsfunktion, die Groß-/Kleinschreibung ignoriert, Leerzeichen trimmt und mehrfache Leerzeichen zu einem reduziert. Verwende diese Normalisierung für den Abgleich.\n- Nach dem Prüfen: Zeige klares Feedback (richtig/falsch), blende bei falscher Antwort die korrekte Lösung ein und aktualisiere den Fortschritt (z. B. „5 von 12“). Zähle richtige und falsche Antworten live.\n- Biete einen Reset-/Mischen-Button, der die Reihenfolge neu mischt und den Fortschritt zurücksetzt.\n- Achte auf semantische HTML-Strukturen, aria-live-Feedback und sichtbare Fokuszustände. Keine externen Bibliotheken oder Assets.\n- Verwende ausschließlich HTML5, eingebettetes CSS und Vanilla-JavaScript ohne Abhängigkeiten.\n- Gib ausschließlich den vollständigen HTML-Code zurück.`;
       },
     },
     'quiz-mc': {
