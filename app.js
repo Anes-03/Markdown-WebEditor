@@ -11700,6 +11700,17 @@ try {
     setChatSuggestionCategory(activeChatSuggestionCategory);
   }
 
+  const chatSuggestionsToggle = document.getElementById('chatSuggestionsToggle');
+  const chatSuggestionToolbar = document.querySelector('.chat-suggestion-toolbar');
+  if (chatSuggestionsToggle && chatSuggestions && chatSuggestionToolbar) {
+    chatSuggestionsToggle.addEventListener('click', () => {
+      const isExpanded = chatSuggestionsToggle.getAttribute('aria-expanded') === 'true';
+      chatSuggestionsToggle.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+      chatSuggestionToolbar.classList.toggle('collapsed', isExpanded);
+      chatSuggestions.classList.toggle('collapsed', isExpanded);
+    });
+  }
+
   chatSuggestions?.addEventListener('click', (e) => {
     if (chatInput?.disabled) return;
     const btn = e.target.closest('button[data-prompt]');

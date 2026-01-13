@@ -1477,6 +1477,19 @@ kbd { display: inline-block; padding: 2px 6px; border: 1px solid var(--border); 
 .chat-attachment .remove-btn:hover { color: var(--text); }
 .chat-attachment .remove-btn[disabled] { opacity: 0.6; cursor: not-allowed; }
 .chat-suggestion-toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.chat-suggestions-toggle {
+  color: var(--muted);
+}
+.chat-suggestions-toggle:hover {
+  color: var(--text);
+}
+.chat-suggestions-toggle[aria-expanded="true"] {
+  color: var(--accent);
+}
+.chat-suggestion-toolbar.collapsed .chat-suggestion-tabs,
+.chat-suggestions.collapsed {
+  display: none;
+}
 .chat-suggestion-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0; }
 .chat-suggestion-tabs button {
   border-radius: 999px;
